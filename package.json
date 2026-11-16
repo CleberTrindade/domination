@@ -1,0 +1,16 @@
+{
+  "name": "domination",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Domination — jogo de conquista de territórios. O site estático fica em public/; o servidor de salas do duelo online em server/.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -13,14 +13,16 @@ Jogo de conquista de territórios no mapa-múndi (estilo State.io), feito em HTM
 - **Melhorias:** Guarnição, Produção e Capacidade, compradas com moedas.
 - **Missões diárias** com estrelas e baús.
 - **Duelo local:** dois jogadores no mesmo aparelho (azul × vermelho).
-- **Duelo online:** só funciona quando o jogo é aberto como artefato no Claude (usa a sala em tempo real do Claude). Na versão hospedada no Render esse modo aparece como indisponível.
+- **Duelo online:** crie uma sala e passe o código de 4 letras para o amigo (ou ele toca em DESAFIAR na lista de salas abertas). Fora do Claude o jogo usa o servidor de salas em `server/`; dentro do Claude usa a sala em tempo real do próprio Claude.
 
 O progresso fica salvo no `localStorage` do navegador.
 
 ## Estrutura
 ```
 public/index.html   # o jogo inteiro (dados do mapa embutidos: world-atlas 50m e us-atlas, simplificados)
-render.yaml         # configuração do site estático no Render
+server/index.js     # servidor de salas do duelo online (WebSocket, Node + ws)
+package.json        # dependências do servidor
+render.yaml         # configuração dos dois serviços no Render
 ```
 
 ## Rodar localmente
@@ -29,7 +31,18 @@ Abra `public/index.html` no navegador, ou sirva a pasta:
 npx serve public
 ```
 
+## Rodar o servidor de salas localmente
+```
+npm install
+npm start            # porta 10000
+```
+Para testar, troque `WS_URL` em `public/index.html` por `ws://localhost:10000`.
+
 ## Deploy no Render
-Site estático: build command vazio (`echo ok`) e publish directory `public`. O `render.yaml` já traz essa configuração.
+Dois serviços, no mesmo repositório:
+- **domination** (site estático): sem build, publica a pasta `public`.
+- **domination-ws** (web service Node, plano free): `npm install` e `node server/index.js`. O endereço dele está fixo em `WS_URL` no `index.html` (`wss://domination-ws.onrender.com`).
+
+No plano free o servidor hiberna sem uso; a primeira conexão do dia pode levar até 1 minuto.
 
 Dados de mapa: [world-atlas](https://github.com/topojson/world-atlas) e [us-atlas](https://github.com/topojson/us-atlas) (Natural Earth, domínio público).

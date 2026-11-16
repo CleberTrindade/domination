@@ -514,10 +514,10 @@ $('#mbox').addEventListener('click',e=>{
   if(t.dataset.go){closeModal();setTab(t.dataset.go);return}
   if(t.dataset.act==='local'){closeModal();startLocalDuel();return}
   if(t.dataset.act==='rematch'){closeModal();startLocalDuel();return}
-  if(t.dataset.act==='host'){hostDuel();return}
+  if(t.dataset.act==='host'){saveNick();hostDuel();return}
   if(t.dataset.act==='cancelhost'){cancelHost();return}
-  if(t.dataset.act==='joincode'){const i=$('#codeIn');joinDuel(i?i.value:'');return}
-  if(t.dataset.join){joinDuel(t.dataset.join);return}
+  if(t.dataset.act==='joincode'){saveNick();const i=$('#codeIn');joinDuel(i?i.value:'');return}
+  if(t.dataset.join){saveNick();joinDuel(t.dataset.join);return}
   if(t.dataset.act==='duelclose'){cancelHost();closeModal();return}
   if(t.dataset.act==='surrender'){closeModal();if(game&&!game.over){game.quit=true;publish();duelEnd(game.oppOwner)}return}
   if(t.dataset.act==='continue'){closeModal();exitGame();return}
@@ -577,7 +577,7 @@ function startLocalDuel(){
   $('#hint').textContent='AZUL × VERMELHO — cada um arrasta das próprias bases';$('#hint').style.opacity=1;
   toast('⚔️ Duelo local · '+L.reg.nm);
 }
-function startOnline(R,me,cfg,L,oppPeer,oppBy){
+function startOnline(R,me,cfg,L,oppPeer,oppBy,oppName){
   const sites=cfg.sites.map((a,i)=>{
     let best=null,bd=1e18;for(const s of L.sites){const d=(s.x-a[0])**2+(s.y-a[1])**2;if(d<bd){bd=d;best=s}}
     return{id:i,x:+a[0],y:+a[1],owner:a[2]|0,troops:+a[3],hq:!!a[4],paths:best?best.paths:[],a:best?best.a:0};
@@ -587,7 +587,7 @@ function startOnline(R,me,cfg,L,oppPeer,oppBy){
     R,cfg,oppPeer,oppOwner:3-me,oppTick:0,myActs:[],oppActs:new Map(),actN:0,oppLast:performance.now(),left:false});
   DU.hosting=null;DU.joining=null;
   $('#hint').textContent='Duelo online — você é o AZUL';$('#hint').style.opacity=1;
-  const nm=(oppBy&&DU.names[oppBy])||'oponente';toast('⚔️ Duelo contra '+nm);
+  const nm=(oppBy&&DU.names[oppBy])||safeName(oppName)||'oponente';toast('⚔️ Duelo contra '+nm);
 }
 function exitGame(){
   if(game&&game.mode==='online'&&!game.left){try{game.R.leave()}catch(e){}game.left=true}
@@ -759,7 +759,7 @@ function frame(rdt){
 function publish(){
   const g=game;if(g.left)return;
   const keep=Math.min(g.oppTick,g.tick);g.myActs=g.myActs.filter(a=>a.k>=keep);
-  const d={role:g.me===1?'host':'guest',tick:g.tick,acts:g.myActs};
+  const d={role:g.me===1?'host':'guest',tick:g.tick,acts:g.myActs,name:NICK};
   if(g.me===1){d.cfg=g.cfg;d.opp=g.oppPeer}
   if(g.quit)d.quit=1;
   try{g.R.presence({duel:d}).catch(()=>{})}catch(e){}
@@ -814,7 +814,47 @@ function endGame(win){
 }
 
 /* ---- lobby do duelo ---- */
-let ROOM=null,USER=null;
+const WS_URL='wss://domination-ws.onrender.com';
+/* Sala via WebSocket (servidor em server/index.js) — mesma interface da sala do Claude */
+function wsRoom(url){
+  let ws=null,peerId=null,open=false,tries=0;const rooms=new Map(),conns=new Set();
+  const pk=(p)=>Object.freeze({peer:p.peer,by:null,isMe:p.peer===peerId,sameTab:p.peer===peerId,kind:'viewer',guest:false,presence:Object.freeze(p.presence&&typeof p.presence==='object'?p.presence:{}),updatedAt:Date.now()});
+  function connect(){
+    try{ws=new WebSocket(url)}catch(e){return}
+    ws.onopen=()=>{open=true;tries=0;conns.forEach(h=>{try{h(true)}catch(e){}});
+      for(const [name,r] of rooms){ws.send(JSON.stringify({t:'join',room:name}));if(Object.keys(r.mine).length)ws.send(JSON.stringify({t:'pres',room:name,data:r.mine}))}};
+    ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}
+      if(m.t==='hello'){peerId=m.peer;return}
+      if(m.t!=='peers')return;const r=rooms.get(m.room);if(!r||!Array.isArray(m.peers))return;
+      const old=new Map(r.peers.map(p=>[p.peer,p]));
+      r.peers=Object.freeze(m.peers.filter(p=>p&&typeof p.peer==='string').map(pk));
+      const now=new Set(r.peers.map(p=>p.peer));
+      const ch={peers:r.peers,joined:r.peers.filter(p=>!old.has(p.peer)),left:[...old.values()].filter(p=>!now.has(p.peer)),updated:r.peers.filter(p=>old.has(p.peer))};
+      r.hs.forEach(h=>{try{h(ch)}catch(e){}})};
+    ws.onclose=()=>{open=false;conns.forEach(h=>{try{h(false)}catch(e){}});setTimeout(connect,Math.min(8000,1000*(1+tries++)))};
+    ws.onerror=()=>{};
+  }
+  function mk(name){
+    const r={mine:{},peers:Object.freeze([]),hs:new Set(),dirty:false,timer:0,left:false};rooms.set(name,r);
+    const flush=()=>{r.timer=0;if(!r.dirty||!open||r.left)return;r.dirty=false;try{ws.send(JSON.stringify({t:'pres',room:name,data:r.mine}))}catch(e){}};
+    r.api={name,
+      presence:async(patch)=>{const n={...r.mine};for(const k in patch){if(patch[k]===null)delete n[k];else n[k]=JSON.parse(JSON.stringify(patch[k]))}r.mine=n;r.dirty=true;if(!r.timer)r.timer=setTimeout(flush,60)},
+      peers:()=>r.peers,
+      onPeers:(h)=>{r.hs.add(h);setTimeout(()=>{if(r.hs.has(h))h({peers:r.peers,joined:r.peers,left:[],updated:[]})},0);return()=>r.hs.delete(h)},
+      emit:async()=>{},on:()=>()=>{},connected:()=>open,
+      onConnection:(h)=>{conns.add(h);setTimeout(()=>{if(conns.has(h))h(open)},0);return()=>conns.delete(h)},
+      leave:async()=>{r.left=true;rooms.delete(name);if(open)try{ws.send(JSON.stringify({t:'leave',room:name}))}catch(e){}}};
+    if(open)ws.send(JSON.stringify({t:'join',room:name}));
+    return r.api;
+  }
+  connect();const lobby=mk('lobby');
+  lobby.join=async(name)=>{const r=rooms.get(name);return r?r.api:mk(name)};
+  setInterval(()=>{if(open)try{ws.send('{"t":"ping"}')}catch(e){}},25000);
+  return lobby;
+}
+let ROOM=null,USER=null,ROOM_WS=false;
+let NICK='';try{NICK=(localStorage.getItem('dmn_nick')||'').slice(0,16)}catch(e){}
+const safeName=v=>typeof v==='string'?v.replace(/[^\p{L}\p{N} _.-]/gu,'').trim().slice(0,16):'';
 const DU={open:false,hosting:null,joining:null,cfg:null,L:null,names:{},jt:0,R:null,un:null};
 (async()=>{
   try{
@@ -823,16 +863,19 @@ const DU={open:false,hosting:null,joining:null,cfg:null,L:null,names:{},jt:0,R:n
       try{USER=await window.claude.use('user')}catch(e){USER=null}
     }
   }catch(e){ROOM=null}
-  if(ROOM){try{ROOM.onPeers(()=>{if(DU.open)renderRooms()})}catch(e){ROOM=null}}
+  if(!ROOM&&WS_URL&&'WebSocket' in window){ROOM=wsRoom(WS_URL);ROOM_WS=true}
+  if(ROOM){try{ROOM.onPeers(()=>{if(DU.open)renderRooms()});ROOM.onConnection(()=>{if(DU.open&&!DU.hosting&&!DU.joining)showDuelMenu()})}catch(e){ROOM=null}}
   if(DU.open)showDuelMenu();
 })();
 const myPeer=R=>{try{const p=R.peers().find(p=>p.isMe&&p.sameTab);return p?p.peer:null}catch(e){return null}};
 function showDuelMenu(){
   let online;
-  if(!ROOM)online=`<p>O duelo online funciona com o jogo aberto pelo link do Claude. Compartilhe o link com seu amigo para ele entrar.</p>`;
+  const conn=(()=>{try{return ROOM&&ROOM.connected()}catch(e){return false}})();
+  if(!ROOM)online=`<p>Duelo online indisponível neste navegador.</p>`;
+  else if(ROOM_WS&&!conn)online=`<p>Conectando ao servidor de salas…<br><small>Na primeira vez pode levar até 1 minuto.</small></p>`;
   else if(DU.hosting)online=`<p>Passe este código para seu amigo:</p><div class="code">${DU.hosting.toUpperCase()}</div><p>Aguardando oponente…</p><button class="btn gray" data-act="cancelhost">CANCELAR</button>`;
   else if(DU.joining)online=`<p>Entrando na sala <b>${DU.joining.toUpperCase()}</b>…</p><button class="btn gray" data-act="cancelhost">CANCELAR</button>`;
-  else online=`<button class="btn green" data-act="host">CRIAR SALA</button>
+  else online=`${ROOM_WS?`<div class="crow" style="margin:0 0 12px"><input id="nickIn" maxlength="16" placeholder="SEU APELIDO" autocomplete="off" value="${NICK.replace(/"/g,'&quot;')}" style="letter-spacing:1px;text-transform:none"></div>`:''}<button class="btn green" data-act="host">CRIAR SALA</button>
     <div class="crow"><input id="codeIn" maxlength="4" placeholder="CÓDIGO" autocomplete="off"><button class="btn blue" data-act="joincode">ENTRAR</button></div>
     <h5>SALAS ABERTAS</h5><div id="roomList" class="rl"></div>`;
   openModal(`<div class="sheet"><div class="hd">⚔️ DUELO</div>
@@ -850,7 +893,7 @@ function renderRooms(){
   const need=[];
   for(const p of list){
     const row=document.createElement('div');row.className='r';
-    const nm=document.createElement('span');nm.textContent=(p.by&&DU.names[p.by])||'Jogador';
+    const nm=document.createElement('span');nm.textContent=(p.by&&DU.names[p.by])||safeName(p.presence.wait.name)||'Jogador';
     if(p.by&&!(p.by in DU.names))need.push(p.by);
     const b=document.createElement('button');b.className='btn green';b.textContent='DESAFIAR';b.dataset.join=p.presence.wait.code;
     row.append(nm,b);el.appendChild(row);
@@ -867,13 +910,13 @@ function attachRoom(R,role){
     if(game)return;
     if(role==='host'&&DU.hosting){
       const gp=ch.peers.find(p=>!p.isMe&&p.presence&&p.presence.duel&&p.presence.duel.role==='guest');
-      if(gp){try{ROOM.presence({wait:null}).catch(()=>{})}catch(e){}closeModal();startOnline(R,1,DU.cfg,DU.L,gp.peer,gp.by)}
+      if(gp){try{ROOM.presence({wait:null}).catch(()=>{})}catch(e){}closeModal();startOnline(R,1,DU.cfg,DU.L,gp.peer,gp.by,gp.presence.duel.name)}
     }else if(role==='guest'&&DU.joining){
       const hp=ch.peers.find(p=>!p.isMe&&p.presence&&p.presence.duel&&p.presence.duel.role==='host');
       if(!hp)return;
       const d=hp.presence.duel,me=myPeer(R);
       if(d.opp&&d.opp!==me){toast('Sala cheia');cancelHost();return}
-      if(d.opp===me&&validCfg(d.cfg)){clearTimeout(DU.jt);closeModal();startOnline(R,2,d.cfg,buildDuelLevel(d.cfg.reg,d.cfg.seed),hp.peer,hp.by)}
+      if(d.opp===me&&validCfg(d.cfg)){clearTimeout(DU.jt);closeModal();startOnline(R,2,d.cfg,buildDuelLevel(d.cfg.reg,d.cfg.seed),hp.peer,hp.by,d.name)}
     }
   });
 }
@@ -892,8 +935,8 @@ async function hostDuel(){
     const q=v=>Math.round(v*2)/2;
     DU.L=L;DU.cfg={reg,seed,sites:L.sites.map(s=>[q(s.x),q(s.y),s.owner,s.owner?15:s.troops,s.hq?1:0])};
     attachRoom(R,'host');
-    await R.presence({duel:{role:'host',cfg:DU.cfg,tick:0,acts:[]}});
-    await ROOM.presence({wait:{code}});
+    await R.presence({duel:{role:'host',cfg:DU.cfg,tick:0,acts:[],name:NICK}});
+    await ROOM.presence({wait:{code,name:NICK}});
   }catch(e){toast('Não foi possível criar a sala');DU.hosting=null;if(DU.open)showDuelMenu()}
 }
 async function joinDuel(raw){
@@ -905,7 +948,7 @@ async function joinDuel(raw){
     const R=await ROOM.join('dmn-'+code);
     if(DU.joining!==code){R.leave();return}
     attachRoom(R,'guest');
-    await R.presence({duel:{role:'guest',tick:0,acts:[]}});
+    await R.presence({duel:{role:'guest',tick:0,acts:[],name:NICK}});
     DU.jt=setTimeout(()=>{if(!game&&DU.joining===code){toast('Sala não encontrada');cancelHost()}},15000);
   }catch(e){toast('Não foi possível entrar');DU.joining=null;if(DU.open)showDuelMenu()}
 }
@@ -917,6 +960,7 @@ function cancelHost(){
   DU.hosting=null;DU.joining=null;
   if(DU.open)showDuelMenu();
 }
+function saveNick(){const i=$('#nickIn');if(!i)return;NICK=safeName(i.value);try{localStorage.setItem('dmn_nick',NICK)}catch(e){}}
 $('#btnDuel').addEventListener('click',showDuelMenu);
 
 /* input (vários dedos: no duelo local cada jogador arrasta as próprias bases) */
