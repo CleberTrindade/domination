@@ -13,7 +13,7 @@ Jogo de conquista de territórios no mapa-múndi (estilo State.io), feito em HTM
 - **Melhorias:** Guarnição, Produção e Capacidade, compradas com moedas.
 - **Missões diárias** com estrelas e baús.
 - **Duelo local:** dois jogadores no mesmo aparelho (azul × vermelho).
-- **Duelo online:** crie uma sala e passe o código de 4 letras para o amigo (ou ele toca em DESAFIAR na lista de salas abertas). Fora do Claude o jogo usa o servidor de salas em `server/`; dentro do Claude usa a sala em tempo real do próprio Claude.
+- **Online, 2 a 4 jogadores:** crie uma sala, passe o código de 4 letras (ou os amigos entram pela lista de salas abertas) e toque em INICIAR quando quiser. Cada jogador se vê em azul; a classificação final dá 150 moedas ao 1º e 30 ao último. Se o criador sair, a partida termina para todos. Fora do Claude o jogo usa o servidor de salas em `server/`; dentro do Claude usa a sala em tempo real do próprio Claude.
 
 O progresso fica salvo no `localStorage` do navegador.
 

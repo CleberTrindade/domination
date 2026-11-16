@@ -156,6 +156,12 @@ button{font:inherit}
 .rl .r .btn{padding:8px 14px;font-size:14px}
 .rl .muted{color:#a3a8c3;font-size:13px}
 .dnote{padding:10px 16px 14px;color:#8a90b2;font-size:12px;font-weight:700;text-align:center}
+#legend{position:absolute;left:10px;right:10px;top:52px;display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:center;font-family:'Lilita One';font-size:12px;color:#555;pointer-events:none}
+#legend span{display:inline-flex;align-items:center;gap:4px}#legend span.out{opacity:.4;text-decoration:line-through}
+#legend i,.lob i,.rank b i{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.lob .r span{display:flex;align-items:center;gap:8px}.lob .r small{color:#a3a8c3;font-size:11px}
+.rank div{display:flex;align-items:center;gap:10px;padding:5px 0;font-weight:800;color:#4c5277;border-top:1px solid #d7dae6}
+.rank b{color:#fff;border-radius:8px;padding:2px 8px;font-family:'Lilita One';font-weight:400;min-width:36px;text-align:center}
 #toast{position:absolute;left:50%;top:76px;transform:translate(-50%,-20px);background:#2b2f45;color:#fff;font-family:'Lilita One';padding:10px 18px;border-radius:12px;opacity:0;transition:.25s;z-index:30;pointer-events:none;white-space:nowrap;font-size:16px}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -231,6 +237,7 @@ button{font:inherit}
     <button id="btnBack" aria-label="Sair">‹</button>
     <div id="pbar"></div>
     <div id="lvTag"></div>
+    <div id="legend"></div>
     <div id="hint">Arraste da sua base até outra para enviar tropas</div>
     <button id="btnDrop" aria-label="Paraquedas"><span>
       <svg width="40" height="40" viewBox="0 0 24 24"><path d="M2 10a10 8 0 0 1 20 0c-1.7-1.3-3.3-1.3-5 0-1.7-1.3-3.3-1.3-5 0-1.7-1.3-3.3-1.3-5 0-1.7-1.3-3.3-1.3-5 0z" fill="#fff"/><path d="M2.5 10 11 18M21.5 10 13 18M12 10v8" stroke="#fff" stroke-width="1.2"/><rect x="9.5" y="17" width="5" height="5" rx="1" fill="#fff"/></svg>
@@ -519,7 +526,8 @@ $('#mbox').addEventListener('click',e=>{
   if(t.dataset.act==='joincode'){saveNick();const i=$('#codeIn');joinDuel(i?i.value:'');return}
   if(t.dataset.join){saveNick();joinDuel(t.dataset.join);return}
   if(t.dataset.act==='duelclose'){cancelHost();closeModal();return}
-  if(t.dataset.act==='surrender'){closeModal();if(game&&!game.over){game.quit=true;publish();duelEnd(game.oppOwner)}return}
+  if(t.dataset.act==='surrender'){closeModal();if(game&&!game.over){game.quit=true;publish();duelEnd(null,'quit')}return}
+  if(t.dataset.act==='startmatch'){startMatch();return}
   if(t.dataset.act==='continue'){closeModal();exitGame();return}
   if(t.dataset.act==='retry'){closeModal();startGame();return}
   if(t.dataset.act==='resume'){closeModal();if(game)game.paused=false;return}
@@ -567,35 +575,49 @@ function startGame(){
   $('#hint').textContent='Arraste da sua base até outra para enviar tropas';
   $('#hint').style.opacity=lv<=2?1:0;
 }
-const buildDuelLevel=(reg,seed,H)=>buildLevel(4,MW,H||DUEL_H,{reg,seed,nAI:1});
+const buildDuelLevel=(reg,seed,H,n)=>buildLevel(4,MW,H||DUEL_H,{reg,seed,nAI:Math.max(1,(n||2)-1)});
+const OPP_COLS=[3,2,4];
+function palFor(me,n){const pal=[0];let j=0;for(let o=1;o<=n;o++)pal[o]=o===me?1:OPP_COLS[j++];return pal}
+function pickRegion(n){
+  let best=null;
+  for(let i=0;i<14;i++){
+    const reg=Math.floor(Math.random()*REGIONS.length),seed=(Math.random()*1e9)|0,L=buildDuelLevel(reg,seed,undefined,n);
+    if(!best||L.sites.length>best.L.sites.length)best={reg,seed,L};
+    if(L.sites.length>=4*n)break;
+  }
+  return best;
+}
 function startLocalDuel(){
   $('#game').classList.add('on');
   const reg=Math.floor(Math.random()*REGIONS.length);
-  const L=buildDuelLevel(reg,(Math.random()*1e9)|0,screenH());
+  const L=buildDuelLevel(reg,(Math.random()*1e9)|0,screenH(),2);
   const sites=L.sites.map(s=>({...s}));for(const s of sites)if(s.owner)s.troops=15;
-  newGame({mode:'local',L,sites,mine:[1,2],pal:[0,1,3],par:{1:DUEL_PAR,2:DUEL_PAR},cd:3});
+  newGame({mode:'local',L,sites,mine:[1,2],pal:[0,1,3],par:{1:DUEL_PAR,2:DUEL_PAR},cd:3,n:2,limit:DUEL_TIME,elim:[],names:{1:'Azul',2:'Vermelho'}});
   $('#hint').textContent='AZUL × VERMELHO — cada um arrasta das próprias bases';$('#hint').style.opacity=1;
   toast('⚔️ Duelo local · '+L.reg.nm);
 }
-function startOnline(R,me,cfg,L,oppPeer,oppBy,oppName){
+function startOnline(R,me,cfg,L,players){
   const sites=cfg.sites.map((a,i)=>{
     let best=null,bd=1e18;for(const s of L.sites){const d=(s.x-a[0])**2+(s.y-a[1])**2;if(d<bd){bd=d;best=s}}
     return{id:i,x:+a[0],y:+a[1],owner:a[2]|0,troops:+a[3],hq:!!a[4],paths:best?best.paths:[],a:best?best.a:0};
   });
+  const n=players.length,par={},names={},opps=new Map();
+  for(const p of players){par[p.owner]=DUEL_PAR;names[p.owner]=safeName(p.name)||'Jogador '+p.owner;if(p.owner!==me)opps.set(p.peer,{peer:p.peer,owner:p.owner,tick:0,acts:new Map(),last:performance.now(),dropped:false})}
   $('#game').classList.add('on');
-  newGame({mode:'online',L,sites,me,mine:[me],pal:me===1?[0,1,3]:[0,3,1],par:{1:DUEL_PAR,2:DUEL_PAR},cd:3,
-    R,cfg,oppPeer,oppOwner:3-me,oppTick:0,myActs:[],oppActs:new Map(),actN:0,oppLast:performance.now(),left:false});
-  DU.hosting=null;DU.joining=null;
-  $('#hint').textContent='Duelo online — você é o AZUL';$('#hint').style.opacity=1;
-  const nm=(oppBy&&DU.names[oppBy])||safeName(oppName)||'oponente';toast('⚔️ Duelo contra '+nm);
+  newGame({mode:'online',L,sites,me,mine:[me],pal:palFor(me,n),par,cd:3,n,limit:n>2?300:DUEL_TIME,elim:[],names,
+    R,cfg,players,opps,hostPeer:players.find(p=>p.owner===1).peer,isHost:me===1,myActs:[],actN:0,drops:[],left:false,hostLast:performance.now()});
+  game.dropM={};for(const p of players)game.dropM[p.owner]=0.35;
+  DU.hosting=null;DU.joining=null;DU.lobby=[];
+  $('#hint').textContent=n>2?'Partida com '+n+' jogadores — você é o AZUL':'Duelo online — você é o AZUL';$('#hint').style.opacity=1;
+  const others=players.filter(p=>p.owner!==me).map(p=>names[p.owner]).join(', ');toast('⚔️ Contra '+others);
 }
 function exitGame(){
   if(game&&game.mode==='online'&&!game.left){try{game.R.leave()}catch(e){}game.left=true}
-  game=null;PTR.clear();$('#game').classList.remove('on');setTab('battle');
+  game=null;PTR.clear();$('#game').classList.remove('on');$('#legend').innerHTML='';setTab('battle');
 }
 $('#btnBack').addEventListener('click',()=>{
   if(!game||game.over)return;
-  if(game.mode==='online'){openModal(`<div class="plain"><h3>DESISTIR DO DUELO?</h3><p>Você perde a partida.</p><button class="btn green" data-act="resume">CONTINUAR</button><button class="btn" style="background:#e2574c" data-act="surrender">DESISTIR</button></div>`);return}
+  if(game.mode==='online'){openModal(`<div class="plain"><h3>DESISTIR DA PARTIDA?</h3><p>${game.isHost&&game.n>2?'Você criou a sala: se sair, a partida termina para todos.':'Você perde a partida.'}</p><button class="btn green" data-act="resume">CONTINUAR</button><button class="btn" style="background:#e2574c" data-act="surrender">DESISTIR</button></div>`);return}
   game.paused=true;
   openModal(`<div class="plain"><h3>SAIR DA BATALHA?</h3><p>Você perderá o progresso desta partida.</p><button class="btn green" data-act="resume">CONTINUAR</button><button class="btn" style="background:#e2574c" data-act="quit">SAIR</button></div>`);
 });
@@ -626,14 +648,22 @@ function doDrop(owner,s){
 }
 function applyActsAt(T){
   const g=game,list=g.myActs.filter(a=>a.k===T);
-  for(const a of g.oppActs.values())if(a.k===T)list.push(a);
+  for(const op of g.opps.values()){const dk=dropTick(op.owner);for(const a of op.acts.values())if(a.k===T&&(dk==null||a.k<dk))list.push(a)}
   list.sort((a,b)=>a.o-b.o||(parseInt(a.id.split(':')[1])-parseInt(b.id.split(':')[1])));
   for(const a of list){
     if(a.t==='s'){const d=g.sites[a.d];if(!d)continue;for(const id of a.s){const f=g.sites[id];if(f&&f.owner===a.o)send(f,d)}}
     else if(a.t==='d')doDrop(a.o,g.sites[a.s]);
   }
+  for(const d of g.drops)if(d.k===T&&!d.done){d.done=true;dropOwner(d.o)}
 }
-
+const dropTick=o=>{const d=game.drops.find(d=>d.o===o);return d?d.k:null};
+function dropOwner(o){
+  const g=game;
+  for(const s of g.sites)if(s.owner===o){s.owner=0;s.hq=false;s.troops=Math.floor(s.troops)}
+  g.units=g.units.filter(u=>u.owner!==o);g.queues=g.queues.filter(q=>q.owner!==o);
+  g.dirty=true;g.gone=g.gone||{};g.gone[o]=true;
+  if(o!==g.me)toast((g.names[o]||'Jogador')+' saiu da partida');
+}
 function send(from,to){
   if(!from||!to||from===to)return;
   const n=Math.floor(from.troops);if(n<1)return;
@@ -729,10 +759,21 @@ function simStep(dt){
     if(!alive(1))endGame(false);
     else if(g.ais.every(a=>a.dead))endGame(true);
   }else{
-    const a1=alive(1),a2=alive(2);
-    if(!a1||!a2)duelEnd(!a1&&!a2?0:a1?1:2);
-    else if(g.time>=DUEL_TIME){let c1=0,c2=0;for(const s of g.sites){if(s.owner===1)c1++;else if(s.owner===2)c2++}duelEnd(c1>c2?1:c2>c1?2:0,'time')}
+    for(let o=1;o<=g.n;o++)if(!g.elim.includes(o)&&!alive(o)){g.elim.push(o);g.elimTick=g.elimTick||{};g.elimTick[o]=g.tick;if(o!==g.me&&!(g.gone&&g.gone[o]))toast((g.names[o]||'Jogador')+' foi eliminado!')}
+    const live=[];for(let o=1;o<=g.n;o++)if(!g.elim.includes(o))live.push(o);
+    if(live.length<=1)duelEnd(rankPlayers(live),'elim');
+    else if(g.time>=g.limit)duelEnd(rankPlayers(live),'time');
   }
+}
+function rankPlayers(live){
+  const g=game,cnt={},tr={};for(let o=1;o<=g.n;o++){cnt[o]=0;tr[o]=0}
+  for(const s of g.sites)if(s.owner){cnt[s.owner]++;tr[s.owner]+=s.troops}
+  const out=live.slice().sort((a,b)=>cnt[b]-cnt[a]||tr[b]-tr[a]).map(o=>({o,place:0,key:'l'+cnt[o]+'-'+Math.floor(tr[o])}));
+  for(let i=1;i<out.length;i++)out[i].place=0;
+  const el=g.elim.slice().reverse().map(o=>({o,place:0,key:'e'+(g.elimTick&&g.elimTick[o])}));
+  const all=out.concat(el);let p=0;
+  for(let i=0;i<all.length;i++){if(i===0||all[i].key!==all[i-1].key)p=i+1;all[i].place=p}
+  return all;
 }
 function frame(rdt){
   const g=game;g.vt+=rdt;
@@ -746,49 +787,83 @@ function frame(rdt){
   g.acc=Math.min(g.acc+rdt,STEP*10);
   let stalled=false;
   while(g.acc>=STEP){
-    if(g.mode==='online'&&g.tick>=g.oppTick+LAG){stalled=true;break}
+    if(g.mode==='online'){let w=false;for(const op of g.opps.values())if(!op.dropped&&g.tick>=op.tick+LAG){w=true;break}if(w){stalled=true;break}}
     if(g.mode==='online')applyActsAt(g.tick);
     simStep(STEP);g.tick++;g.acc-=STEP;
     if(g.over)break;
   }
   g.waiting=stalled?g.waiting+rdt:0;
-  if(g.mode==='online'&&!g.over&&performance.now()-g.oppLast>15000)duelEnd(g.me,'wo');
+  if(g.mode==='online'&&!g.over){
+    const now=performance.now();
+    if(g.isHost){for(const op of g.opps.values())if(!op.dropped&&now-op.last>15000)scheduleDrop(op)}
+    else if(now-g.hostLast>15000)duelEnd(null,'host');
+  }
 }
 
 /* ---- duelo online: sincronização via presença da sala ---- */
+function scheduleDrop(op){
+  const g=game;if(op.dropped)return;op.dropped=true;
+  g.drops.push({o:op.owner,k:g.tick+2*LAG,done:false});
+}
 function publish(){
   const g=game;if(g.left)return;
-  const keep=Math.min(g.oppTick,g.tick);g.myActs=g.myActs.filter(a=>a.k>=keep);
-  const d={role:g.me===1?'host':'guest',tick:g.tick,acts:g.myActs,name:NICK};
-  if(g.me===1){d.cfg=g.cfg;d.opp=g.oppPeer}
+  let keep=g.tick;for(const op of g.opps.values())if(!op.dropped)keep=Math.min(keep,op.tick);
+  g.myActs=g.myActs.filter(a=>a.k>=keep);
+  const d={role:g.isHost?'host':'guest',tick:g.tick,acts:g.myActs,name:NICK};
+  if(g.isHost){d.cfg=g.cfg;d.players=g.players;d.started=1;d.drops=g.drops.map(x=>({o:x.o,k:x.k}))}
   if(g.quit)d.quit=1;
   try{g.R.presence({duel:d}).catch(()=>{})}catch(e){}
 }
 function duelPeers(ch){
-  const g=game,opp=ch.peers.find(p=>!p.isMe&&p.peer===g.oppPeer);
-  if(!opp)return;
-  const d=opp.presence&&opp.presence.duel;if(!d||typeof d!=='object')return;
-  const t=d.tick|0;
-  if(t>g.oppTick){g.oppTick=t;g.oppLast=performance.now()}
-  if(Array.isArray(d.acts))for(const a of d.acts){
-    if(!a||typeof a.id!=='string'||a.o!==g.oppOwner||g.oppActs.has(a.id)||!Number.isInteger(a.k))continue;
-    if(a.t==='s'&&Array.isArray(a.s)&&Number.isInteger(a.d))g.oppActs.set(a.id,{id:a.id,o:a.o,k:a.k,t:'s',s:a.s.filter(Number.isInteger).slice(0,40),d:a.d});
-    else if(a.t==='d'&&Number.isInteger(a.s))g.oppActs.set(a.id,{id:a.id,o:a.o,k:a.k,t:'d',s:a.s});
+  const g=game,now=performance.now();
+  for(const op of g.opps.values()){
+    const p=ch.peers.find(p=>!p.isMe&&p.peer===op.peer);
+    const d=p&&p.presence&&p.presence.duel;
+    if(d&&typeof d==='object'){
+      const t=d.tick|0;if(t>op.tick){op.tick=t;op.last=now}
+      if(Array.isArray(d.acts))for(const a of d.acts){
+        if(!a||typeof a.id!=='string'||a.o!==op.owner||op.acts.has(a.id)||!Number.isInteger(a.k))continue;
+        if(a.t==='s'&&Array.isArray(a.s)&&Number.isInteger(a.d))op.acts.set(a.id,{id:a.id,o:a.o,k:a.k,t:'s',s:a.s.filter(Number.isInteger).slice(0,40),d:a.d});
+        else if(a.t==='d'&&Number.isInteger(a.s))op.acts.set(a.id,{id:a.id,o:a.o,k:a.k,t:'d',s:a.s});
+      }
+      if(op.peer===g.hostPeer){
+        g.hostLast=now;
+        if(Array.isArray(d.drops))for(const x of d.drops){
+          if(!x||!Number.isInteger(x.o)||!Number.isInteger(x.k)||g.drops.some(y=>y.o===x.o))continue;
+          if(x.o===g.me){if(!g.over)duelEnd(null,'dropped');return}
+          g.drops.push({o:x.o,k:x.k,done:false});const o2=[...g.opps.values()].find(v=>v.owner===x.o);if(o2)o2.dropped=true;
+        }
+        if(d.quit&&!g.over){duelEnd(null,'host');return}
+      }else if(g.isHost&&d.quit)scheduleDrop(op);
+    }else if(g.isHost&&!op.dropped&&!p&&g.time>1)scheduleDrop(op);
+    else if(!g.isHost&&op.peer===g.hostPeer&&!p&&g.time>1&&!g.over){duelEnd(null,'host');return}
   }
-  if(d.quit&&!g.over)duelEnd(g.me,'wo');
 }
-function duelEnd(w,reason){
+function duelEnd(rank,reason){
   const g=game;if(g.over)return;g.over=true;PTR.clear();g.tapSel=null;g.dropMode=false;
   if(g.mode==='online'){
     setTimeout(()=>{if(!g.left){try{g.R.leave()}catch(e){}g.left=true}},2500);
-    const res=w===0?'draw':w===g.me?'win':'loss',coins={win:150,loss:30,draw:60}[res];
-    S.coins+=coins;const m=missions();m.prog.cap+=g.stats.cap;m.prog.kill+=g.stats.kill;save();refreshTop();
-    const sub=reason==='wo'?'Seu oponente saiu da partida.':reason==='time'?'Tempo esgotado — venceu quem tinha mais territórios.':g.quit?'Você desistiu.':'';
-    setTimeout(()=>openModal(`<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center">${res==='win'?'<div class="glow"></div>':''}<div class="trophy">${res==='win'?'🏆':res==='draw'?'🤝':'🏳️'}</div>
-      <div class="banner ${res==='loss'?'red':''}">${res==='win'?'VITÓRIA':res==='draw'?'EMPATE':'DERROTA'}</div>
-      <div class="panel"><h3>DUELO ONLINE</h3><div class="tile"><i class="coin"></i>${coins}</div><p style="margin-top:14px;color:#6b7299;font-weight:800">${sub}</p></div>
-      <button class="btn green cta" data-act="continue">CONTINUAR</button></div>`),reason==='wo'?0:800);
+    const m=missions();m.prog.cap+=g.stats.cap;m.prog.kill+=g.stats.kill;
+    let coins,title,icon,cls='',rows='';
+    if(!rank){
+      const msg={host:'O criador da sala saiu — partida encerrada.',dropped:'Você perdeu a conexão com a partida.',quit:'Você desistiu.'}[reason]||'';
+      coins=reason==='host'?60:30;title=reason==='host'?'ENCERRADA':'DERROTA';icon=reason==='host'?'🤝':'🏳️';cls=reason==='host'?'':'red';rows=`<p style="color:#6b7299;font-weight:800">${msg}</p>`;
+    }else{
+      const mine=rank.find(r=>r.o===g.me),place=mine?mine.place:g.n,last=g.n;
+      coins=last<=1?150:Math.round(150-(place-1)*(120/(last-1)));
+      const tied=rank.filter(r=>r.place===place).length>1;
+      title=place===1?(tied?'EMPATE':'VITÓRIA'):(place===2&&g.n>2?'2º LUGAR':place===3&&g.n>3?'3º LUGAR':'DERROTA');
+      icon=place===1?(tied?'🤝':'🏆'):place===2&&g.n>2?'🥈':place===3&&g.n>3?'🥉':'🏳️';cls=title==='DERROTA'?'red':'';
+      rows='<div class="rank">'+rank.map(r=>`<div><b style="background:${COL[g.pal[r.o]].base}">${r.place}º</b><span>${r.o===g.me?'Você':esc(g.names[r.o])}</span></div>`).join('')+'</div>'+
+        (reason==='time'?'<p style="color:#6b7299;font-weight:800;margin-top:8px">Tempo esgotado — classificação por territórios.</p>':'');
+    }
+    S.coins+=coins;save();refreshTop();
+    setTimeout(()=>openModal(`<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center">${title==='VITÓRIA'?'<div class="glow"></div>':''}<div class="trophy">${icon}</div>
+      <div class="banner ${cls}" style="font-size:${title.length>8?34:46}px">${title}</div>
+      <div class="panel"><h3>${g.n>2?'PARTIDA ONLINE':'DUELO ONLINE'}</h3><div class="tile"><i class="coin"></i>${coins}</div><div style="margin-top:12px">${rows}</div></div>
+      <button class="btn green cta" data-act="continue">CONTINUAR</button></div>`),rank?800:0);
   }else{
+    const w=rank&&rank.length&&!(rank.length>1&&rank[1].place===1)?rank[0].o:0;
     const txt=w===0?'EMPATE':w===1?'AZUL VENCEU':'VERMELHO VENCEU';
     setTimeout(()=>openModal(`<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center"><div class="trophy">${w===0?'🤝':'🏆'}</div>
       <div class="banner ${w===2?'red':''}" style="${w===1?'background:#4f8fe0;-webkit-text-stroke:2px #24508f':''};font-size:34px">${txt}</div>
@@ -796,6 +871,7 @@ function duelEnd(w,reason){
       <button class="btn green cta" data-act="rematch">REVANCHE</button><button class="linkbtn" data-act="continue">MENU</button></div>`),800);
   }
 }
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function endGame(win){
   const g=game;if(g.over)return;g.over=true;PTR.clear();
   const m=missions();m.prog.cap+=g.stats.cap;m.prog.kill+=g.stats.kill;
@@ -855,7 +931,7 @@ function wsRoom(url){
 let ROOM=null,USER=null,ROOM_WS=false;
 let NICK='';try{NICK=(localStorage.getItem('dmn_nick')||'').slice(0,16)}catch(e){}
 const safeName=v=>typeof v==='string'?v.replace(/[^\p{L}\p{N} _.-]/gu,'').trim().slice(0,16):'';
-const DU={open:false,hosting:null,joining:null,cfg:null,L:null,names:{},jt:0,R:null,un:null};
+const DU={open:false,hosting:null,joining:null,lobby:[],hostLobby:null,hostKey:'',names:{},jt:0,R:null,un:null};
 (async()=>{
   try{
     if(window.claude&&typeof window.claude.use==='function'){
@@ -868,20 +944,32 @@ const DU={open:false,hosting:null,joining:null,cfg:null,L:null,names:{},jt:0,R:n
   if(DU.open)showDuelMenu();
 })();
 const myPeer=R=>{try{const p=R.peers().find(p=>p.isMe&&p.sameTab);return p?p.peer:null}catch(e){return null}};
+function lobbyList(players,mePeer){
+  return '<div class="rl lob">'+players.map((p,i)=>`<div class="r"><span><i style="background:${COL[OPP_COLS[i-1]||1].base}"></i>${p.peer===mePeer?'<b>Você</b>':esc(safeName(p.name)||'Jogador')}${i===0?' <small>(criador)</small>':''}</span></div>`).join('')+'</div>';
+}
 function showDuelMenu(){
   let online;
   const conn=(()=>{try{return ROOM&&ROOM.connected()}catch(e){return false}})();
+  const mePeer=DU.R?myPeer(DU.R):null;
   if(!ROOM)online=`<p>Duelo online indisponível neste navegador.</p>`;
   else if(ROOM_WS&&!conn)online=`<p>Conectando ao servidor de salas…<br><small>Na primeira vez pode levar até 1 minuto.</small></p>`;
-  else if(DU.hosting)online=`<p>Passe este código para seu amigo:</p><div class="code">${DU.hosting.toUpperCase()}</div><p>Aguardando oponente…</p><button class="btn gray" data-act="cancelhost">CANCELAR</button>`;
-  else if(DU.joining)online=`<p>Entrando na sala <b>${DU.joining.toUpperCase()}</b>…</p><button class="btn gray" data-act="cancelhost">CANCELAR</button>`;
-  else online=`${ROOM_WS?`<div class="crow" style="margin:0 0 12px"><input id="nickIn" maxlength="16" placeholder="SEU APELIDO" autocomplete="off" value="${NICK.replace(/"/g,'&quot;')}" style="letter-spacing:1px;text-transform:none"></div>`:''}<button class="btn green" data-act="host">CRIAR SALA</button>
+  else if(DU.hosting){
+    const players=[{peer:mePeer,name:NICK}].concat(DU.lobby);
+    online=`<p>Passe este código para os amigos:</p><div class="code">${DU.hosting.toUpperCase()}</div>
+      <h5>JOGADORES (${players.length}/4)</h5>${lobbyList(players,mePeer)}
+      <p style="margin-top:8px">${DU.lobby.length?'Pode iniciar quando quiser.':'Aguardando alguém entrar…'}</p>
+      <button class="btn green" data-act="startmatch" ${DU.lobby.length?'':'disabled'}>INICIAR</button> <button class="btn gray" data-act="cancelhost">CANCELAR</button>`;
+  }else if(DU.joining){
+    const l=DU.hostLobby;
+    online=l?`<p>Sala <b>${DU.joining.toUpperCase()}</b></p><h5>JOGADORES (${l.length}/4)</h5>${lobbyList(l,mePeer)}<p style="margin-top:8px">Aguardando o criador iniciar…</p><button class="btn gray" data-act="cancelhost">SAIR</button>`
+      :`<p>Entrando na sala <b>${DU.joining.toUpperCase()}</b>…</p><button class="btn gray" data-act="cancelhost">CANCELAR</button>`;
+  }else online=`${ROOM_WS?`<div class="crow" style="margin:0 0 12px"><input id="nickIn" maxlength="16" placeholder="SEU APELIDO" autocomplete="off" value="${esc(NICK)}" style="letter-spacing:1px;text-transform:none"></div>`:''}<button class="btn green" data-act="host">CRIAR SALA</button>
     <div class="crow"><input id="codeIn" maxlength="4" placeholder="CÓDIGO" autocomplete="off"><button class="btn blue" data-act="joincode">ENTRAR</button></div>
     <h5>SALAS ABERTAS</h5><div id="roomList" class="rl"></div>`;
   openModal(`<div class="sheet"><div class="hd">⚔️ DUELO</div>
     <div class="dsec"><h4>NO MESMO CELULAR</h4><p>Dois jogadores na mesma tela: azul contra vermelho.</p><button class="btn blue" data-act="local">JOGAR LOCAL</button></div>
-    <div class="dsec"><h4>ONLINE</h4>${online}</div>
-    <p class="dnote">No duelo os dois começam iguais — suas melhorias não contam. Vitória online: 150 moedas.</p></div>
+    <div class="dsec"><h4>ONLINE · 2 A 4 JOGADORES</h4>${online}</div>
+    <p class="dnote">Todos começam iguais — suas melhorias não contam. Vitória online: 150 moedas.</p></div>
     <button class="closex" data-act="duelclose">✕</button>`);
   DU.open=true;renderRooms();
 }
@@ -893,9 +981,9 @@ function renderRooms(){
   const need=[];
   for(const p of list){
     const row=document.createElement('div');row.className='r';
-    const nm=document.createElement('span');nm.textContent=(p.by&&DU.names[p.by])||safeName(p.presence.wait.name)||'Jogador';
+    const nm=document.createElement('span');nm.textContent=((p.by&&DU.names[p.by])||safeName(p.presence.wait.name)||'Jogador')+' · '+(p.presence.wait.n|0||1)+'/4';
     if(p.by&&!(p.by in DU.names))need.push(p.by);
-    const b=document.createElement('button');b.className='btn green';b.textContent='DESAFIAR';b.dataset.join=p.presence.wait.code;
+    const b=document.createElement('button');b.className='btn green';b.textContent='ENTRAR';b.dataset.join=p.presence.wait.code;
     row.append(nm,b);el.appendChild(row);
   }
   if(need.length&&USER&&USER.profiles){
@@ -903,53 +991,78 @@ function renderRooms(){
     USER.profiles(need).then(ps=>{for(const id of need)if(ps&&ps[id]&&ps[id].name)DU.names[id]=ps[id].name;if(DU.open)renderRooms()}).catch(()=>{});
   }
 }
+function hostPublish(){
+  const R=DU.R;if(!R||!DU.hosting)return;
+  try{R.presence({duel:{role:'host',name:NICK,started:0,lobby:DU.lobby.map(p=>({peer:p.peer,name:p.name}))}}).catch(()=>{})}catch(e){}
+  try{ROOM.presence({wait:{code:DU.hosting,name:NICK,n:1+DU.lobby.length}}).catch(()=>{})}catch(e){}
+}
 function attachRoom(R,role){
   DU.R=R;
   DU.un=R.onPeers(ch=>{
     if(game&&game.mode==='online'&&game.R===R){duelPeers(ch);return}
     if(game)return;
     if(role==='host'&&DU.hosting){
-      const gp=ch.peers.find(p=>!p.isMe&&p.presence&&p.presence.duel&&p.presence.duel.role==='guest');
-      if(gp){try{ROOM.presence({wait:null}).catch(()=>{})}catch(e){}closeModal();startOnline(R,1,DU.cfg,DU.L,gp.peer,gp.by,gp.presence.duel.name)}
+      const guests=ch.peers.filter(p=>!p.isMe&&p.presence&&p.presence.duel&&p.presence.duel.role==='guest');
+      const seen=new Set(guests.map(p=>p.peer));
+      let changed=false;
+      const before=DU.lobby.length;DU.lobby=DU.lobby.filter(p=>seen.has(p.peer));changed=before!==DU.lobby.length;
+      for(const p of guests){if(DU.lobby.some(x=>x.peer===p.peer))continue;if(DU.lobby.length>=3)continue;DU.lobby.push({peer:p.peer,name:safeName(p.presence.duel.name)||'Jogador'});changed=true}
+      if(changed){hostPublish();if(DU.open)showDuelMenu()}
     }else if(role==='guest'&&DU.joining){
       const hp=ch.peers.find(p=>!p.isMe&&p.presence&&p.presence.duel&&p.presence.duel.role==='host');
-      if(!hp)return;
+      if(!hp){if(DU.hostLobby){toast('A sala foi fechada');cancelHost()}return}
       const d=hp.presence.duel,me=myPeer(R);
-      if(d.opp&&d.opp!==me){toast('Sala cheia');cancelHost();return}
-      if(d.opp===me&&validCfg(d.cfg)){clearTimeout(DU.jt);closeModal();startOnline(R,2,d.cfg,buildDuelLevel(d.cfg.reg,d.cfg.seed),hp.peer,hp.by,d.name)}
+      if(d.started&&Array.isArray(d.players)){
+        const mine=d.players.find(p=>p&&p.peer===me);
+        if(!mine){toast('A partida já começou sem você');cancelHost();return}
+        if(validCfg(d.cfg,d.players)){clearTimeout(DU.jt);closeModal();startOnline(R,mine.owner|0,d.cfg,buildDuelLevel(d.cfg.reg,d.cfg.seed,undefined,d.players.length),d.players.map(p=>({peer:String(p.peer),owner:p.owner|0,name:p.name})))}
+        return;
+      }
+      const lobby=Array.isArray(d.lobby)?d.lobby.filter(p=>p&&typeof p.peer==='string'):[];
+      if(!lobby.some(p=>p.peer===me)){if(lobby.length>=3){toast('Sala cheia');cancelHost()}return}
+      clearTimeout(DU.jt);
+      const l=[{peer:hp.peer,name:d.name}].concat(lobby);
+      const key=JSON.stringify(l);if(key!==DU.hostKey){DU.hostKey=key;DU.hostLobby=l;if(DU.open)showDuelMenu()}
     }
   });
 }
-function validCfg(c){
-  return c&&Number.isInteger(c.reg)&&c.reg>=0&&c.reg<REGIONS.length&&Number.isInteger(c.seed)&&Array.isArray(c.sites)&&c.sites.length>1&&c.sites.length<=40&&
-    c.sites.every(a=>Array.isArray(a)&&a.length===5&&a.every(v=>typeof v==='number'&&isFinite(v)))&&c.sites.filter(a=>a[2]===1).length===1&&c.sites.filter(a=>a[2]===2).length===1;
+function validCfg(c,players){
+  const n=players.length;if(n<2||n>4)return false;
+  if(!players.every((p,i)=>p&&typeof p.peer==='string'&&p.owner===i+1))return false;
+  if(!(c&&Number.isInteger(c.reg)&&c.reg>=0&&c.reg<REGIONS.length&&Number.isInteger(c.seed)&&Array.isArray(c.sites)&&c.sites.length>n&&c.sites.length<=40))return false;
+  if(!c.sites.every(a=>Array.isArray(a)&&a.length===5&&a.every(v=>typeof v==='number'&&isFinite(v))))return false;
+  for(let o=1;o<=n;o++)if(c.sites.filter(a=>a[2]===o).length!==1)return false;
+  return c.sites.every(a=>a[2]>=0&&a[2]<=n);
 }
 async function hostDuel(){
   if(!ROOM)return;
   const code=Array.from({length:4},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random()*31)]).join('');
-  DU.hosting=code;showDuelMenu();
+  DU.hosting=code;DU.lobby=[];showDuelMenu();
   try{
     const R=await ROOM.join('dmn-'+code);
     if(DU.hosting!==code){R.leave();return}
-    const reg=Math.floor(Math.random()*REGIONS.length),seed=(Math.random()*1e9)|0,L=buildDuelLevel(reg,seed);
-    const q=v=>Math.round(v*2)/2;
-    DU.L=L;DU.cfg={reg,seed,sites:L.sites.map(s=>[q(s.x),q(s.y),s.owner,s.owner?15:s.troops,s.hq?1:0])};
-    attachRoom(R,'host');
-    await R.presence({duel:{role:'host',cfg:DU.cfg,tick:0,acts:[],name:NICK}});
-    await ROOM.presence({wait:{code,name:NICK}});
+    attachRoom(R,'host');hostPublish();
   }catch(e){toast('Não foi possível criar a sala');DU.hosting=null;if(DU.open)showDuelMenu()}
+}
+function startMatch(){
+  const R=DU.R;if(!R||!DU.hosting||!DU.lobby.length)return;
+  const n=1+DU.lobby.length,pick=pickRegion(n),L=pick.L,q=v=>Math.round(v*2)/2;
+  const cfg={reg:pick.reg,seed:pick.seed,sites:L.sites.map(s=>[q(s.x),q(s.y),s.owner,s.owner?15:s.troops,s.hq?1:0])};
+  const players=[{peer:myPeer(R),owner:1,name:NICK}].concat(DU.lobby.map((p,i)=>({peer:p.peer,owner:2+i,name:p.name})));
+  try{ROOM.presence({wait:null}).catch(()=>{})}catch(e){}
+  closeModal();startOnline(R,1,cfg,L,players);
 }
 async function joinDuel(raw){
   if(!ROOM)return;
   const code=String(raw||'').toLowerCase().replace(/[^a-z0-9]/g,'');
   if(code.length!==4){toast('Digite o código de 4 letras');return}
-  DU.joining=code;showDuelMenu();
+  DU.joining=code;DU.hostLobby=null;DU.hostKey='';showDuelMenu();
   try{
     const R=await ROOM.join('dmn-'+code);
     if(DU.joining!==code){R.leave();return}
     attachRoom(R,'guest');
     await R.presence({duel:{role:'guest',tick:0,acts:[],name:NICK}});
-    DU.jt=setTimeout(()=>{if(!game&&DU.joining===code){toast('Sala não encontrada');cancelHost()}},15000);
+    DU.jt=setTimeout(()=>{if(!game&&DU.joining===code&&!DU.hostLobby){toast('Sala não encontrada');cancelHost()}},15000);
   }catch(e){toast('Não foi possível entrar');DU.joining=null;if(DU.open)showDuelMenu()}
 }
 function cancelHost(){
@@ -957,7 +1070,7 @@ function cancelHost(){
   if(DU.un){try{DU.un()}catch(e){}DU.un=null}
   if(DU.R){try{DU.R.leave()}catch(e){}DU.R=null}
   if(ROOM&&DU.hosting){try{ROOM.presence({wait:null}).catch(()=>{})}catch(e){}}
-  DU.hosting=null;DU.joining=null;
+  DU.hosting=null;DU.joining=null;DU.lobby=[];DU.hostLobby=null;DU.hostKey='';
   if(DU.open)showDuelMenu();
 }
 function saveNick(){const i=$('#nickIn');if(!i)return;NICK=safeName(i.value);try{localStorage.setItem('dmn_nick',NICK)}catch(e){}}
@@ -1050,10 +1163,11 @@ function render(){
 let lastBar='';
 function hud(){
   const g=game,cnt=[0,0,0,0,0];for(const s of g.sites)cnt[s.owner]++;
-  const n=g.sites.length,order=g.mode==='solo'?[1,2,3,4,0]:[g.me,3-g.me,0];
+  const n=g.sites.length,order=g.mode==='solo'?[1,2,3,4,0]:[g.me].concat(Array.from({length:g.n},(_,i)=>i+1).filter(o=>o!==g.me),[0]);
   const key=cnt.join(',')+g.me;
   if(key!==lastBar){lastBar=key;$('#pbar').innerHTML=order.filter(o=>cnt[o]).map(o=>`<div style="width:${cnt[o]/n*100}%;background:${COL[g.pal[o]].fill}"></div>`).join('')}
-  if(g.mode!=='solo'){const rem=Math.max(0,DUEL_TIME-g.time),mm=Math.floor(rem/60),ss=Math.floor(rem%60);$('#lvTag').innerHTML='DUELO<br>'+mm+':'+String(ss).padStart(2,'0')}
+  if(g.mode!=='solo'){const rem=Math.max(0,g.limit-g.time),mm=Math.floor(rem/60),ss=Math.floor(rem%60);$('#lvTag').innerHTML='DUELO<br>'+mm+':'+String(ss).padStart(2,'0')}
+  if(g.mode==='online'){const k='L'+g.elim.join(',')+(g.gone?Object.keys(g.gone).join(','):'');if(k!==g.legKey){g.legKey=k;$('#legend').innerHTML=Array.from({length:g.n},(_,i)=>i+1).map(o=>`<span class="${g.elim.includes(o)?'out':''}"><i style="background:${COL[g.pal[o]].base}"></i>${o===g.me?'Você':esc(g.names[o])}</span>`).join('')}}
   const b=$('#btnDrop'),dm=g.dropM[g.me]||0;b.style.setProperty('--p',Math.round(dm*100));
   b.classList.toggle('ready',dm>=1&&!g.dropMode);b.classList.toggle('active',g.dropMode);
 }
