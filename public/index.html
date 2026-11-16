@@ -541,7 +541,10 @@ $('#btnSettings').addEventListener('click',()=>openModal(`<div class="plain"><h3
 /* --------------- JOGO --------------- */
 const cv=$('#cv'),ctx=cv.getContext('2d');
 let game=null,VX=0,VY=0,SC=1,CW=0,CH=0;
-const TOPM=62,BOTM=24,STEP=1/30,LAG=9,DUEL_TIME=240,DUEL_H=560;
+const TOPM=62,BOTM=24,STEP=1/30,WIN=14,DUEL_TIME=240,DUEL_H=560;
+/* atraso de entrada adaptativo: janela + atraso medido da rede (em ticks) */
+const inDelay=g=>Math.min(45,Math.max(10,Math.ceil(g.dEst)+6));
+const winOf=g=>Math.max(WIN,Math.ceil(g.dEst)+5);
 const DUEL_PAR={prod:1.2,cap:60};
 const PTR=new Map();
 function resize(){
@@ -605,7 +608,7 @@ function startOnline(R,me,cfg,L,players){
   for(const p of players){par[p.owner]=DUEL_PAR;names[p.owner]=safeName(p.name)||'Jogador '+p.owner;if(p.owner!==me)opps.set(p.peer,{peer:p.peer,owner:p.owner,tick:0,acts:new Map(),last:performance.now(),dropped:false})}
   $('#game').classList.add('on');
   newGame({mode:'online',L,sites,me,mine:[me],pal:palFor(me,n),par,cd:3,n,limit:n>2?300:DUEL_TIME,elim:[],names,
-    R,cfg,players,opps,hostPeer:players.find(p=>p.owner===1).peer,isHost:me===1,myActs:[],actN:0,drops:[],left:false,hostLast:performance.now()});
+    R,cfg,players,opps,hostPeer:players.find(p=>p.owner===1).peer,isHost:me===1,myActs:[],actN:0,drops:[],left:false,hostLast:performance.now(),dEst:6,pubTick:-1,pubActs:0,myPeer:myPeer(R)});
   game.dropM={};for(const p of players)game.dropM[p.owner]=0.35;
   DU.hosting=null;DU.joining=null;DU.lobby=[];
   $('#hint').textContent=n>2?'Partida com '+n+' jogadores — você é o AZUL':'Duelo online — você é o AZUL';$('#hint').style.opacity=1;
@@ -629,15 +632,15 @@ $('#btnDrop').addEventListener('click',()=>{
   if(game.dropMode)toast('Toque numa base sua 🪂');
 });
 
-/* ---- comandos (online: agendados para daqui a LAG ticks) ---- */
+/* ---- comandos (online: agendados para alguns ticks à frente) ---- */
 function cmdSend(owner,srcs,dst){
   const g=game;if(!srcs.length||!dst)return;
-  if(g.mode==='online'){g.myActs.push({id:g.me+':'+(++g.actN),o:owner,k:g.tick+LAG,t:'s',s:srcs.map(x=>x.id),d:dst.id});return}
+  if(g.mode==='online'){g.myActs.push({id:g.me+':'+(++g.actN),o:owner,k:g.tick+inDelay(g),t:'s',s:srcs.map(x=>x.id),d:dst.id});return}
   srcs.forEach(x=>send(x,dst));
 }
 function cmdDrop(owner,site){
   const g=game;
-  if(g.mode==='online'){g.myActs.push({id:g.me+':'+(++g.actN),o:owner,k:g.tick+LAG,t:'d',s:site.id});return}
+  if(g.mode==='online'){g.myActs.push({id:g.me+':'+(++g.actN),o:owner,k:g.tick+inDelay(g),t:'d',s:site.id});return}
   doDrop(owner,site);
 }
 function doDrop(owner,s){
@@ -781,13 +784,18 @@ function frame(rdt){
   g.fx=g.fx.filter(f=>f.t<(f.type==='txt'?1.2:0.5));
   if(g.time>6&&g.mode==='solo')$('#hint').style.opacity=0;
   if(g.mode!=='solo'&&g.time>4)$('#hint').style.opacity=0;
-  if(g.mode==='online')publish();
+  if(g.mode==='online'&&(g.tick!==g.pubTick||g.myActs.length!==g.pubActs||g.quit)){g.pubTick=g.tick;g.pubActs=g.myActs.length;publish()}
   if(g.paused||g.over)return;
   if(g.cd>0){g.cd-=rdt;return}
-  g.acc=Math.min(g.acc+rdt,STEP*10);
-  let stalled=false;
-  while(g.acc>=STEP){
-    if(g.mode==='online'){let w=false;for(const op of g.opps.values())if(!op.dropped&&g.tick>=op.tick+LAG){w=true;break}if(w){stalled=true;break}}
+  let rate=1;
+  if(g.mode==='online'){ // quem está à frente desacelera um pouco; quem está atrás acelera — evita bater na janela e travar
+    let lead=-1e9;for(const op of g.opps.values())if(!op.dropped&&op.theirs!=null)lead=Math.max(lead,(op.obs-op.theirs)/2);
+    if(lead>-1e9)rate=lead>1.5?0.8:lead<-1.5?1.2:1;
+  }
+  g.acc=Math.min(g.acc+rdt*rate,STEP*6);
+  let stalled=false,steps=0;
+  while(g.acc>=STEP&&steps<3){steps++;
+    if(g.mode==='online'){let w=false;for(const op of g.opps.values())if(!op.dropped&&g.tick>=op.tick+winOf(g)){w=true;break}if(w){stalled=true;break}}
     if(g.mode==='online')applyActsAt(g.tick);
     simStep(STEP);g.tick++;g.acc-=STEP;
     if(g.over)break;
@@ -803,13 +811,15 @@ function frame(rdt){
 /* ---- duelo online: sincronização via presença da sala ---- */
 function scheduleDrop(op){
   const g=game;if(op.dropped)return;op.dropped=true;
-  g.drops.push({o:op.owner,k:g.tick+2*LAG,done:false});
+  g.drops.push({o:op.owner,k:g.tick+inDelay(g)+winOf(g),done:false});
 }
 function publish(){
   const g=game;if(g.left)return;
   let keep=g.tick;for(const op of g.opps.values())if(!op.dropped)keep=Math.min(keep,op.tick);
   g.myActs=g.myActs.filter(a=>a.k>=keep);
-  const d={role:g.isHost?'host':'guest',tick:g.tick,acts:g.myActs,name:NICK};
+  const off={},echo={},now=performance.now();
+  for(const op of g.opps.values()){if(op.obs!=null)off[op.peer]=Math.round(op.obs*10)/10;if(op.lastTs!=null)echo[op.peer]=[op.lastTs,Math.round(now-op.lastTsAt)]}
+  const d={role:g.isHost?'host':'guest',tick:g.tick,acts:g.myActs,name:NICK,off,echo,ts:Math.round(now)};
   if(g.isHost){d.cfg=g.cfg;d.players=g.players;d.started=1;d.drops=g.drops.map(x=>({o:x.o,k:x.k}))}
   if(g.quit)d.quit=1;
   try{g.R.presence({duel:d}).catch(()=>{})}catch(e){}
@@ -820,9 +830,15 @@ function duelPeers(ch){
     const p=ch.peers.find(p=>!p.isMe&&p.peer===op.peer);
     const d=p&&p.presence&&p.presence.duel;
     if(d&&typeof d==='object'){
-      const t=d.tick|0;if(t>op.tick){op.tick=t;op.last=now}
+      const t=d.tick|0;if(t>op.tick){op.tick=t;op.last=now;const obs=g.tick-t;op.obs=op.obs==null?obs:op.obs*0.8+obs*0.2}
+      if(d.off&&typeof d.off==='object'&&typeof d.off[g.myPeer]==='number'&&isFinite(d.off[g.myPeer]))op.theirs=Math.max(-60,Math.min(600,d.off[g.myPeer]));
+      if(typeof d.ts==='number'&&d.ts!==op.lastTs){op.lastTs=d.ts;op.lastTsAt=now}
+      const e=d.echo&&typeof d.echo==='object'&&d.echo[g.myPeer];
+      if(Array.isArray(e)&&typeof e[0]==='number'&&typeof e[1]==='number'&&e[0]!==op.echoed){op.echoed=e[0];const rtt=now-e[0]-Math.max(0,e[1]);if(rtt>=0&&rtt<10000){const dt=rtt/2/(1000*STEP);op.lat=op.lat==null?dt:op.lat*0.7+dt*0.3}}
+      {let de=0;for(const o of g.opps.values())if(!o.dropped){if(o.lat!=null)de=Math.max(de,o.lat);else if(o.obs!=null)de=Math.max(de,o.theirs!=null?(o.obs+o.theirs)/2:o.obs)}g.dEst=Math.max(0,de)}
       if(Array.isArray(d.acts))for(const a of d.acts){
         if(!a||typeof a.id!=='string'||a.o!==op.owner||op.acts.has(a.id)||!Number.isInteger(a.k))continue;
+        if(a.k<g.tick&&!g.lateWarn){g.lateWarn=true;toast('⚠️ Conexão instável')}
         if(a.t==='s'&&Array.isArray(a.s)&&Number.isInteger(a.d))op.acts.set(a.id,{id:a.id,o:a.o,k:a.k,t:'s',s:a.s.filter(Number.isInteger).slice(0,40),d:a.d});
         else if(a.t==='d'&&Number.isInteger(a.s))op.acts.set(a.id,{id:a.id,o:a.o,k:a.k,t:'d',s:a.s});
       }
@@ -914,7 +930,7 @@ function wsRoom(url){
     const r={mine:{},peers:Object.freeze([]),hs:new Set(),dirty:false,timer:0,left:false};rooms.set(name,r);
     const flush=()=>{r.timer=0;if(!r.dirty||!open||r.left)return;r.dirty=false;try{ws.send(JSON.stringify({t:'pres',room:name,data:r.mine}))}catch(e){}};
     r.api={name,
-      presence:async(patch)=>{const n={...r.mine};for(const k in patch){if(patch[k]===null)delete n[k];else n[k]=JSON.parse(JSON.stringify(patch[k]))}r.mine=n;r.dirty=true;if(!r.timer)r.timer=setTimeout(flush,60)},
+      presence:async(patch)=>{const n={...r.mine};for(const k in patch){if(patch[k]===null)delete n[k];else n[k]=JSON.parse(JSON.stringify(patch[k]))}r.mine=n;r.dirty=true;if(!r.timer)r.timer=setTimeout(flush,30)},
       peers:()=>r.peers,
       onPeers:(h)=>{r.hs.add(h);setTimeout(()=>{if(r.hs.has(h))h({peers:r.peers,joined:r.peers,left:[],updated:[]})},0);return()=>r.hs.delete(h)},
       emit:async()=>{},on:()=>()=>{},connected:()=>open,
@@ -1078,7 +1094,7 @@ $('#btnDuel').addEventListener('click',showDuelMenu);
 
 /* input (vários dedos: no duelo local cada jogador arrasta as próprias bases) */
 function toMap(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left-VX)/SC,y:(e.clientY-r.top-VY)/SC}}
-function hit(m){let b=null,bd=26*26;for(const s of game.sites){const dx=s.x-m.x,dy=s.y-m.y,d=dx*dx+dy*dy;if(d<bd){bd=d;b=s}}return b}
+function hit(m,rad=26){let b=null,bd=rad*rad;for(const s of game.sites){const dx=s.x-m.x,dy=s.y-m.y,d=dx*dx+dy*dy;if(d<bd){bd=d;b=s}}return b}
 const playable=g=>!g.over&&!g.paused&&g.cd<=0;
 cv.addEventListener('pointerdown',e=>{
   const g=game;if(!g||!playable(g))return;
@@ -1097,7 +1113,7 @@ cv.addEventListener('pointermove',e=>{
 });
 cv.addEventListener('pointerup',e=>{
   const g=game,d=PTR.get(e.pointerId);PTR.delete(e.pointerId);if(!g||!d||!playable(g))return;
-  const s=hit(toMap(e));
+  const s=hit(toMap(e),d.moved?40:26);
   if(!d.moved&&s===d.down){if(g.mode!=='local')g.tapSel=s;return}
   if(s){const srcs=d.sel.filter(x=>x!==s&&x.owner===d.owner);if(srcs.length)cmdSend(d.owner,srcs,s)}
 });

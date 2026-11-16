@@ -4,6 +4,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 10000;
+const SIM_DELAY = +process.env.SIM_DELAY_MS || 0; // só para testes locais de latência
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const rooms = new Map(); // nome -> Map(ws -> presença)
 let seq = 0;
@@ -19,7 +20,10 @@ function broadcast(name) {
   const r = rooms.get(name); if (!r) return;
   const peers = []; for (const [w, p] of r) peers.push({ peer: w.id, presence: p });
   const msg = JSON.stringify({ t: 'peers', room: name, peers });
-  for (const w of r.keys()) if (w.readyState === 1) w.send(msg);
+  for (const w of r.keys()) {
+    if (w.readyState !== 1) continue;
+    if (SIM_DELAY) setTimeout(() => { if (w.readyState === 1) w.send(msg); }, SIM_DELAY); else w.send(msg);
+  }
 }
 function leave(ws, name) {
   const r = rooms.get(name); if (!r) return;
