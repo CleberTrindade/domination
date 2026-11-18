@@ -755,6 +755,7 @@ $('#mbox').addEventListener('click',e=>{
   }
   if(t.dataset.go){closeModal();setTab(t.dataset.go);return}
   if(t.dataset.act==='local'){closeModal();startLocalDuel();return}
+  if(t.dataset.act==='cpu'||t.dataset.act==='rematchcpu'){closeModal();startCpuDuel();return}
   if(t.dataset.act==='rematch'){closeModal();startLocalDuel();return}
   if(t.dataset.act==='host'){saveNick();hostDuel();return}
   if(t.dataset.act==='cancelhost'){cancelHost();return}
@@ -793,7 +794,7 @@ const screenH=()=>{const gr=$('#game').getBoundingClientRect();return Math.round
 
 function newGame(o){
   $('#game').classList.add('on');
-  game=Object.assign({units:[],fx:[],img:document.createElement('canvas'),dirty:true,time:0,vt:0,acc:0,tick:0,uid:0,
+  game=Object.assign({units:[],fights:[],fx:[],img:document.createElement('canvas'),dirty:true,time:0,vt:0,acc:0,tick:0,uid:0,
     over:false,paused:false,tapSel:null,dropMode:false,stats:{cap:0,kill:0},ais:[],me:1,mine:[1],pal:[0,1,2,3,4],cd:0,waiting:0,limit:Infinity},o);
   game.reach=game.L.reach;
   game.dropM=game.mode==='solo'?{1:0.35}:{1:0.35,2:0.35};
@@ -814,6 +815,15 @@ function startGame(){
   $('#lvTag').innerHTML='NÍVEL<br>'+lv;toast('💣 Capture o bombardeiro central · elimine '+(L.nAI>1?'os '+L.nAI+' inimigos':'o inimigo'));
   $('#hint').textContent='Arraste da sua base até outra para enviar tropas';
   $('#hint').style.opacity=lv<=2?1:0;
+}
+function startCpuDuel(){
+  $('#game').classList.add('on');
+  const L=buildDuelLevel(0,0,0,2);
+  const sites=L.sites.map(s=>({...s}));for(const s of sites)if(s.owner)s.troops=BASE0;
+  const aip={prod:DUEL_PAR.prod,cap:DUEL_PAR.cap,int:1.8,aggr:0.6};
+  newGame({mode:'solo',cpu:true,L,lv:0,sites,aip,par:{1:DUEL_PAR,2:aip},ais:[{id:2,timer:2.5,dead:false}],cd:3});
+  $('#lvTag').innerHTML='DUELO<br>CPU';toast('🤖 Duelo contra a CPU · elimine o vermelho');
+  $('#hint').textContent='Arraste da sua base até outra para enviar tropas';$('#hint').style.opacity=1;
 }
 const buildDuelLevel=(reg,seed,H,n)=>buildLevel(4,MW,MAPH,{nAI:Math.max(1,(n||2)-1)});
 const OPP_COLS=[2,3,4];
@@ -891,7 +901,7 @@ const dropTick=o=>{const d=game.drops.find(d=>d.o===o);return d?d.k:null};
 function dropOwner(o){
   const g=game;
   for(const s of g.sites)if(s.owner===o){s.owner=0;s.hq=false;s.troops=Math.floor(s.troops)}
-  g.units=g.units.filter(u=>u.owner!==o);
+  g.units=g.units.filter(u=>u.owner!==o);for(const u of g.units)if(u.fight&&(u.fight.a.owner===o||u.fight.b.owner===o))u.fight=null;g.fights=g.fights.filter(f=>f.a.owner!==o&&f.b.owner!==o);
   g.dirty=true;g.gone=g.gone||{};g.gone[o]=true;
   if(o!==g.me)toast((g.names[o]||'Jogador')+' saiu da partida');
 }
@@ -950,6 +960,10 @@ function aiThink(ai){
   if(best)best[0].forEach(s=>send(s,best[1]));
 }
 const alive=o=>game.sites.some(s=>s.owner===o)||game.units.some(u=>u.owner===o);
+function segX(ax,ay,bx,by,cx,cy,dx,dy){ // os deslocamentos deste passo se cruzam?
+  const d1=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax),d2=(bx-ax)*(dy-ay)-(by-ay)*(dx-ax),d3=(dx-cx)*(ay-cy)-(dy-cy)*(ax-cx),d4=(dx-cx)*(by-cy)-(dy-cy)*(bx-cx);
+  return ((d1>0&&d2<0)||(d1<0&&d2>0))&&((d3>0&&d4<0)||(d3<0&&d4>0));
+}
 /* passo determinístico da simulação (mesmo resultado em todos os aparelhos da partida online) */
 function simStep(dt){
   const g=game;g.time+=dt;
@@ -960,23 +974,32 @@ function simStep(dt){
     else s.troops=Math.max(P.cap,s.troops-dt*1.5);
   }
   for(const u of g.units){
+    u.px=u.x;u.py=u.y;
+    if(u.fight)continue;               // em batalha: fica parado
     u.d+=SPEED[u.k]*dt;
     if(u.d>=u.L){u.alive=false;arrive(u);continue}
     upos(u);
   }
-  // tropas inimigas que se encontram no caminho lutam: a maior segue com a diferença
+  // tropas inimigas que se cruzam param e lutam: cada uma perde 1 tropa a cada 0,12 s até uma acabar
   const us=g.units;
   for(let i=0;i<us.length;i++){
-    const u=us[i];if(!u.alive)continue;
+    const u=us[i];if(!u.alive||u.fight)continue;
     for(let j=i+1;j<us.length;j++){
-      const v=us[j];if(!v.alive||v.owner===u.owner)continue;
+      const v=us[j];if(!v.alive||v.fight||v.owner===u.owner)continue;
       const dx=u.x-v.x,dy=u.y-v.y;
-      if(dx*dx+dy*dy<196){const m=Math.min(u.n,v.n);u.n-=m;v.n-=m;
-        if(u.owner===g.me||v.owner===g.me)g.stats.kill+=m;
-        g.fx.push({type:'boom',x:(u.x+v.x)/2,y:(u.y+v.y)/2,t:0});
-        if(u.n<=0)u.alive=false;if(v.n<=0)v.alive=false;if(!u.alive)break}
+      if(dx*dx+dy*dy<484||segX(u.px,u.py,u.x,u.y,v.px,v.py,v.x,v.y)){
+        const f={a:u,b:v,t:0,x:(u.x+v.x)/2,y:(u.y+v.y)/2,age:0};u.fight=f;v.fight=f;g.fights.push(f);
+        g.fx.push({type:'clash',x:f.x,y:f.y,t:0});break}
     }
   }
+  for(const f of g.fights){
+    f.t+=dt;f.age+=dt;
+    while(f.t>=0.12&&f.a.n>0&&f.b.n>0){f.t-=0.12;f.a.n--;f.b.n--;
+      if(f.a.owner===g.me||f.b.owner===g.me)g.stats.kill++}
+    if(f.a.n<=0||f.b.n<=0||!f.a.alive||!f.b.alive){f.done=true;
+      for(const u of [f.a,f.b]){u.fight=null;if(u.n<=0&&u.alive){u.alive=false;g.fx.push({type:'boom',x:u.x,y:u.y,t:0})}}}
+  }
+  g.fights=g.fights.filter(f=>!f.done);
   // bombardeiros: atiram no inimigo mais próximo dentro do alcance (-1 tropa por tiro)
   for(const s of g.sites){
     if(s.kind!=='central'&&s.kind!=='canhao')continue;
@@ -987,9 +1010,9 @@ function simStep(dt){
     s.cd=FIRE[s.kind];best.n-=1;s.tx=best.x;s.ty=best.y;s.kick=0;
     if(s.owner===g.me&&best.owner!==g.me)g.stats.kill++;
     g.fx.push({type:'shot',s,x:best.x,y:best.y,t:0,heli:best.k==='heli'});
-    if(best.n<=0){best.alive=false;g.fx.push({type:'boom',x:best.x,y:best.y,t:0})}
+    if(best.n<=0){best.alive=false;g.fx.push({type:'boom',x:best.x,y:best.y,t:0});if(best.fight){const o=best.fight.a===best?best.fight.b:best.fight.a;o.fight=null;best.fight.done=true}}
   }
-  g.units=us.filter(u=>u.alive);
+  g.units=us.filter(u=>u.alive);g.fights=g.fights.filter(f=>!f.done);
   for(const k in g.dropM)g.dropM[k]=Math.min(1,g.dropM[k]+dt/18);
   if(g.mode==='solo'){
     for(const ai of g.ais){if(ai.dead)continue;ai.timer-=dt;if(ai.timer<=0){ai.timer=g.aip.int*(0.7+Math.random()*0.6);aiThink(ai)}}
@@ -1015,7 +1038,7 @@ function rankPlayers(live){
 function frame(rdt){
   const g=game;g.vt+=rdt;
   for(const f of g.fx)f.t+=rdt;
-  g.fx=g.fx.filter(f=>f.t<({txt:1.2,cap:1.2,shot:1,ring:.8,boom:.6,hit:.6}[f.type]||.5));
+  g.fx=g.fx.filter(f=>f.t<({txt:1.2,cap:1.2,shot:1,ring:.8,boom:.6,hit:.6,clash:.5}[f.type]||.5));
   if(g.time>6&&g.mode==='solo')$('#hint').style.opacity=0;
   if(g.mode!=='solo'&&g.time>4)$('#hint').style.opacity=0;
   if(g.mode==='online'&&(g.tick!==g.pubTick||g.myActs.length!==g.pubActs||g.quit)){g.pubTick=g.tick;g.pubActs=g.myActs.length;publish()}
@@ -1127,16 +1150,17 @@ function endGame(win){
   const g=game;if(g.over)return;g.over=true;PTR.clear();
   const m=missions();m.prog.cap+=g.stats.cap;m.prog.kill+=g.stats.kill;
   let coins,gems=0;
-  if(win){coins=100+(g.lv-1)*10;m.prog.win++;if(g.lv%4===0)gems=5;S.level=g.lv+1}else coins=20;
+  if(g.cpu)coins=win?60:15;
+  else if(win){coins=100+(g.lv-1)*10;m.prog.win++;if(g.lv%4===0)gems=5;S.level=g.lv+1}else coins=20;
   S.coins+=coins;S.gems+=gems;save();refreshTop();
   setTimeout(()=>{
     const tiles=`<div class="tile"><i class="coin"></i>${coins}</div>`+(gems?`<div class="tile"><i class="gem"></i>${gems}</div>`:'');
     if(win)openModal(`<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center"><div class="glow"></div><div class="trophy">🏆</div><div class="banner">VITÓRIA</div>
       <div class="panel"><h3>SUA RECOMPENSA</h3>${tiles}<p style="margin-top:14px;color:#6b7299;font-weight:800">Bases capturadas: ${g.stats.cap} · Tropas eliminadas: ${g.stats.kill}</p></div>
-      <button class="btn green cta" data-act="continue">CONTINUAR</button></div>`);
+      ${g.cpu?'<button class="btn green cta" data-act="rematchcpu">REVANCHE</button><button class="linkbtn" data-act="continue">MENU</button>':'<button class="btn green cta" data-act="continue">CONTINUAR</button>'}</div>`);
     else openModal(`<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center"><div class="trophy">🏳️</div><div class="banner red">DERROTA</div>
-      <div class="panel"><h3>PRÊMIO DE CONSOLAÇÃO</h3>${tiles}<p style="margin-top:14px;color:#6b7299;font-weight:800">Dica: melhore Guarnição e Produção antes de tentar de novo.</p></div>
-      <button class="btn green cta" data-act="retry">TENTAR NOVAMENTE</button><button class="linkbtn" data-act="continue">MENU</button></div>`);
+      <div class="panel"><h3>PRÊMIO DE CONSOLAÇÃO</h3>${tiles}<p style="margin-top:14px;color:#6b7299;font-weight:800">${g.cpu?'A CPU dominou o mapa. Tente atacar o centro por dois lados.':'Dica: melhore Guarnição e Produção antes de tentar de novo.'}</p></div>
+      <button class="btn green cta" data-act="${g.cpu?'rematchcpu':'retry'}">${g.cpu?'REVANCHE':'TENTAR NOVAMENTE'}</button><button class="linkbtn" data-act="continue">MENU</button></div>`);
   },800);
 }
 
@@ -1218,7 +1242,8 @@ function showDuelMenu(){
     <div class="crow"><input id="codeIn" maxlength="4" placeholder="CÓDIGO" autocomplete="off"><button class="btn blue" data-act="joincode">ENTRAR</button></div>
     <h5>SALAS ABERTAS</h5><div id="roomList" class="rl"></div>`;
   openModal(`<div class="sheet"><div class="hd">⚔️ DUELO</div>
-    <div class="dsec"><h4>NO MESMO CELULAR</h4><p>Dois jogadores na mesma tela: azul contra vermelho.</p><button class="btn blue" data-act="local">JOGAR LOCAL</button></div>
+    <div class="dsec"><h4>CONTRA A CPU</h4><p>Você (azul) contra o computador (vermelho), em condições iguais.</p><button class="btn green" data-act="cpu">JOGAR CONTRA A CPU</button></div>
+    <div class="dsec"><h4>NO MESMO CELULAR</h4><p>Duas pessoas na mesma tela: uma controla o azul, a outra o vermelho.</p><button class="btn blue" data-act="local">JOGAR A DOIS</button></div>
     <div class="dsec"><h4>ONLINE · 2 A 4 JOGADORES</h4>${online}</div>
     <p class="dnote">Todos começam iguais — suas melhorias não contam. Vence quem eliminar todos os inimigos. Vitória online: 150 moedas.</p></div>
     <button class="closex" data-act="duelclose">✕</button>`);
@@ -1422,7 +1447,7 @@ function render(){
   for(const u of us){
     const p=u.P,j=Math.min(p.length-1,u.si+1),tx=p[j][0]-u.x,ty=p[j][1]-u.y;
     if(tx*tx+ty*ty>0.5)u.vh=turnTo(u.vh,ang(tx,ty),rdt*9);
-    const x=X(u.x),y=Y(u.y),k=1.4*SC,col=P[u.owner];
+    const sh=u.fight?Math.sin(g.vt*40+u.id)*1.6*SC:0;const x=X(u.x)+sh,y=Y(u.y),k=1.4*SC,col=P[u.owner];
     const bob=u.k==='heli'?Math.sin(g.vt*5+u.id)*1.5*k:u.k==='desliz'?Math.sin(g.vt*6+u.id)*0.6*k:0;
     c.beginPath();c.ellipse(x,y+1*k,(u.k==='heli'?12:16)*k,(u.k==='heli'?7.2:9.6)*k,0,0,7);c.fillStyle='rgba(11,26,58,.24)';c.fill();
     SPR.draw(c,SPR.unit(u.k,col,u.vh||0),x,y-bob,k);
@@ -1430,6 +1455,11 @@ function render(){
       const a=g.vt*24+u.id;for(const b of [0,Math.PI/2]){const ca=Math.cos(a+b)*19*k,sa=Math.sin(a+b)*19*0.6*k;c.beginPath();c.moveTo(x+ca,yy+sa);c.lineTo(x-ca,yy-sa);c.lineWidth=2.6*SC;c.strokeStyle='rgba(30,37,54,.8)';c.stroke();c.lineWidth=1.2*SC;c.strokeStyle='#7a839a';c.stroke()}}
     pin(c,x,y-bob-(u.k==='heli'?62:40)*SC,u.n,col,SC);
   }
+  // batalhas em andamento
+  for(const f of g.fights){const x=X(f.x),y=Y(f.y-14),k=SC,pl=1+0.12*Math.sin(g.vt*18);
+    for(let i=0;i<7;i++){const a=g.vt*9+i*0.9,r=(8+((i*37+Math.floor(g.vt*20))%9))*k;c.beginPath();c.arc(x+Math.cos(a)*r,y+Math.sin(a)*r*0.7,1.8*k,0,7);c.fillStyle=i%2?'#ffd34d':'#ff9b3d';c.fill()}
+    c.save();c.translate(x,y);c.scale(pl*k,pl*k);c.beginPath();for(let i=0;i<16;i++){const a=i*Math.PI/8,r=i%2?7:14;c.lineTo(Math.cos(a)*r,Math.sin(a)*r)}c.closePath();c.fillStyle='#fff3c4';c.fill();c.lineWidth=1.6;c.strokeStyle='#e8433a';c.stroke();
+    c.strokeStyle='#1e2536';c.lineWidth=2.2;c.lineCap='round';c.beginPath();c.moveTo(-6,-6);c.lineTo(6,6);c.moveTo(6,-6);c.lineTo(-6,6);c.stroke();c.restore()}
   // efeitos
   c.textAlign='center';c.textBaseline='middle';
   for(const f of g.fx){
@@ -1445,6 +1475,7 @@ function render(){
     else if(f.type==='ring'){c.strokeStyle=f.c;c.globalAlpha=Math.max(0,1-f.t/0.8);c.lineWidth=4;c.beginPath();c.arc(X(f.x),Y(f.y),(HR*0.8+f.t*70)*SC,0,7);c.stroke();c.globalAlpha=1}
     else if(f.type==='cap'){const e=f.t/1.2;c.globalAlpha=Math.max(0,1-e*e);c.font=`${15*SC}px "Lilita One", sans-serif`;c.lineWidth=4;c.strokeStyle='#fff';c.strokeText('CAPTURADO!',X(f.x),Y(f.y-44-14*e));c.fillStyle=TEAMC[P[f.o]].dark;c.fillText('CAPTURADO!',X(f.x),Y(f.y-44-14*e));c.globalAlpha=1}
     else if(f.type==='hit'){c.globalAlpha=Math.max(0,1-f.t/0.6);c.strokeStyle='#e8433a';c.lineWidth=4*(1-f.t/0.6)+0.5;hexPath(c,X(f.x),Y(f.y),HR*(1+0.3*f.t)*SC);c.stroke();c.globalAlpha=1}
+    else if(f.type==='clash'){const e=f.t/0.5;c.globalAlpha=Math.max(0,1-e);c.beginPath();c.arc(X(f.x),Y(f.y-14),(10+30*e)*SC,0,7);c.strokeStyle='#fff';c.lineWidth=4*(1-e)+1;c.stroke();c.globalAlpha=1}
     else if(f.type==='boom'){const e=f.t/0.6;c.globalAlpha=Math.max(0,1-e);c.beginPath();c.arc(X(f.x),Y(f.y),(8+24*e)*SC,0,7);c.fillStyle='#fff';c.fill();c.beginPath();c.arc(X(f.x),Y(f.y),(5+14*e)*SC,0,7);c.fillStyle='#ff9b3d';c.fill();c.globalAlpha=1}
     else if(f.type==='txt'){c.globalAlpha=Math.max(0,1-f.t/1.2);c.font='20px "Lilita One", sans-serif';c.lineWidth=4;c.strokeStyle='#fff';c.strokeText(f.text,X(f.x),Y(f.y)-f.t*30);c.fillStyle='#e0a412';c.fillText(f.text,X(f.x),Y(f.y)-f.t*30);c.globalAlpha=1}
   }
@@ -1458,12 +1489,12 @@ function hud(){
   const n=g.sites.length,order=g.mode==='solo'?[1,2,3,4,0]:[g.me].concat(Array.from({length:g.n},(_,i)=>i+1).filter(o=>o!==g.me),[0]);
   const key=cnt.join(',')+g.me;
   if(key!==lastBar){lastBar=key;$('#pbar').innerHTML=order.filter(o=>cnt[o]).map(o=>`<div style="width:${cnt[o]/n*100}%;background:${COL[g.pal[o]].fill}"></div>`).join('')}
-  if(g.mode!=='solo'){const el=Math.max(0,g.time),mm=Math.floor(el/60),ss=Math.floor(el%60);$('#lvTag').innerHTML='DUELO<br>'+mm+':'+String(ss).padStart(2,'0')}
+  if(g.mode!=='solo'||g.cpu){const el=Math.max(0,g.time),mm=Math.floor(el/60),ss=Math.floor(el%60);$('#lvTag').innerHTML='DUELO<br>'+mm+':'+String(ss).padStart(2,'0')}
   if(g.mode==='online'){const k='L'+g.elim.join(',')+(g.gone?Object.keys(g.gone).join(','):'');if(k!==g.legKey){g.legKey=k;$('#legend').innerHTML=Array.from({length:g.n},(_,i)=>i+1).map(o=>`<span class="${g.elim.includes(o)?'out':''}"><i style="background:${COL[g.pal[o]].base}"></i>${o===g.me?'Você':esc(g.names[o])}</span>`).join('')}}
   const b=$('#btnDrop'),dm=g.dropM[g.me]||0;b.style.setProperty('--p',Math.round(dm*100));
   b.classList.toggle('ready',dm>=1&&!g.dropMode);b.classList.toggle('active',g.dropMode);
 }
-window.DOMDBG=()=>({game,VX,VY,SC,HX});
+window.DOMDBG=()=>({game,VX,VY,SC,HX,send});
 let last=performance.now();
 function loop(now){
   const dt=Math.min(0.1,(now-last)/1000);last=now;
