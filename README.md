@@ -1,15 +1,21 @@
 # Domination
 
-Jogo de conquista de territórios no mapa-múndi (estilo State.io), feito em HTML/JS puro — um único arquivo, sem build.
+Jogo de conquista de territórios em mapa de hexágonos (estilo State.io), feito em HTML/JS puro — um único arquivo, sem build.
 
 ## Como jogar
-- Arraste da sua base (azul) até outra base para enviar tropas. Passe por várias bases suas para atacar com todas.
-- Bases brancas são neutras; verde, vermelho e roxo são inimigos. O coração é a base principal de cada lado.
+- O mapa é um desafio simétrico de 17 regiões em hexágonos. Cada jogador começa num canto; o **Bombardeiro Central** fica à mesma distância de todos.
+- Arraste da sua base até outra para enviar tropas (passe por várias bases suas para atacar com todas). Cada envio sai como um grupo com o número de tropas:
+  - **Garagem → tanque:** anda casa a casa, só por terra.
+  - **Heliporto → helicóptero:** voa em linha reta por cima de tudo.
+  - **Botes → deslizador:** cruza a água em linha reta (únicas bases nas ilhas).
+- **Bombardeiros** (central e laterais) giram e atiram reto na tropa inimiga mais próxima dentro do alcance (-1 por tiro). Quem captura passa a atirar nos outros.
+- Grupos inimigos que se encontram no caminho lutam; o maior segue com a diferença.
+- Bases neutras: garagem 40% da base inicial média (10), bombardeiros e heliporto 55% (14), botes 45% (11).
 - O paraquedas (canto inferior direito) carrega com o tempo e reforça uma base sua.
-- Elimine todos os inimigos para vencer o nível.
+- **A partida só termina quando todos os inimigos forem eliminados** (sem bases e sem tropas andando). Tomar o centro é só uma vantagem.
 
 ## Modos
-- **Campanha:** 17 regiões reais do mundo (América Central, Bálcãs, América do Sul, EUA…), dificuldade crescente.
+- **Campanha:** níveis com 1 a 3 inimigos e dificuldade crescente.
 - **Melhorias:** Guarnição, Produção e Capacidade, compradas com moedas.
 - **Missões diárias** com estrelas e baús.
 - **Duelo local:** dois jogadores no mesmo aparelho (azul × vermelho).
@@ -19,7 +25,7 @@ O progresso fica salvo no `localStorage` do navegador.
 
 ## Estrutura
 ```
-public/index.html   # o jogo inteiro (dados do mapa embutidos: world-atlas 50m e us-atlas, simplificados)
+public/index.html   # o jogo inteiro (mapa, arte em SVG e lógica embutidos)
 server/index.js     # servidor de salas do duelo online (WebSocket, Node + ws)
 package.json        # dependências do servidor
 render.yaml         # configuração dos dois serviços no Render
@@ -44,5 +50,3 @@ Dois serviços, no mesmo repositório:
 - **domination-ws** (web service Node, plano free): `npm install` e `node server/index.js`. O endereço dele está fixo em `WS_URL` no `index.html` (`wss://domination-ws.onrender.com`).
 
 No plano free o servidor hiberna sem uso; a primeira conexão do dia pode levar até 1 minuto.
-
-Dados de mapa: [world-atlas](https://github.com/topojson/world-atlas) e [us-atlas](https://github.com/topojson/us-atlas) (Natural Earth, domínio público).
