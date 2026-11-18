@@ -9,7 +9,7 @@ Jogo de conquista de territórios em mapa de hexágonos (estilo State.io), feito
   - **Heliporto → helicóptero:** voa em linha reta por cima de tudo.
   - **Botes → deslizador:** cruza a água em linha reta (únicas bases nas ilhas).
 - **Bombardeiros** (central e laterais) giram e atiram reto na tropa inimiga mais próxima dentro do alcance (-1 por tiro). Quem captura passa a atirar nos outros.
-- Quando tropas inimigas se cruzam, elas param e lutam (cada uma perde 1 tropa a cada 0,12 s); a que sobrar segue viagem.
+- Quando tropas inimigas se encontram, elas param, viram uma para a outra e trocam tiros (-1 por tiro, um tiro a cada 0,3 s de cada lado); a que sobrar segue viagem.
 - Bases neutras: garagem 40% da base inicial média (10), bombardeiros e heliporto 55% (14), botes 45% (11).
 - O paraquedas (canto inferior direito) carrega com o tempo e reforça uma base sua.
 - **A partida só termina quando todos os inimigos forem eliminados** (sem bases e sem tropas andando). Tomar o centro é só uma vantagem.
