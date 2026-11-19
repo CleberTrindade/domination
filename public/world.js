@@ -70,9 +70,10 @@
   }
   async function refresh(force = false) {
     try {
+      const hadError = !!error;
       const next = await api('/api/world'); const digest = JSON.stringify(next);
       data = next; error = '';
-      if (force || digest !== lastDigest) { lastDigest = digest; render(); }
+      if (force || hadError || digest !== lastDigest) { lastDigest = digest; render(); }
     } catch (e) { error = e.message; render(); }
   }
   function modal(html) { if (dialog.open) dialog.close(); dialog.innerHTML = html; dialog.showModal(); }

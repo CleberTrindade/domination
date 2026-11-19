@@ -11,7 +11,7 @@ test('shared world API, real Postgres persistence and authoritative battle lifec
   const engines = []; let clock = Date.now();
   const options = { startClock: false, now: () => clock, engineFactory(config) {
     const real = createBattle(config); let forced = null;
-    const fixture = { step: real.step, command: real.command, snapshot: real.snapshot,
+    const fixture = { step: real.step, command: real.command, snapshot: real.snapshot, checkpoint: real.checkpoint,
       get result() { return forced || real.result; }, finishAs(status) { forced = status; } };
     engines.push(fixture); return fixture;
   }};
@@ -113,8 +113,36 @@ test('shared world API, real Postgres persistence and authoritative battle lifec
       await app.close(); app = await createApplication({ pool, worldOptions: options }); base = await listen();
       const result = await call('/api/world', { cookie: bob }); assert.equal(result.json.player.username, 'bob');
       assert.equal(result.json.areas.find(a => a.id === 'se-aracaju').owner_id, result.json.player.id);
-      assert.equal((await call('/api/world/battles/' + active.json.id, { cookie: bob })).json.status, 'interrupted');
+      const recovered = await call('/api/world/battles/' + active.json.id, { cookie: bob });
+      assert.equal(recovered.json.status, 'active');
+      assert.equal(recovered.json.snapshot.sites.length, 17);
+      await post('/api/world/battles/' + active.json.id + '/surrender', bob);
       const login = await post('/api/auth/login', null, { username: 'alice', password: 'integration-password-123' }); assert.equal(login.status, 200);
+    });
+    await t.test('an orphan from the earlier build closes immediately without an endless 90-second error', async () => {
+      const record = await post('/api/world/areas/se-sao-francisco/attack', charlie); assert.equal(record.status, 201);
+      // Reproduce the original failure: an active reservation with no in-memory state or checkpoint.
+      app.world.battles.delete(record.json.id);
+      await pool.query('UPDATE world_battles SET simulation=NULL WHERE id=$1', [record.json.id]);
+      const recovered = await call('/api/world/battles/' + record.json.id, { cookie: charlie });
+      assert.equal(recovered.status, 200); assert.equal(recovered.json.final.status, 'interrupted');
+      const result = await call('/api/world'); assert.equal(result.json.areas.find(a => a.id === 'se-sao-francisco').battle_id, null);
+    });
+    await t.test('a replacement instance resumes the battle and rejects a victory from the old instance', async () => {
+      const active = await post('/api/world/areas/se-alto-sertao/attack', charlie); assert.equal(active.status, 201);
+      const oldApp = app, oldEngine = engines.at(-1);
+      const replacement = await createApplication({ pool, worldOptions: options });
+      await new Promise(resolve => replacement.server.listen(0, '127.0.0.1', resolve));
+      const replacementBase = 'http://127.0.0.1:' + replacement.server.address().port;
+      try {
+        const response = await fetch(replacementBase + '/api/world/battles/' + active.json.id, { headers: { Cookie: charlie } });
+        assert.equal(response.status, 200); assert.equal((await response.json()).status, 'active');
+        oldEngine.finishAs('won'); await oldApp.world.tick();
+        assert.equal(oldApp.world.battles.has(active.json.id), false);
+        assert.equal((await pool.query("SELECT owner_id FROM world_areas WHERE id='se-alto-sertao'")).rows[0].owner_id, null);
+        const surrender = await fetch(replacementBase + '/api/world/battles/' + active.json.id + '/surrender', { method: 'POST', headers: { Cookie: charlie, 'Content-Type': 'application/json' }, body: '{}' });
+        assert.equal((await surrender.json()).status, 'abandoned');
+      } finally { await oldApp.close(); app = replacement; base = replacementBase; }
     });
     await t.test('classic online rooms still communicate independently of world battles', async () => {
       const peers = [];

@@ -30,7 +30,7 @@ const HX=(()=>{
 })();
 
 const weights=HX.seeds.map((_,id)=>HX.cells.filter(c=>c.t===id).length);
-function seeded(seed){return ()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function seeded(seed){const random=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};random.state=()=>seed;random.restore=value=>{seed=value|0;};return random;}
 function initialSites(share,difficulty=1){
   const sites=HX.seeds.map((s,id)=>{const c=HX.cells[s.cell];return{id,x:c.x,y:c.y,cell:s.cell,kind:s.kind,n:s.n,owner:0,troops:Math.round(BASE0*PCT[s.kind]),hq:false,cd:0}});
   const attacker=HX.corners[0],defender=HX.corners[1],target=share*HX.cells.length;
@@ -205,6 +205,25 @@ function simStep(dt){
       fx:game.fx.map(f=>({type:f.type,x:f.x,y:f.y,t:f.t,c:f.c,o:f.o,text:f.text,heli:f.heli,site:f.s?.id,from:f.from?.id,to:f.to?.id})),
       stats:game.stats};
   }
-  return {step,command,snapshot,get result(){return game.result;}};
+  function checkpoint(){
+    return {version:1,config:{share,difficulty,seed,maxSeconds},randomState:random.state(),
+      time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,
+      stats:{...game.stats},dropM:{...game.dropM},ais:game.ais.map(a=>({...a})),
+      sites:game.sites.map(s=>({...s})),
+      units:game.units.map(({to,fight,...u})=>({...u,toId:to.id})),
+      fights:game.fights.map(({a,b,...f})=>({...f,aId:a.id,bId:b.id}))};
+  }
+  function restore(saved){
+    if(saved.version!==1)throw new Error('Unsupported battle checkpoint');
+    for(const key of ['time','uid','cd','over','result','reason','stats','dropM','ais'])game[key]=saved[key];
+    game.sites=saved.sites.map(s=>({...s}));
+    game.units=saved.units.map(({toId,...u})=>({...u,to:game.sites[toId],fight:null}));
+    const units=new Map(game.units.map(u=>[u.id,u]));
+    game.fights=saved.fights.map(({aId,bId,...f})=>({...f,a:units.get(aId),b:units.get(bId)})).filter(f=>f.a&&f.b);
+    for(const fight of game.fights){fight.a.fight=fight;fight.b.fight=fight;}
+    game.fx=[];random.restore(saved.randomState);
+  }
+  return {step,command,snapshot,checkpoint,restore,get result(){return game.result;}};
 }
-module.exports={createBattle,initialSites,weights,MAPDATA};
+function restoreBattle(saved){const battle=createBattle(saved.config);battle.restore(saved);return battle;}
+module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA};

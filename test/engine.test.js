@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createBattle, initialSites, MAPDATA } = require('../server/battle-engine');
+const { createBattle, restoreBattle, initialSites, MAPDATA } = require('../server/battle-engine');
 test('initial occupation is measured by hexes; bombarder stays neutral', () => {
   for (const share of [.32,.34,.35,.37,.39]) {
     const setup = initialSites(share, 1);
@@ -46,4 +46,17 @@ test('fixed seed and commands yield reproducible server simulations', () => {
     a.step(1/30);b.step(1/30);
   }
   assert.deepEqual(a.snapshot(),b.snapshot());
+});
+test('a persisted checkpoint resumes troops, combat, production, cooldowns and CPU randomness', () => {
+  const original=createBattle({seed:59,share:.39,difficulty:5});
+  for(let i=0;i<61;i++)original.step(.05);
+  original.command({type:'send',sources:[4],target:0});
+  for(let i=0;i<120;i++)original.step(.05);
+  const checkpoint=JSON.parse(JSON.stringify(original.checkpoint()));
+  assert(checkpoint.units.length>0, 'the checkpoint must include moving troops');
+  const resumed=restoreBattle(checkpoint);
+  const logical=snapshot=>{const {fx,...state}=snapshot;return state;};
+  assert.deepEqual(logical(resumed.snapshot()),logical(original.snapshot()));
+  for(let i=0;i<300;i++){original.step(.05);resumed.step(.05);}
+  assert.deepEqual(resumed.snapshot(),original.snapshot());
 });

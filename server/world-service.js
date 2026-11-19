@@ -1,12 +1,13 @@
 'use strict';
 const { randomUUID, randomInt } = require('node:crypto');
-const { createBattle } = require('./battle-engine');
+const { createBattle, restoreBattle } = require('./battle-engine');
 const { HttpError, getPlayer, authenticate, publicPlayer } = require('./auth');
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const LEASE_SECONDS = 90;
 const DISCONNECT_MS = 30000;
 function createWorldService(pool, { engineFactory = createBattle, startClock = true, now = Date.now } = {}) {
   const battles = new Map(), limits = new Map();
+  const instanceId = randomUUID();
   let closing = false;
   function rate(key, max, windowMs) {
     const time = now();
@@ -31,6 +32,40 @@ function createWorldService(pool, { engineFactory = createBattle, startClock = t
   function event(stream, name, data) {
     if (!stream.destroyed && !stream.writableEnded) stream.write('event: ' + name + '\ndata: ' + JSON.stringify(data) + '\n\n');
   }
+  function detach(battle) {
+    for (const stream of battle.streams) { event(stream, 'reconnect', {}); stream.end(); }
+    battle.streams.clear(); battles.delete(battle.id);
+  }
+  async function checkpoint(battle) {
+    if (battle.persisting) return;
+    battle.persisting = true;
+    try {
+      const changed = await pool.query("UPDATE world_battles SET simulation=$1::jsonb,simulation_saved_at=now(),expires_at=now()+interval '90 seconds' WHERE id=$2 AND status='active' AND server_id=$3 RETURNING id", [JSON.stringify(battle.engine.checkpoint()), battle.id, instanceId]);
+      if (!changed.rows.length) detach(battle);
+      else battle.leaseAt = now();
+    } finally { battle.persisting = false; }
+  }
+  async function recover(id, playerId) {
+    return transaction(async db => {
+      const row = (await db.query('SELECT * FROM world_battles WHERE id=$1 FOR UPDATE', [id])).rows[0];
+      if (!row || row.attacker_id !== playerId) throw new HttpError(404, 'Batalha não encontrada.');
+      if (battles.has(id)) return battles.get(id);
+      if (row.status === 'active' && (!row.simulation || new Date(row.expires_at).getTime() < now())) {
+        const status = row.simulation ? 'expired' : 'interrupted';
+        const final = { status, reason: 'server_restart', areaId: row.area_id };
+        await db.query('UPDATE world_battles SET status=$1,finished_at=now(),result=$2::jsonb WHERE id=$3', [status, JSON.stringify(final), id]);
+        return { id, status, final };
+      }
+      if (row.status !== 'active') return { id, status: row.status, final: { status: row.status, reason: 'interrupted', ...row.result } };
+      const engine = restoreBattle(row.simulation);
+      const area = (await db.query('SELECT name FROM world_areas WHERE id=$1', [row.area_id])).rows[0];
+      const defender = row.defender_id ? (await db.query('SELECT display_name FROM world_players WHERE id=$1', [row.defender_id])).rows[0]?.display_name : 'Guarnição da CPU';
+      await db.query("UPDATE world_battles SET server_id=$1,expires_at=now()+interval '90 seconds' WHERE id=$2", [instanceId, id]);
+      const battle = { id, areaId: row.area_id, areaName: area.name, attackerId: row.attacker_id, defenderName: defender, engine,
+        status: 'active', startedAt: row.started_at, streams: new Set(), lastClientAt: now(), leaseAt: now(), broadcastAt: 0 };
+      battles.set(id, battle); return battle;
+    });
+  }
   async function finish(battle, status, reason) {
     if (battle.settling || battle.status !== 'active') return;
     battle.settling = true;
@@ -39,6 +74,7 @@ function createWorldService(pool, { engineFactory = createBattle, startClock = t
       const final = await transaction(async db => {
         const row = (await db.query('SELECT * FROM world_battles WHERE id=$1 FOR UPDATE', [battle.id])).rows[0];
         if (!row || row.status !== 'active') return { status: row?.status || 'expired', reason: 'interrupted' };
+        if (row.server_id !== instanceId) return { transferred: true };
         let finalStatus = new Date(row.expires_at).getTime() < now() ? 'expired' : status;
         if (finalStatus === 'won') {
           const changed = await db.query('UPDATE world_areas SET owner_id=$1,conquered_at=now(),version=version+1 WHERE id=$2 AND version=$3 RETURNING id', [row.attacker_id, row.area_id, row.area_version]);
@@ -48,6 +84,7 @@ function createWorldService(pool, { engineFactory = createBattle, startClock = t
         await db.query('UPDATE world_battles SET status=$1,finished_at=now(),result=$2::jsonb WHERE id=$3', [finalStatus, JSON.stringify(result), battle.id]);
         return result;
       });
+      if (final.transferred) { detach(battle); return; }
       battle.status = final.status; battle.final = final;
       for (const stream of battle.streams) { event(stream, 'result', final); stream.end(); }
       battle.streams.clear();
@@ -77,12 +114,7 @@ function createWorldService(pool, { engineFactory = createBattle, startClock = t
         }
       }
       if (battle.streams.size) battle.lastClientAt = now();
-      if (now() - battle.leaseAt > 15000 && !battle.renewing) {
-        battle.renewing = true;
-        jobs.push(pool.query("UPDATE world_battles SET expires_at=now()+interval '90 seconds' WHERE id=$1 AND status='active' RETURNING id", [battle.id])
-          .then(r => { if (!r.rows.length) return finish(battle, 'expired', 'interrupted'); battle.leaseAt = now(); })
-          .catch(() => {}).finally(() => { battle.renewing = false; }));
-      }
+      if (now() - battle.leaseAt > 2000 && !battle.persisting) jobs.push(checkpoint(battle).catch(() => {}));
     }
     await Promise.all(jobs);
   }
@@ -103,7 +135,7 @@ function createWorldService(pool, { engineFactory = createBattle, startClock = t
       const id = randomUUID(), share = area.owner_id ? .50 : area.cpu_share;
       const engine = engineFactory({ share, difficulty: area.ordinal, seed: randomInt(1, 2147483647) });
       const defense = area.owner_id ? (await db.query('SELECT display_name FROM world_players WHERE id=$1', [area.owner_id])).rows[0]?.display_name : 'Guarnição da CPU';
-      const row = (await db.query("INSERT INTO world_battles(id,area_id,attacker_id,defender_id,area_version,status,defense_share,expires_at) VALUES($1,$2,$3,$4,$5,'active',$6,now()+interval '90 seconds') RETURNING started_at", [id, area.id, player.id, area.owner_id, area.version, engine.snapshot().defenderShare])).rows[0];
+      const row = (await db.query("INSERT INTO world_battles(id,area_id,attacker_id,defender_id,area_version,status,defense_share,expires_at,simulation,server_id,simulation_saved_at) VALUES($1,$2,$3,$4,$5,'active',$6,now()+interval '90 seconds',$7::jsonb,$8,now()) RETURNING started_at", [id, area.id, player.id, area.owner_id, area.version, engine.snapshot().defenderShare, JSON.stringify(engine.checkpoint()), instanceId])).rows[0];
       return { id, areaId: area.id, areaName: area.name, attackerId: player.id, defenderName: defense, engine,
         status: 'active', startedAt: row.started_at, streams: new Set(), lastClientAt: now(), leaseAt: now(), broadcastAt: 0 };
     });
@@ -168,13 +200,8 @@ function createWorldService(pool, { engineFactory = createBattle, startClock = t
       const match = pathname.match(/^\/api\/world\/battles\/([^/]+)(?:\/(events|commands|surrender))?$/);
       if (!match || !UUID.test(match[1])) throw new HttpError(404, 'Rota não encontrada.');
       const [ , id, action ] = match;
-      const battle = battles.get(id);
-      if (!battle) {
-        const found = (await pool.query('SELECT attacker_id,status,result,expires_at FROM world_battles WHERE id=$1', [id])).rows[0];
-        if (!found || found.attacker_id !== player.id) throw new HttpError(404, 'Batalha não encontrada.');
-        if (found.status === 'active') throw new HttpError(409, 'Essa batalha está sendo encerrada após uma reconexão do servidor. Aguarde até 90 segundos.');
-        json(200, { id, status: found.status, final: found.result || { status: found.status, reason: 'interrupted' } }); return true;
-      }
+      const battle = battles.get(id) || await recover(id, player.id);
+      if (battle.final) { json(200, { id, status: battle.status, final: battle.final }); return true; }
       if (battle.attackerId !== player.id) throw new HttpError(403, 'Essa batalha pertence a outro comandante.');
       if (!action && req.method === 'GET') { json(200, state(battle)); return true; }
       if (action === 'events' && req.method === 'GET') {
@@ -203,7 +230,10 @@ function createWorldService(pool, { engineFactory = createBattle, startClock = t
   }
   async function close() {
     closing = true; if (timer) clearInterval(timer);
-    await Promise.all([...battles.values()].map(b => finish(b, 'interrupted', 'server_restart')));
+    await Promise.all([...battles.values()].map(async b => {
+      if (b.engine.result) await finish(b, b.engine.result, 'elimination');
+      else { await checkpoint(b).catch(() => {}); detach(b); }
+    }));
   }
   return { handle, tick, close, start, world, battles };
 }

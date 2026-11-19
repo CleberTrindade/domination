@@ -34,10 +34,15 @@ recarregar a página, use **Retomar batalha**. A simulação continua durante um
 queda breve. Mais de 30 segundos sem um cliente conectado encerra o ataque.
 O limite de cada combate é de seis minutos, além da contagem inicial.
 
-As reservas são renovadas no banco e expiram em até 90 segundos após uma falha
-abrupta do processo. O desligamento normal encerra os ataques como interrompidos.
-A simulação em andamento é mantida em memória; ela não é retomada após reiniciar
-o servidor. A propriedade conquistada, as contas e o histórico ficam no banco.
+O servidor salva o andamento das batalhas no banco a cada dois segundos e também
+ao desligar normalmente. Após uma publicação ou reinício, o próximo acesso retoma
+a partida do último estado salvo. Em uma falha abrupta, a retomada usa o último
+checkpoint que conseguiu ser gravado. A instância antiga deixa de registrar resultados
+depois que a nova assume a partida.
+
+Reservas sem reconexão expiram em até 90 segundos. Batalhas da versão anterior,
+que não possuíam estado salvo, são encerradas sem alterar a propriedade da área.
+A propriedade conquistada, as contas e o histórico ficam no banco.
 
 ## Estrutura
 
@@ -111,7 +116,7 @@ Os testes não acessam o banco de jogadores do Render/Neon.
 ## Próximas etapas
 
 Esta primeira versão tem defesa automática pela CPU. Defesa humana em tempo real,
-mais estados/países, novas topologias de campo, recuperação de senha por e-mail e
-continuidade da simulação após reiniciar o servidor são evoluções futuras.
+mais estados/países, novas topologias de campo e recuperação de senha por e-mail
+são evoluções futuras.
 O servidor de desenvolvimento opera em uma única instância; várias instâncias
 exigirão coordenação das simulações e do fluxo de estados entre processos.
