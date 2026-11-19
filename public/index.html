@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Domination</title>
+<title>Domination — Mundo Aberto</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
@@ -506,7 +506,7 @@ const DPR=Math.min(2,window.devicePixelRatio||1);
 const fmt=n=>Math.floor(n).toLocaleString('pt-BR');
 
 /* ---------------- SAVE ---------------- */
-const SAVE_KEY='domination_save_v1';
+const SAVE_KEY='domination_mundo_aberto_save_v1';
 const defSave=()=>({level:1,coins:150,gems:0,up:{g:0,p:0,c:0},claimed:[],missions:null});
 let S=defSave();
 try{const raw=JSON.parse(localStorage.getItem(SAVE_KEY)); if(raw) S=Object.assign(defSave(),raw,{up:Object.assign({g:0,p:0,c:0},raw.up||{})});}catch(e){}
@@ -1171,7 +1171,8 @@ function endGame(win){
 }
 
 /* ---- lobby do duelo ---- */
-const WS_URL='wss://domination-ws.onrender.com';
+// Este ambiente usa seu próprio servidor; nunca conecta às salas da main.
+const WS_URL=location.host?((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host):'ws://localhost:10000';
 /* Sala via WebSocket (servidor em server/index.js) — mesma interface da sala do Claude */
 function wsRoom(url){
   let ws=null,peerId=null,open=false,tries=0;const rooms=new Map(),conns=new Set();

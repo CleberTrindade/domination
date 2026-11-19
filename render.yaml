@@ -1,16 +1,20 @@
+# Referência reproduzível do ambiente mundo-aberto.
+# O serviço inicial é criado diretamente no Render; não aplicar sobre a main.
 services:
   - type: web
-    name: domination
-    runtime: static
-    buildCommand: echo "sem build"
-    staticPublishPath: ./public
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: public, max-age=300
-  - type: web
-    name: domination-ws
+    name: domination-mundo-aberto
     runtime: node
+    branch: mundo-aberto
+    region: ohio
     plan: free
-    buildCommand: npm install
-    startCommand: node server/index.js
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: mundo-aberto
+      - key: DATABASE_URL
+        sync: false

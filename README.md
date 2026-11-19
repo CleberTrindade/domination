@@ -1,5 +1,31 @@
 # Domination
 
+## Branch `mundo-aberto`
+
+Esta branch prepara um ambiente independente para desenvolver o mundo compartilhado.
+Nesta primeira publicação, as batalhas existentes continuam disponíveis. O mapa de
+estados, a propriedade de áreas e os ataques persistentes ainda serão implementados.
+
+- **Aplicação:** serviço Node `domination-mundo-aberto`, no Render, região Ohio.
+- **Origem do código:** branch Git `mundo-aberto`, com publicação automática.
+- **Site e partidas:** o mesmo processo atende o HTML e o WebSocket. O cliente usa
+  o próprio endereço, sem acessar o servidor de partidas da `main`.
+- **Banco:** branch Neon `mundo-aberto`, no projeto `domination`. Não usar a URL
+  da branch `production` neste ambiente.
+- **Configuração do servidor:** `NODE_ENV=production`, `APP_ENV=mundo-aberto` e
+  `DATABASE_URL` mantida exclusivamente nas variáveis do Render.
+- **Verificação:** `GET /api/health` testa a conexão com o banco sem expor credenciais;
+  `GET /api/status` informa a quantidade de salas e conexões.
+- **Dados locais:** esta branch usa sua própria chave de progresso no navegador.
+
+Para executar esta branch localmente, use `npm ci` e `npm start`, depois abra
+`http://localhost:10000`. O jogo funciona sem banco durante desenvolvimento local;
+nesse caso `/api/health` retorna 503 com `database: not_configured`.
+
+O arquivo `render.yaml` descreve somente este novo serviço. A publicação inicial é
+criada diretamente no Render; não há Blueprint ativo sincronizando este arquivo.
+As instruções abaixo descrevem o jogo original e sua publicação na `main`.
+
 Jogo de conquista de territórios em mapa de hexágonos (estilo State.io), feito em HTML/JS puro — um único arquivo, sem build.
 
 ## Como jogar

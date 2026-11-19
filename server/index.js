@@ -1,18 +1,65 @@
-// Servidor de salas do Domination (duelo online fora do Claude).
-// Só repassa "presença": cada jogador publica seu estado numa sala e todos da sala recebem a lista.
+// Ambiente mundo-aberto: site, saúde do banco e salas no mesmo serviço.
+// O duelo ainda repassa presença; conquistas persistentes serão implementadas aqui.
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { Pool } = require('pg');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 10000;
+const APP_ENV = process.env.APP_ENV || 'mundo-aberto';
+const indexPage = fs.readFileSync(path.join(__dirname, '../public/index.html'));
+const pool = process.env.DATABASE_URL ? new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 3,
+  connectionTimeoutMillis: 4000,
+  idleTimeoutMillis: 10000,
+  query_timeout: 4000
+}) : null;
+if (pool) pool.on('error', () => console.error('Conexão ociosa com o banco indisponível.'));
+let dbProbe;
+let dbProbeAt = 0;
+async function databaseStatus() {
+  if (!pool) return 'not_configured';
+  if (!dbProbe || Date.now() - dbProbeAt > 30000) {
+    dbProbeAt = Date.now();
+    dbProbe = pool.query('SELECT 1').then(() => 'connected', () => 'unavailable');
+  }
+  return dbProbe;
+}
 const SIM_DELAY = +process.env.SIM_DELAY_MS || 0; // só para testes locais de latência
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const rooms = new Map(); // nome -> Map(ws -> presença)
 let seq = 0;
 
-const srv = http.createServer((req, res) => {
-  res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
-  let players = 0; for (const r of rooms.values()) players += r.size;
-  res.end(JSON.stringify({ ok: true, rooms: rooms.size, players }));
+const srv = http.createServer(async (req, res) => {
+  const pathname = (req.url || '/').split('?')[0];
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { Allow: 'GET, HEAD' });
+    return res.end();
+  }
+  if (pathname === '/' || pathname === '/index.html') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(req.method === 'HEAD' ? undefined : indexPage);
+  }
+  if (pathname === '/health' || pathname === '/api/health') {
+    const database = await databaseStatus();
+    const ok = database === 'connected';
+    res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({
+      ok, environment: APP_ENV, database,
+      commit: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7)
+    }));
+  }
+  if (pathname === '/api/status') {
+    let players = 0; for (const r of rooms.values()) players += r.size;
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, environment: APP_ENV, rooms: rooms.size, players }));
+  }
+  res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ error: 'not_found' }));
 });
 const wss = new WebSocketServer({ server: srv, maxPayload: 16 * 1024 });
 
@@ -63,4 +110,4 @@ setInterval(() => {
   for (const w of wss.clients) { if (!w.isAlive) { w.terminate(); continue; } w.isAlive = false; w.ping(); }
 }, 30000);
 
-srv.listen(PORT, () => console.log('domination-ws na porta ' + PORT));
+srv.listen(PORT, '0.0.0.0', () => console.log('Domination ' + APP_ENV + ' na porta ' + PORT));
