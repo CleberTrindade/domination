@@ -1,68 +1,71 @@
-// Ambiente mundo-aberto: site, saúde do banco e salas no mesmo serviço.
-// O duelo ainda repassa presença; conquistas persistentes serão implementadas aqui.
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+
+'use strict';
+const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
 const { Pool } = require('pg');
 const { WebSocketServer } = require('ws');
+const { migrate } = require('./database');
+const { createWorldService } = require('./world-service');
 
-const PORT = process.env.PORT || 10000;
-const APP_ENV = process.env.APP_ENV || 'mundo-aberto';
-const indexPage = fs.readFileSync(path.join(__dirname, '../public/index.html'));
-const pool = process.env.DATABASE_URL ? new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 3,
-  connectionTimeoutMillis: 4000,
-  idleTimeoutMillis: 10000,
-  query_timeout: 4000
-}) : null;
-if (pool) pool.on('error', () => console.error('Conexão ociosa com o banco indisponível.'));
-let dbProbe;
-let dbProbeAt = 0;
-async function databaseStatus() {
-  if (!pool) return 'not_configured';
-  if (!dbProbe || Date.now() - dbProbeAt > 30000) {
-    dbProbeAt = Date.now();
-    dbProbe = pool.query('SELECT 1').then(() => 'connected', () => 'unavailable');
-  }
-  return dbProbe;
+function databasePool() {
+  if (!process.env.DATABASE_URL) return null;
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 6,
+    connectionTimeoutMillis: 4000, idleTimeoutMillis: 10000, query_timeout: 8000 });
+  pool.on('error', () => console.error('Conexão ociosa com o banco indisponível.'));
+  return pool;
 }
-const SIM_DELAY = +process.env.SIM_DELAY_MS || 0; // só para testes locais de latência
-const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
-const rooms = new Map(); // nome -> Map(ws -> presença)
-let seq = 0;
-
-const srv = http.createServer(async (req, res) => {
-  const pathname = (req.url || '/').split('?')[0];
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    res.writeHead(405, { Allow: 'GET, HEAD' });
-    return res.end();
+async function createApplication({ pool = databasePool(), worldOptions = {} } = {}) {
+  if (pool) await migrate(pool);
+  const world = createWorldService(pool, worldOptions);
+  const APP_ENV = process.env.APP_ENV || 'mundo-aberto';
+  const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
+  const SIM_DELAY = +process.env.SIM_DELAY_MS || 0;
+  const rooms = new Map();
+  let seq = 0, dbProbe, dbProbeAt = 0;
+  const assets = new Map([
+    ['/', ['index.html', 'text/html; charset=utf-8']],
+    ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+    ['/world.js', ['world.js', 'application/javascript; charset=utf-8']],
+    ['/world.css', ['world.css', 'text/css; charset=utf-8']]
+  ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
+  async function databaseStatus() {
+    if (!pool) return 'not_configured';
+    if (!dbProbe || Date.now() - dbProbeAt > 30000) {
+      dbProbeAt = Date.now();
+      dbProbe = pool.query('SELECT 1').then(() => 'connected', () => 'unavailable');
+    }
+    return dbProbe;
   }
-  if (pathname === '/' || pathname === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    return res.end(req.method === 'HEAD' ? undefined : indexPage);
-  }
-  if (pathname === '/health' || pathname === '/api/health') {
-    const database = await databaseStatus();
-    const ok = database === 'connected';
-    res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json; charset=utf-8' });
-    return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({
-      ok, environment: APP_ENV, database,
-      commit: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7)
-    }));
-  }
-  if (pathname === '/api/status') {
-    let players = 0; for (const r of rooms.values()) players += r.size;
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, environment: APP_ENV, rooms: rooms.size, players }));
-  }
-  res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ error: 'not_found' }));
-});
-const wss = new WebSocketServer({ server: srv, maxPayload: 16 * 1024 });
-
+  const srv = http.createServer(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'same-origin');
+    res.setHeader('X-Frame-Options', 'DENY');
+    try {
+      if (await world.handle(req, res)) return;
+      const pathname = (req.url || '/').split('?')[0];
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end();
+      }
+      const asset = assets.get(pathname);
+      if (asset) { res.writeHead(200, { 'Content-Type': asset.mime }); return res.end(req.method === 'HEAD' ? undefined : asset.body); }
+      if (pathname === '/health' || pathname === '/api/health') {
+        const database = await databaseStatus(), ok = database === 'connected';
+        res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json; charset=utf-8' });
+        return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok, environment: APP_ENV, database,
+          worldReady: ok, commit: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) }));
+      }
+      if (pathname === '/api/status') {
+        let players = 0; for (const r of rooms.values()) players += r.size;
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        return res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, environment: APP_ENV, rooms: rooms.size, players, battles: world.battles.size }));
+      }
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ error: 'not_found' }));
+    } catch { if (!res.headersSent) res.writeHead(503); res.end(); }
+  });
+  const wss = new WebSocketServer({ server: srv, maxPayload: 16 * 1024 });
 function broadcast(name) {
   const r = rooms.get(name); if (!r) return;
   const peers = []; for (const [w, p] of r) peers.push({ peer: w.id, presence: p });
@@ -106,8 +109,31 @@ wss.on('connection', ws => {
   ws.on('error', () => {});
 });
 
-setInterval(() => {
+const heartbeat = setInterval(() => {
   for (const w of wss.clients) { if (!w.isAlive) { w.terminate(); continue; } w.isAlive = false; w.ping(); }
 }, 30000);
 
-srv.listen(PORT, '0.0.0.0', () => console.log('Domination ' + APP_ENV + ' na porta ' + PORT));
+
+  return { server: srv, world, async close() {
+    clearInterval(heartbeat);
+    await world.close();
+    for (const client of wss.clients) client.terminate();
+    await new Promise(resolve => wss.close(resolve));
+    if (srv.listening) await new Promise(resolve => { srv.close(resolve); srv.closeIdleConnections?.(); });
+    if (pool?.end) await pool.end();
+  }};
+}
+if (require.main === module) {
+  createApplication().then(app => {
+    const port = process.env.PORT || 10000;
+    app.server.listen(port, '0.0.0.0', () => console.log('Domination mundo-aberto na porta ' + port));
+    let closing = false;
+    const shutdown = async () => {
+      if (closing) return; closing = true;
+      const deadline = setTimeout(() => process.exit(1), 10000); deadline.unref();
+      await app.close(); clearTimeout(deadline); process.exit(0);
+    };
+    process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
+  }).catch(error => { console.error('Não foi possível iniciar o mundo aberto. Código: ' + (error.code || 'startup')); process.exit(1); });
+}
+module.exports = { createApplication };

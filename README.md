@@ -1,79 +1,117 @@
-# Domination
+# Domination — Mundo Aberto
 
-## Branch `mundo-aberto`
+Primeira versão do mundo compartilhado, desenvolvida na branch `mundo-aberto`.
+A publicação e o banco de produção da `main` permanecem independentes.
 
-Esta branch prepara um ambiente independente para desenvolver o mundo compartilhado.
-Nesta primeira publicação, as batalhas existentes continuam disponíveis. O mapa de
-estados, a propriedade de áreas e os ataques persistentes ainda serão implementados.
+## O que está disponível
 
-- **Aplicação:** serviço Node `domination-mundo-aberto`, no Render, região Ohio.
-- **Origem do código:** branch Git `mundo-aberto`, com publicação automática.
-- **Site e partidas:** o mesmo processo atende o HTML e o WebSocket. O cliente usa
-  o próprio endereço, sem acessar o servidor de partidas da `main`.
-- **Banco:** branch Neon `mundo-aberto`, no projeto `domination`. Não usar a URL
-  da branch `production` neste ambiente.
-- **Configuração do servidor:** `NODE_ENV=production`, `APP_ENV=mundo-aberto` e
-  `DATABASE_URL` mantida exclusivamente nas variáveis do Render.
-- **Verificação:** `GET /api/health` testa a conexão com o banco sem expor credenciais;
-  `GET /api/status` informa a quantidade de salas e conexões.
-- **Dados locais:** esta branch usa sua própria chave de progresso no navegador.
+- Brasil → Nordeste → Sergipe, com cinco áreas de campanha: Litoral Sul, Agreste,
+  Alto Sertão, Vale do São Francisco e Aracaju · Capital. São setores de jogo,
+  representados por um mapa ilustrativo; não são divisões administrativas oficiais.
+- Cadastro com usuário, nome de comandante e senha; sessões persistidas no banco
+  permitem entrar na mesma conta em outro aparelho.
+- Primeiro ataque: a CPU ocupa aproximadamente 30%–40% dos hexágonos.
+- Ataque a uma área conquistada: a CPU defende em nome do proprietário com
+  aproximadamente metade dos hexágonos. Essa defesa automática vale também
+  quando o proprietário está online nesta primeira versão.
+- Uma posição inicial para o atacante; as outras posições começam neutras.
+- Vitória por eliminação das bases **e** tropas inimigas. O bombardeiro continua
+  disputável e não é uma condição de vitória.
+- Ao vencer, o servidor transfere a área para o atacante numa transação do banco.
+  Derrota, desistência, interrupção e tempo esgotado preservam o proprietário.
+- Ranking por áreas sob comando e histórico das últimas doze disputas.
+- Uma batalha ativa por área e uma por atacante. As demais áreas ficam livres.
+- O combate acontece no servidor. O cliente só envia ordens de envio de tropas e
+  de paraquedas; não pode informar o vencedor ou a quantidade de tropas.
+- Batalhas usam o mapa e a arte clássicos; as cinco áreas variam a ocupação inicial
+  e o comportamento da defesa. Melhorias e moedas locais não afetam esse modo.
+- O modo clássico (campanha, CPU, duelo local e salas online) continua disponível.
 
-Para executar esta branch localmente, use `npm ci` e `npm start`, depois abra
-`http://localhost:10000`. O jogo funciona sem banco durante desenvolvimento local;
-nesse caso `/api/health` retorna 503 com `database: not_configured`.
+## Reconexão e encerramento
 
-O arquivo `render.yaml` descreve somente este novo serviço. A publicação inicial é
-criada diretamente no Render; não há Blueprint ativo sincronizando este arquivo.
-As instruções abaixo descrevem o jogo original e sua publicação na `main`.
+O navegador recebe o estado por SSE e pode se reconectar à mesma batalha. Após
+recarregar a página, use **Retomar batalha**. A simulação continua durante uma
+queda breve. Mais de 30 segundos sem um cliente conectado encerra o ataque.
+O limite de cada combate é de seis minutos, além da contagem inicial.
 
-Jogo de conquista de territórios em mapa de hexágonos (estilo State.io), feito em HTML/JS puro — um único arquivo, sem build.
-
-## Como jogar
-- O mapa é um desafio simétrico de 17 regiões em hexágonos. Cada jogador começa num canto; o **Bombardeiro Central** fica à mesma distância de todos.
-- Arraste da sua base até outra para enviar tropas (passe por várias bases suas para atacar com todas). Cada envio sai como um grupo com o número de tropas:
-  - **Garagem → tanque:** anda casa a casa, só por terra.
-  - **Heliporto → helicóptero:** voa em linha reta por cima de tudo.
-  - **Botes → deslizador:** cruza a água em linha reta (únicas bases nas ilhas).
-- **Bombardeiros** (central e laterais) giram e atiram reto na tropa inimiga mais próxima dentro do alcance (-1 por tiro). Quem captura passa a atirar nos outros.
-- Quando tropas inimigas se encontram, elas param, viram uma para a outra e trocam tiros (-1 por tiro, um tiro a cada 0,3 s de cada lado); a que sobrar segue viagem.
-- Bases neutras: garagem 40% da base inicial média (10), bombardeiros e heliporto 55% (14), botes 45% (11).
-- O paraquedas (canto inferior direito) carrega com o tempo e reforça uma base sua.
-- **A partida só termina quando todos os inimigos forem eliminados** (sem bases e sem tropas andando). Tomar o centro é só uma vantagem.
-
-## Modos
-- **Campanha:** níveis com 1 a 3 inimigos e dificuldade crescente.
-- **Melhorias:** Guarnição, Produção e Capacidade, compradas com moedas.
-- **Missões diárias** com estrelas e baús.
-- **Duelo contra a CPU:** você contra o computador, em condições iguais.
-- **Duelo local:** duas pessoas no mesmo aparelho (azul × vermelho).
-- **Online, 2 a 4 jogadores:** crie uma sala, passe o código de 4 letras (ou os amigos entram pela lista de salas abertas) e toque em INICIAR quando quiser. Cada jogador se vê em azul; a classificação final dá 150 moedas ao 1º e 30 ao último. Se o criador sair, a partida termina para todos. Fora do Claude o jogo usa o servidor de salas em `server/`; dentro do Claude usa a sala em tempo real do próprio Claude.
-
-O progresso fica salvo no `localStorage` do navegador.
+As reservas são renovadas no banco e expiram em até 90 segundos após uma falha
+abrupta do processo. O desligamento normal encerra os ataques como interrompidos.
+A simulação em andamento é mantida em memória; ela não é retomada após reiniciar
+o servidor. A propriedade conquistada, as contas e o histórico ficam no banco.
 
 ## Estrutura
+
 ```
-public/index.html   # o jogo inteiro (mapa, arte em SVG e lógica embutidos)
-server/index.js     # servidor de salas do duelo online (WebSocket, Node + ws)
-package.json        # dependências do servidor
-render.yaml         # configuração dos dois serviços no Render
+public/index.html       arte e renderização clássicos, ponte para o modo mundo
+public/world.js         mapa de campanha, conta, ranking e cliente de batalha
+public/world.css        interface responsiva do mundo aberto
+shared/map.json         definição do mapa usada pelo simulador do servidor
+server/index.js         HTTP, arquivos estáticos, saúde e salas WebSocket clássicas
+server/auth.js          senhas scrypt e sessões com cookie HttpOnly
+server/world-service.js API, reservas, controle das batalhas e persistência
+server/battle-engine.js movimento, produção, combate, bombardeiros e CPU
+server/database.js      aplicação transacional de migrações versionadas
+server/migrations/      esquema e áreas iniciais
 ```
 
-## Rodar localmente
-Abra `public/index.html` no navegador, ou sirva a pasta:
+## Configuração e execução
+
+Variáveis exclusivamente no servidor:
+
+- `DATABASE_URL`: conexão PostgreSQL da branch Neon **mundo-aberto**. Na aplicação
+  publicada, use TLS com `sslmode=verify-full`. Não usar a conexão de `production`.
+- `NODE_ENV=production` no Render.
+- `APP_ENV=mundo-aberto`.
+- `PORT`: definida pelo Render; localmente, o padrão é `10000`.
+
 ```
-npx serve public
+npm ci
+npm start
 ```
 
-## Rodar o servidor de salas localmente
-```
-npm install
-npm start            # porta 10000
-```
-Para testar, troque `WS_URL` em `public/index.html` por `ws://localhost:10000`.
+A aplicação atende o site e as partidas no mesmo endereço. O WebSocket clássico
+usa a origem da página; este ambiente nunca conecta às salas da `main`.
+O comando de início aplica as migrações pendentes antes de receber requisições.
+As migrações iniciais são aditivas e não redefinem contas nem áreas conquistadas.
+A `DATABASE_URL` permanece nas variáveis do Render, sem credenciais no repositório.
 
-## Deploy no Render
-Dois serviços, no mesmo repositório:
-- **domination** (site estático): sem build, publica a pasta `public`.
-- **domination-ws** (web service Node, plano free): `npm install` e `node server/index.js`. O endereço dele está fixo em `WS_URL` no `index.html` (`wss://domination-ws.onrender.com`).
+Sem banco, o modo clássico abre localmente, mas o mundo compartilhado retorna 503.
 
-No plano free o servidor hiberna sem uso; a primeira conexão do dia pode levar até 1 minuto.
+## Verificação
+
+```
+npm run check
+npm test
+```
+
+Os testes usam PostgreSQL em WASM (PGlite), isolado em memória. Cobrem autenticação,
+reservas concorrentes, comandos inválidos, vitória confirmada pelo servidor,
+transferência e preservação de propriedade, reconexão, expiração, reinício,
+migrações idempotentes, ocupação por hexágonos e regressão das salas clássicas.
+Os testes não acessam o banco de jogadores do Render/Neon.
+
+- `GET /api/health`: conexão com PostgreSQL e prontidão do mundo.
+- `GET /api/world`: mapa, proprietários, ranking e histórico.
+- `POST /api/auth/register`, `/login`, `/logout`: conta e sessão.
+- `POST /api/world/areas/:id/attack`: reserva e início de batalha.
+- `GET /api/world/battles/:id`: estado ou resultado da própria batalha.
+- `GET /api/world/battles/:id/events`: fluxo de estados e resultado.
+- `POST /api/world/battles/:id/commands`: ordens validadas no servidor.
+- `POST /api/world/battles/:id/surrender`: desistência.
+
+## Publicação
+
+- Render: projeto **Domination - Mundo Aberto**, ambiente **Desenvolvimento**.
+- Serviço Node: `domination-mundo-aberto`, plano gratuito, região Ohio.
+- Código: branch `mundo-aberto`, publicação automática em commits.
+- Build: `npm ci`; início: `npm start`; saúde: `/api/health`.
+- Neon: projeto `domination`, branch `mundo-aberto`.
+- `render.yaml` registra a configuração do serviço; não há Blueprint ativo.
+
+## Próximas etapas
+
+Esta primeira versão tem defesa automática pela CPU. Defesa humana em tempo real,
+mais estados/países, novas topologias de campo, recuperação de senha por e-mail e
+continuidade da simulação após reiniciar o servidor são evoluções futuras.
+O servidor de desenvolvimento opera em uma única instância; várias instâncias
+exigirão coordenação das simulações e do fluxo de estados entre processos.
