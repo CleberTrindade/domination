@@ -2,6 +2,8 @@
 
 Estudo de 20/11/2026, usando como referência o motor publicado no commit `5d2d06b`. Proposta e protótipos de simulação; as regras do aplicativo permanecem as publicadas antes deste estudo.
 
+**Revisão da meta:** após este estudo, Cleber definiu a faixa desejada de 60% a 83% de vitórias. A recomendação de dificuldade deve ser lida com a [revisão de balanceamento](META_VITORIAS.md), que inclui novas simulações de 75%, 80% e 85% e destaca a necessidade de calibrar cada setor.
+
 ## Proposta de evolução
 
 Começar com um nível geral de treinamento do exército, do 1 ao 10. O poder por tropa cresce 10 pontos percentuais do valor inicial por nível: `P(n) = 1 + 0,10 × (n − 1)`. É crescimento linear: no nível 10, 1,9 vezes a força inicial. Produção, velocidade, capacidade das bases e quantidade inicial de soldados permanecem iguais neste estudo. Especializações de tanques, helicópteros e botes podem ser estudadas depois; os resultados abaixo não representam um exército com níveis diferentes por tipo.
