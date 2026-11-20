@@ -6,6 +6,21 @@ function element(){return {innerHTML:'',textContent:'',style:{},dataset:{},liste
   classList:{add(){},remove(){},toggle(){}},addEventListener(type,fn){this.listeners[type]=fn;},
   setAttribute(){},append(child){this.children.push(child);},showModal(){this.open=true;},close(){this.open=false;},querySelector(){return element();}};}
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+test('army purchase shows real costs, prevents double clicks and recovers a lost confirmation without another charge',async()=>{
+  const root=element(),dialog=element(),body=element(),listeners={},calls=[];let loseConfirmation=false;
+  const world={player:{id:'hero',name:'Hero'},army:{level:1,power:1,maxLevel:10,nextLevel:2,nextPower:1.1,nextCost:300,canUpgrade:true},progression:structuredClone(require('../server/progression').ARMY_RULES),wallet:{balance:1000,available:1000,reserved:0,productionPerDay:0,entries:[]},economy:{initialCoins:1000,minEntry:100,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32,defense_share:19/81,defense_bases:3,resistance:'Baixa',first_capture_reward:300}],ranking:[],history:[]};
+  const document={body,hidden:false,createElement:element,addEventListener(type,fn){listeners[type]=fn;},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
+  const context={crypto:require('node:crypto').webcrypto,document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{
+    if(path.endsWith('/upgrade')){const input=JSON.parse(options.body);calls.push(input);assert.equal(input.expectedLevel,world.army.level);const cost=world.army.nextCost;world.army={...world.army,level:input.expectedLevel+1,power:1+input.expectedLevel*.1,nextLevel:input.expectedLevel+2,nextPower:1+(input.expectedLevel+1)*.1,nextCost:world.progression.upgradeCosts[input.expectedLevel+2]};world.wallet.balance-=cost;world.wallet.available-=cost;if(loseConfirmation)throw Error('Reply lost');}
+    return {ok:true,json:async()=>structuredClone(world)};
+  }};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  assert(root.innerHTML.includes('EXÉRCITO · NV. 1'));assert(root.innerHTML.includes('3 bases + bombardeiro'));
+  await root.listeners.click({target:{closest:()=>({dataset:{action:'army'}})}});assert(dialog.innerHTML.includes('EVOLUIR POR 300 MOEDAS'));assert(dialog.innerHTML.includes('próximas batalhas'));
+  const event={target:{closest:()=>({dataset:{dialog:'upgrade-army'}})}};
+  await Promise.all([dialog.listeners.click(event),dialog.listeners.click(event)]);await flush();assert.equal(calls.length,1);assert.equal(world.wallet.balance,700);assert(dialog.innerHTML.includes('Nível 2'));
+  loseConfirmation=true;await dialog.listeners.click(event);await flush();assert.equal(calls.length,2);assert.equal(world.wallet.balance,200);assert(dialog.innerHTML.includes('novo nível já foi confirmado'));assert(dialog.innerHTML.includes('Nível 3'));
+});
 test('wallet shows available and reserved funds, entry risk, production, and the completed coin statement',async()=>{
   const root=element(),dialog=element(),body=element(),listeners={};
   const world={player:{id:'third',name:'Terceiro'},wallet:{balance:1000,available:600,reserved:400,productionPerDay:1000,entries:[{kind:'battle_loot',amount:-400,area_name:'Agreste',created_at:'2026-11-20T15:00:00Z'}]},economy:{initialCoins:1000,minEntry:100,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'rival',owner_name:'Rival',economy:{atRisk:240,maxLoot:240,cpuReward:0}}],ranking:[],history:[]};

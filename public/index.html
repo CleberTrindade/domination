@@ -1537,7 +1537,7 @@ function hud(){
   b.classList.toggle('ready',dm>=1&&!g.dropMode);b.classList.toggle('active',g.dropMode);
 }
 
-// Only the server advances world battles. This bridge reuses the existing renderer.
+// World battles use browser workers; this bridge reuses the existing renderer.
 window.DOMINATION_WORLD_BRIDGE={
   start(record,onCommand){
     closeModal();
@@ -1569,7 +1569,8 @@ window.DOMINATION_WORLD_BRIDGE={
     if(record?.players)game.worldPlayers=record.players;
     if(record?.joinableSites)game.joinableSites=record.joinableSites;
     const players=game.worldPlayers||[{owner:1,name:'Atacante'},{owner:2,name:controlled?'Defesa online':'Defesa CPU'}];
-    $('#legend').innerHTML=players.map(player=>'<span><i style="background:'+COL[game.pal[player.owner]].base+'"></i>'+esc(player.owner===game.me?'Você · '+(game.me===2?'Defesa':game.me===1?'Ataque':'Invasor'):player.name)+'</span>').join('');
+    const key=JSON.stringify(players)+controlled+game.me;if(game.worldLegendKey===key)return;game.worldLegendKey=key;
+    $('#legend').innerHTML=players.map(player=>{const level=player.level?' · Nv. '+player.level:player.relativePower?' · '+Math.round(player.relativePower*100)+'% do atacante':player.power?' · '+Math.round(player.power*100)+'%':'';const name=(player.owner===game.me?'Você · '+(game.me===2?'Defesa':game.me===1?'Ataque':'Invasor'):player.name)+level;return '<span title="'+esc(name)+'"><i style="background:'+COL[game.pal[player.owner]].base+'"></i>'+esc(name)+'</span>';}).join('');
   },
   selectJoinSite(id){if(game?.mode==='world')game.joinSelected=id;},
   commandStatus(message,failed=false){

@@ -14,7 +14,7 @@
     }
     function apply(input){
       if(input.kind==='control'){controlled=input.controlled;engine.setDefenderControlled(controlled);return true;}
-      if(input.kind==='join')return engine.join(input.owner,input.site);
+      if(input.kind==='join')return engine.join(input.owner,input.site,{level:input.armyLevel,power:input.armyPower});
       if(input.kind==='leave')return engine.leave(input.owner);
       return engine.command(input.command,input.owner);
     }
@@ -53,9 +53,9 @@
       while(frame<action.frame){engine.step(STEP);frame++;}
       if(input.kind==='control')engine.setDefenderControlled(input.controlled);
       else if(input.kind==='join'){
-        const accepted=engine.join(input.owner,input.site);
+        const accepted=engine.join(input.owner,input.site,{level:input.armyLevel,power:input.armyPower});
         if(typeof input.confirmedAccepted==='boolean'&&input.confirmedAccepted!==accepted)throw Error('A confirmação de entrada diverge da simulação.');
-        if(accepted)validatedParticipants.push({playerId:input.playerId,name:input.playerName,owner:input.owner,joinedAt:input.joinedAt});
+        if(accepted){const army=engine.snapshot().armies[input.owner];validatedParticipants.push({playerId:input.playerId,name:input.playerName,owner:input.owner,joinedAt:input.joinedAt,...army});}
         if(accepted!==action.accepted)throw Error('Entrada de participante inválida.');
       }else if(input.kind==='leave')engine.leave(input.owner);
       else engine.command(input.command,input.owner);

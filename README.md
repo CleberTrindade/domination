@@ -5,15 +5,17 @@ A publicação e o banco de produção da `main` permanecem independentes.
 
 ## O que está disponível
 
-- Brasil → Nordeste → Sergipe, com cinco áreas de campanha: Litoral Sul, Agreste,
+- Brasil → Nordeste → Sergipe, com cinco áreas de mundo aberto: Litoral Sul, Agreste,
   Alto Sertão, Vale do São Francisco e Aracaju · Capital. São setores de jogo,
   recortados no contorno real de Sergipe do IBGE; as áreas internas são setores
   de jogo, não divisões administrativas oficiais.
 - Cadastro com usuário, nome de comandante e senha; sessões persistidas no banco
   permitem entrar na mesma conta em outro aparelho.
-- Primeiro ataque: a CPU ocupa aproximadamente 30%–40% dos hexágonos.
-- Ataque a uma área conquistada: a defesa começa com aproximadamente metade dos
-  hexágonos. A CPU comanda até o proprietário clicar em **Assumir defesa**.
+- Toda defesa começa com **três bases mais o bombardeiro central**: quartel,
+  garagem e base de botes próximos ao quartel, mais a central. São quatro posições
+  e aproximadamente **23,5% dos hexágonos**. As demais posições começam neutras.
+- Em área livre, a guarnição usa **80% da força do atacante**. Em área conquistada,
+  preserva o nível real do dono. A CPU comanda até o proprietário assumir a defesa.
 - O proprietário online recebe um aviso de ataque. A área em disputa exibe duas
   espadas animadas no mapa; o aviso também aparece ao entrar durante uma batalha.
 - Os demais jogadores online recebem um aviso público e podem **Assistir batalha**.
@@ -33,9 +35,10 @@ A publicação e o banco de produção da `main` permanecem independentes.
   **Contra-atacar** permite escolher outra área dele. Ataques em andamento têm
   a opção **Defender agora**. Se o agressor não tem áreas, não há alvo disponível.
 - O bombardeiro central começa com o proprietário da área (lado defensor); em
-  áreas ainda livres, começa com a CPU. Ele entra no cálculo dos 30%–40% ou 50%
-  de ocupação inicial e continua podendo ser capturado durante o combate.
-- Uma posição inicial para o atacante; as outras posições começam neutras.
+  áreas ainda livres, começa com a CPU. Ele faz parte das quatro posições da
+  defesa e continua podendo ser capturado durante o combate.
+- O atacante começa com uma posição e 38 tropas; a defesa tem 56–72 tropas
+  distribuídas nas quatro posições, conforme o perfil do setor.
 - Vitória por eliminação das bases **e** tropas inimigas. O bombardeiro continua
   disputável e não é uma condição de vitória.
 - Ao vencer, o servidor transfere a área para o comandante vencedor, inclusive
@@ -49,8 +52,9 @@ A publicação e o banco de produção da `main` permanecem independentes.
 - O combate começa no navegador do atacante, em um Web Worker. O servidor
   repassa ordens, reserva a área em memória e grava a batalha somente no final,
   depois de validar o resultado.
-- Batalhas usam o mapa e a arte clássicos; as cinco áreas variam a ocupação inicial
-  e o comportamento da defesa. Melhorias e moedas locais não afetam esse modo.
+- Batalhas usam o mapa e a arte clássicos; cada setor mantém um perfil de
+  guarnição e resistência. Treinamento online evolui de 1 a 10; recursos do modo
+  clássico permanecem separados.
 - O modo clássico (campanha, CPU, duelo local e salas online) continua disponível.
 
 ## Simulação, reconexão e encerramento
@@ -96,8 +100,10 @@ anterior também são encerradas sem transferir áreas na migração.
 - Cada área produz **1.000 moedas a cada 24 horas**, proporcionalmente ao tempo de
   posse, inclusive offline. A produção começa na conquista. Para contas e áreas
   anteriores à economia, começa na aplicação da migração 005, sem retroatividade.
-- A primeira conquista de cada área da CPU dá **300 moedas** ao vencedor. Áreas
-  já conquistadas antes da migração não pagam esse bônus novamente.
+- A primeira conquista da CPU rende **300 moedas** no Litoral Sul/Agreste,
+  **450** no Alto Sertão e **600** no São Francisco/Capital. A renda diária
+  continua em 1.000 para todos. O bônus é único por área; conquistas anteriores
+  não recebem novamente. O saque de jogadores é independente desse bônus.
 - Na entrada, **40% do saldo disponível** de cada participante ficam reservados
   em RAM. O defensor recebe uma reserva automática no início do ataque, mesmo
   offline. Reservas de outras disputas são descontadas do saldo disponível; uma
@@ -133,6 +139,63 @@ duplica moedas. Comandos, posições e checkpoints continuam sem consultas ou
 gravações adicionais por causa da economia. Reservas ativas não sobrevivem a um
 reinício, que também interrompe a disputa sem cobrança.
 
+## Evolução do exército e parâmetros de teste
+
+Todas as contas começam no nível 1, inclusive as existentes na migração 006.
+Treinamento geral vale para tanques, botes, helicópteros e armas de suas posições.
+O poder cresce linearmente: `1 + 0,10 × (nível − 1)`, chegando a 190% no nível 10.
+Produção por base, capacidade, velocidade e frequência de tiros mantêm as regras
+anteriores. O multiplicador afeta o dano e a resolução das capturas.
+
+| Nível alcançado | Força | Custo deste upgrade |
+| --- | ---: | ---: |
+| 1 | 100% | Inicial |
+| 2 | 110% | 300 |
+| 3 | 120% | 500 |
+| 4 | 130% | 800 |
+| 5 | 140% | 1.250 |
+| 6 | 150% | 2.000 |
+| 7 | 160% | 3.150 |
+| 8 | 170% | 5.050 |
+| 9 | 180% | 8.100 |
+| 10 | 190% | 12.900 |
+
+O custo acumulado é 34.050 moedas. A compra usa saldo disponível e mantém 100
+moedas para o próximo ataque quando o jogador não tem áreas produtoras. O nível,
+saldo, produção acumulada, registro da compra e extrato são gravados numa única
+transação. `requestId` é idempotente e `expectedLevel` impede compras simultâneas
+acidentais de níveis consecutivos. Preço, novo nível e força são calculados no
+servidor. O cliente não escolhe esses valores.
+
+A melhoria vale nas próximas disputas. O nível do atacante e do dono é fixado
+no início; invasores usam seu próprio nível no momento de pedir entrada. Uma
+compra não altera exércitos já comprometidos. Checkpoints e migração do navegador
+responsável preservam todos os perfis; a reprodução final usa a configuração e
+as entradas autorizadas, incluindo o treinamento dos invasores.
+
+As cinco áreas estão acessíveis sem sequência obrigatória. A formação usa o
+mesmo grupo `[0, 1, 5, 7]`; a configuração antiga `cpu_share` é mantida como dado
+legado. `defense_share` na API informa a ocupação efetiva. As bases neutras seguem
+a referência de força do atacante. O perfil do setor ainda define tropas por
+posição, produção e intervalo de decisões da CPU. A entrada de um invasor mais
+forte não recalcula a guarnição; isso faz parte dos próximos testes de equilíbrio.
+
+A versão inicial é **army-v1**, com constantes em `server/progression.js`.
+O objetivo de 60%–83% é uma meta de balanceamento, não uma taxa garantida. Nesta
+publicação, o teste de quatro posições passa a valer em áreas livres e ocupadas;
+o fator de 80% é exclusivo das livres. As estimativas anteriores não são taxas
+reais de partidas humanas e os setores ainda precisarão de ajustes.
+
+No encerramento, `world_battles.result.balance` registra versão, configuração,
+ocupação inicial, níveis/forças e se o dono assumiu a defesa. A coluna
+`world_battle_participants.army_level` guarda o nível de entrada de cada jogador.
+Esses registros permitem separar resultados contra CPU, defesa offline, dono
+participante e invasores ao avaliar as partidas publicadas. Incrementar a versão
+de balanceamento quando os parâmetros forem ajustados.
+
+Os estudos em `experiments/troop-progression` usam uma cópia congelada do motor
+anterior, em `reference-engine.js`, para continuar reproduzíveis após esta versão.
+
 ## Mapa de Sergipe
 
 O contorno vem da [API de Malhas do IBGE, UF 28](https://servicodados.ibge.gov.br/api/v3/malhas/estados/28?formato=application%2Fvnd.geo%2Bjson&qualidade=intermediaria).
@@ -159,6 +222,7 @@ server/browser-world.js API, reservas em RAM, retransmissão e gravação final
 server/browser-assets.js entrega do mesmo motor para o navegador
 server/battle-engine.js movimento, produção, combate, bombardeiros e CPU
 server/economy.js       carteira, reservas, produção offline e saque final
+server/progression.js   custos de treinamento, força e perfis das guarnições
 server/database.js      aplicação transacional de migrações versionadas
 server/migrations/      esquema e áreas iniciais
 ```
@@ -203,10 +267,15 @@ quatro exércitos, troca do navegador responsável e conquista por um invasor ta
 Também cobrem saque simétrico e com quatro exércitos, saldo zero, produção offline
 e suas frações, reservas em ataques simultâneos, recompensa única da CPU,
 desistência, interrupção, repetição da conclusão e rollback de falha no extrato.
+A evolução tem testes de compra concorrente/idempotente, saldo reservado, produção
+acumulada, auditoria, limite de nível, preços completos e compra sem confirmação.
+O motor publicado é comparado ao protótipo de quatro posições em 18 configurações
+com CPU ativa; invasores, reconexão e validação final preservam suas forças.
 Os testes não acessam o banco de jogadores do Render/Neon.
 
 - `GET /api/health`: conexão com PostgreSQL e prontidão do mundo.
-- `GET /api/world`: mapa, proprietários, ranking e histórico.
+- `GET /api/world`: mapa, proprietários, carteira, evolução, ranking e histórico.
+- `POST /api/world/army/upgrade`: comprar o próximo nível com `{expectedLevel, requestId}`.
 - `POST /api/auth/register`, `/login`, `/logout`: conta e sessão.
 - `POST /api/world/areas/:id/attack`: reserva e início de batalha.
 - `GET /api/world/battles/:id`: estado ou resultado, com visualização para jogadores autenticados.

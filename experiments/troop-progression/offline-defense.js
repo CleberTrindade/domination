@@ -5,7 +5,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {simulate,validateBaseline,cases}=require('./simulate');
-const original=require('../../server/battle-engine');
+const original=require('./reference-engine');
 const levels=[1,5,10],policies=['simple','coordinated'],results=[],count=50,start=3001;
 const power=level=>1+.1*(level-1);
 const rate=rows=>(100*rows.filter(r=>r.win).length/rows.length).toFixed(1).replace('.',',')+'%';

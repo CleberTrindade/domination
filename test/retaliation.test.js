@@ -40,7 +40,7 @@ test('received attacks persist for returning players and only their defender can
       const response=await api('/api/world/battles/'+histories[0]+'/retaliate',guardian.cookie,{areaId:'se-litoral-sul'});
       assert.equal(response.status,201);assert.equal(response.data.retaliationOf,histories[0]);assert.equal(response.data.areaId,'se-litoral-sul');
       assert.equal(response.data.config.centralOwner,2);assert.equal(response.data.snapshot.sites[0].owner,2);
-      assert(Math.abs(response.data.snapshot.defenderShare-.5)<.013);
+      assert.equal(response.data.snapshot.sites.filter(site=>site.owner===2).length,4);assert(Math.abs(response.data.snapshot.defenderShare-19/81)<.001);
       assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_battles WHERE id=$1',[response.data.id])).rows[0].n,0);
       await api('/api/world/battles/'+response.data.id+'/surrender',guardian.cookie,{});
       const saved=(await pool.query('SELECT retaliation_of,status FROM world_battles WHERE id=$1',[response.data.id])).rows[0];

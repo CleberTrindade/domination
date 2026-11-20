@@ -4,7 +4,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const {createRequire}=require('node:module');
-const enginePath=require.resolve('../../server/battle-engine');
+const enginePath=require.resolve('./reference-engine');
 const original=require(enginePath),STEP=1/30;
 const cases=[{name:'Litoral Sul',share:.32,difficulty:1},{name:'Agreste',share:.34,difficulty:2},{name:'Alto Sertão',share:.35,difficulty:3},{name:'São Francisco',share:.37,difficulty:4},{name:'Capital',share:.39,difficulty:5}];
 function replaceOnce(source,before,after){assert.equal(source.split(before).length,2,'Engine changed: '+before);return source.replace(before,after);}
