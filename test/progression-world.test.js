@@ -10,15 +10,15 @@ test('persistent army progression protects money, freezes battle levels and reco
   async function api(path,player,body){const response=await fetch(base+path,{method:body?'POST':'GET',headers:{...(player?{Cookie:player.cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});return {status:response.status,data:await response.json(),cookie:response.headers.get('set-cookie')?.split(';')[0]};}
   async function create(name){const r=await api('/api/auth/register',null,{username:name,name,password:'progression-test-password'});assert.equal(r.status,200);return {...r.data.player,cookie:r.cookie};}
   const world=async player=>(await api('/api/world',player)).data;
-  async function funds(player,level=1,coins=1000){await pool.query('UPDATE world_players SET army_level=$2,coin_balance=$3,coin_income_at=$4,coin_income_remainder=0 WHERE id=$1',[player.id,level,coins*100,new Date(clock).toISOString()]);}
+  async function funds(player,level=1,coins=1000){await pool.query('UPDATE world_players SET army_level=$2,troop_levels=NULL,coin_balance=$3,coin_income_at=$4,coin_income_remainder=0 WHERE id=$1',[player.id,level,coins*100,new Date(clock).toISOString()]);}
   async function start(area,player){const r=await api('/api/world/areas/'+area+'/attack',player,{});assert.equal(r.status,201,JSON.stringify(r.data));return r.data;}
-  const upgrade=(player,expectedLevel,requestId=randomUUID(),extra={})=>api('/api/world/army/upgrade',player,{expectedLevel,requestId,...extra});
+  const upgrade=(player,expectedLevel,requestId=randomUUID(),extra={})=>api('/api/world/army/upgrade',player,{expectedLevel,requestId,troopKind:'tanque',...extra});
   const surrender=(record,player)=>api('/api/world/battles/'+record.id+'/surrender',player,{});
   let alice,bob,charlie,dana,record;
   try{
     [alice,bob,charlie,dana]=await Promise.all(['armyalice','armybob','armycharlie','armydana'].map(create));
     await t.test('new and existing accounts begin at level one; every area remains available and rewards reflect resistance',async()=>{
-      const data=await world(alice);assert.equal(data.army.level,1);assert.equal(data.army.nextCost,300);assert.equal(data.army.power,1);
+      const data=await world(alice);assert.equal(data.army.level,1);assert.equal(data.army.troops.tanque.nextCost,300);assert.equal(data.army.troops.tanque.power,1);
       assert.deepEqual(data.progression.upgradeCosts,[0,0,300,500,800,1250,2000,3150,5050,8100,12900]);
       assert.deepEqual(data.areas.map(a=>a.first_capture_reward),[300,300,450,600,600]);assert(data.areas.every(a=>a.defense_bases===3&&Math.abs(a.defense_share-19/81)<.001));
       assert.equal((await api('/api/world/army/upgrade',null,{requestId:randomUUID(),expectedLevel:1})).status,401);
@@ -27,7 +27,7 @@ test('persistent army progression protects money, freezes battle levels and reco
     });
     await t.test('client-supplied costs and levels cannot skip training; retrying one request never charges twice',async()=>{
       const requestId=randomUUID(),responses=await Promise.all([upgrade(alice,1,requestId,{cost:0,toLevel:10,power:999}),upgrade(alice,1,requestId)]);assert(responses.every(r=>r.status===200));
-      const data=await world(alice);assert.equal(data.army.level,2);assert.equal(data.wallet.balance,700);assert.equal(data.army.nextCost,500);
+      const data=await world(alice);assert.equal(data.army.level,2);assert.equal(data.wallet.balance,700);assert.equal(data.army.troops.tanque.nextCost,500);
       const rows=(await pool.query('SELECT cost,to_level FROM world_army_upgrades WHERE id=$1',[requestId])).rows;assert.equal(rows.length,1);assert.equal(Number(rows[0].cost),30000);assert.equal(rows[0].to_level,2);
       assert.equal((await upgrade(bob,1,requestId)).status,403);assert.equal((await world(bob)).wallet.balance,1000);
       assert.equal(data.wallet.entries.filter(e=>e.kind==='army_upgrade').length,1);
@@ -37,7 +37,7 @@ test('persistent army progression protects money, freezes battle levels and reco
       assert.equal((await world(bob)).army.level,2);assert.equal((await upgrade(bob,99)).status,409);
     });
     await t.test('accounts without territory keep the minimum attack budget, while owners may spend their available income',async()=>{
-      await funds(dana,1,350);assert.equal((await world(dana)).army.canUpgrade,false);assert.equal((await upgrade(dana,1)).status,409);
+      await funds(dana,1,350);assert.equal((await world(dana)).army.troops.tanque.canUpgrade,false);assert.equal((await upgrade(dana,1)).status,409);
       await pool.query("UPDATE world_areas SET owner_id=$1 WHERE id='se-agreste'",[dana.id]);assert.equal((await upgrade(dana,1)).status,200);assert.equal((await world(dana)).wallet.balance,50);
       await pool.query("UPDATE world_areas SET owner_id=NULL WHERE id='se-agreste'");
     });
@@ -76,18 +76,18 @@ test('persistent army progression protects money, freezes battle levels and reco
       const joined=(await api('/api/world/battles/'+record.id,charlie)).data;assert.equal(joined.players.find(p=>p.owner===3).level,10);assert.equal(joined.snapshot.armies[3].power,1.9);
       assert.equal(factory.restoreBattle(runner.checkpoint().checkpoint).snapshot().armies[2].level,5);
       await api('/api/world/battles/'+record.id+'/release',bob,{});await surrender(record,charlie);await surrender(record,alice);
-      const final=(await api('/api/world/battles/'+record.id,alice)).data.final;assert.equal(final.balance.version,'army-v1');assert.equal(final.balance.defenderParticipated,true);
+      const final=(await api('/api/world/battles/'+record.id,alice)).data.final;assert.equal(final.balance.version,'troops-v2');assert.equal(final.balance.defenderParticipated,true);
       const row=(await pool.query('SELECT army_level FROM world_battle_participants WHERE battle_id=$1 AND side=2',[record.id])).rows[0];assert.equal(row.army_level,5);
       const next=await start('se-agreste',alice);assert.equal(next.config.defenderLevel,6);await surrender(next,alice);
     });
     await t.test('level ten is a hard cap and does not debit coins',async()=>{
-      await funds(dana,10,100000);const data=await world(dana);assert.equal(data.army.nextCost,null);assert.equal(data.army.canUpgrade,false);
+      await funds(dana,10,100000);const data=await world(dana);assert.equal(data.army.troops.tanque.nextCost,null);assert.equal(data.army.troops.tanque.canUpgrade,false);
       assert.equal((await upgrade(dana,10)).status,409);assert.equal((await world(dana)).wallet.balance,100000);
     });
     await t.test('the complete training sequence reaches level ten for exactly 34,050 coins',async()=>{
       const buyer=await create('armyfull');await funds(buyer,1,35000);let spent=0;
-      for(let level=1;level<10;level++){const before=await world(buyer),response=await upgrade(buyer,level);assert.equal(response.status,200);assert.equal(response.data.cost,before.army.nextCost);spent+=response.data.cost;}
-      const data=await world(buyer);assert.equal(spent,34050);assert.equal(data.army.level,10);assert.equal(data.army.power,1.9);assert.equal(data.wallet.balance,950);
+      for(let level=1;level<10;level++){const before=await world(buyer),response=await upgrade(buyer,level);assert.equal(response.status,200);assert.equal(response.data.cost,before.army.troops.tanque.nextCost);spent+=response.data.cost;}
+      const data=await world(buyer);assert.equal(spent,34050);assert.equal(data.army.level,10);assert.equal(data.army.troops.tanque.power,1.9);assert.equal(data.wallet.balance,950);
     });
     await t.test('a replayed first conquest of a high-resistance CPU area credits 600 and saves army profiles',async()=>{
       const hero=await create('armyhero');await funds(hero,10,1000);const battleRecord=await start('se-aracaju',hero),battle=app.world.battles.get(battleRecord.id),runner=createBrowserBattle(factory,battleRecord);

@@ -1570,7 +1570,7 @@ window.DOMINATION_WORLD_BRIDGE={
     if(record?.joinableSites)game.joinableSites=record.joinableSites;
     const players=game.worldPlayers||[{owner:1,name:'Atacante'},{owner:2,name:controlled?'Defesa online':'Defesa CPU'}];
     const key=JSON.stringify(players)+controlled+game.me;if(game.worldLegendKey===key)return;game.worldLegendKey=key;
-    $('#legend').innerHTML=players.map(player=>{const level=player.level?' · Nv. '+player.level:player.relativePower?' · '+Math.round(player.relativePower*100)+'% do atacante':player.power?' · '+Math.round(player.power*100)+'%':'';const name=(player.owner===game.me?'Você · '+(game.me===2?'Defesa':game.me===1?'Ataque':'Invasor'):player.name)+level;return '<span title="'+esc(name)+'"><i style="background:'+COL[game.pal[player.owner]].base+'"></i>'+esc(name)+'</span>';}).join('');
+    $('#legend').innerHTML=players.map(player=>{const level=player.relativePower?' · '+Math.round(player.relativePower*100)+'% por tipo':player.troops?' · T'+player.troops.tanque.level+' B'+player.troops.desliz.level+' H'+player.troops.heli.level+' C'+player.troops.canhao.level+' BC'+player.troops.central.level:player.level?' · Nv. '+player.level:player.relativePower?' · '+Math.round(player.relativePower*100)+'% do atacante':player.power?' · '+Math.round(player.power*100)+'%':'';const name=(player.owner===game.me?'Você · '+(game.me===2?'Defesa':game.me===1?'Ataque':'Invasor'):player.name)+level;return '<span title="'+esc(name)+'"><i style="background:'+COL[game.pal[player.owner]].base+'"></i>'+esc(name)+'</span>';}).join('');
   },
   selectJoinSite(id){if(game?.mode==='world')game.joinSelected=id;},
   commandStatus(message,failed=false){

@@ -60,16 +60,18 @@ function initialSites(share,difficulty=1,centralOwner=0,defenderBaseCount=null){
   initialCache.set(cacheKey,{...setup,sites:sites.map(site=>({...site}))});return setup;
 }
 function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner=0,defenderBaseCount=null,
-  attackerPower=1,defenderPower=1,neutralPower=1,attackerLevel=1,defenderLevel=1,balanceVersion=null}={}){
+  attackerPower=1,defenderPower=1,neutralPower=1,attackerLevel=1,defenderLevel=1,balanceVersion=null,attackerTroops=null,defenderTroops=null,neutralTroops=null}={}){
   if([attackerPower,defenderPower,neutralPower].some(power=>!Number.isFinite(power)||power<=0||power>10))throw Error('Invalid army power');
   if(!Number.isInteger(attackerLevel)||attackerLevel<1||attackerLevel>10||defenderLevel!==null&&(!Number.isInteger(defenderLevel)||defenderLevel<1||defenderLevel>10))throw Error('Invalid army level');
+  const cloneTroops=troops=>{if(!troops)return null;const result={};for(const kind of ['tanque','desliz','heli','canhao','central']){const t=troops[kind];if(!t||!Number.isFinite(t.power)||t.power<=0||t.power>10||t.level!==null&&(!Number.isInteger(t.level)||t.level<1||t.level>10))throw Error('Invalid troop profile');result[kind]={level:t.level,power:t.power};}return result;};
+  attackerTroops=cloneTroops(attackerTroops);defenderTroops=cloneTroops(defenderTroops);neutralTroops=cloneTroops(neutralTroops);
   let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
   const game={sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,winnerOwner:null,joinedOwners:[],forfeited:[],cd:3,
     stats:{cap:0,kill:0},dropM:{1:.35,2:.35},par:{1:{prod:1.2,cap:60},2:aip},aip,ais:[{id:2,timer:7,dead:false}],
-    armies:{1:{level:attackerLevel,power:attackerPower},2:{level:defenderLevel,power:defenderPower}}};
-  const power=owner=>owner===0?neutralPower:game.armies[owner]?.power||1;
+    armies:{1:{level:attackerLevel,power:attackerPower,...(attackerTroops?{troops:attackerTroops}:{})},2:{level:defenderLevel,power:defenderPower,...(defenderTroops?{troops:defenderTroops}:{})}}};
+  const power=(owner,kind)=>owner===0?(neutralTroops?.[kind]?.power??neutralPower):(game.armies[owner]?.troops?.[kind]?.power??game.armies[owner]?.power??1);
   const toast=()=>{};
   function endGameOwner(owner){if(!game.over){game.over=true;game.winnerOwner=owner;game.result=owner===2?'lost':'won';}}
 const unitKind=s=>s.kind==='heli'?'heli':s.kind==='botes'?'desliz':'tanque';
@@ -95,9 +97,10 @@ function arrive(u){
   const b=u.to,g=game;
   if(b.owner===u.owner){b.troops+=u.n;return}
   if(u.owner===g.me&&b.owner!==0)g.stats.kill+=Math.min(u.n,Math.floor(b.troops));
-  b.troops-=u.n*power(u.owner)/power(b.owner);
+  const attackPower=power(u.owner,u.k),guardPower=power(b.owner,unitKind(b));
+  b.troops-=u.n*attackPower/guardPower;
   if(b.troops<0){
-    b.troops=-b.troops*power(b.owner)/power(u.owner);b.owner=u.owner;b.hq=false;g.dirty=true;
+    b.troops=-b.troops*guardPower/attackPower;b.owner=u.owner;b.hq=false;g.dirty=true;
     g.fx.push({type:'ring',x:b.x,y:b.y,t:0,c:'#ffffff'});g.fx.push({type:'cap',x:b.x,y:b.y,t:0,o:u.owner});
     if(u.owner===g.me)g.stats.cap++;
   }else g.fx.push({type:'hit',x:b.x,y:b.y,t:0});
@@ -117,8 +120,9 @@ function aiThink(ai){
     if(!srcs.length)continue;
     const dist=Math.hypot(srcs[0].x-t.x,srcs[0].y-t.y);
     const grow=t.owner===0?0:(dist/45)*g.par[t.owner].prod;
-    const need=(t.troops+grow)*power(t.owner)/power(ai.id)+danger(t,ai.id)+2;
-    let sum=0,use=[];for(const s of srcs){if(sum>=need*1.15)break;use.push(s);sum+=Math.floor(s.troops)}
+    const sourcePower=Math.max(...srcs.map(s=>power(ai.id,unitKind(s))));
+    const need=(t.troops+grow)*power(t.owner,unitKind(t))/sourcePower+danger(t,ai.id)+2;
+    let sum=0,use=[];for(const s of srcs){if(sum>=need*1.15)break;use.push(s);sum+=Math.floor(s.troops)*(power(ai.id,unitKind(s))/sourcePower)}
     if(sum<need*1.15)continue;
     const sc=40-need-dist/12+(t.owner===0?4:0)+(t.owner===1?g.aip.aggr*10:0)+(t.kind==='central'?5:0)+(t.hq?3:0)+random()*4-use.length*2;
     if(sc>bs){bs=sc;best=[use,t]}
@@ -162,7 +166,7 @@ function simStep(dt){
     f.age+=dt;f.ta-=dt;f.tb-=dt;
     for(const [sh,tg,k] of [[f.a,f.b,'ta'],[f.b,f.a,'tb']]){
       if(f[k]>0||sh.n<=0||tg.n<=0)continue;
-      f[k]+=0.3;tg.n-=power(sh.owner);sh.kick=0;
+      f[k]+=0.3;tg.n-=power(sh.owner,sh.k);sh.kick=0;
       if(sh.owner===g.me)g.stats.kill++;
       g.fx.push({type:'ushot',from:sh,to:tg,t:0});
     }
@@ -177,7 +181,7 @@ function simStep(dt){
     const R2=RANGE[s.kind]**2;let best=null,bd=R2;
     for(const u of us){if(!u.alive||u.owner===s.owner)continue;const dx=u.x-s.x,dy=u.y-s.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=u}}
     if(!best)continue;
-    s.cd=FIRE[s.kind];best.n-=power(s.owner);s.tx=best.x;s.ty=best.y;s.kick=0;
+    s.cd=FIRE[s.kind];best.n-=power(s.owner,s.kind);s.tx=best.x;s.ty=best.y;s.kick=0;
     if(s.owner===g.me&&best.owner!==g.me)g.stats.kill++;
     g.fx.push({type:'shot',s,x:best.x,y:best.y,t:0,heli:best.k==='heli'});
     if(best.n<=0){best.alive=false;g.fx.push({type:'boom',x:best.x,y:best.y,t:0});if(best.fight){const o=best.fight.a===best?best.fight.b:best.fight.a;o.fight=null;best.fight.done=true}}
@@ -219,7 +223,8 @@ function simStep(dt){
     if(game.over||!Number.isInteger(owner)||owner<3||owner>4||game.par[owner]||!site||site.owner!==0||site.kind==='central')return false;
     const level=army.level??game.armies[1].level,armyPower=army.power??game.armies[1].power;
     if(!Number.isInteger(level)||level<1||level>10||!Number.isFinite(armyPower)||armyPower<=0||armyPower>10)return false;
-    game.armies[owner]={level,power:armyPower};
+    let troops;try{troops=cloneTroops(army.troops);}catch{return false;}
+    game.armies[owner]={level,power:armyPower,...(troops?{troops}:{})};
     game.par[owner]={...game.par[1]};game.dropM[owner]=.35;game.joinedOwners.push(owner);
     site.owner=owner;site.troops=25;site.hq=true;site.cd=0;
     return true;
@@ -242,7 +247,7 @@ function simStep(dt){
       stats:game.stats};
   }
   function checkpoint(){
-    return {version:1,config:{share,difficulty,seed,maxSeconds,centralOwner,defenderBaseCount,attackerPower,defenderPower,neutralPower,attackerLevel,defenderLevel,balanceVersion},randomState:random.state(),
+    return {version:1,config:{share,difficulty,seed,maxSeconds,centralOwner,defenderBaseCount,attackerPower,defenderPower,neutralPower,attackerLevel,defenderLevel,balanceVersion,...(attackerTroops?{attackerTroops}:{}),...(defenderTroops?{defenderTroops}:{}),...(neutralTroops?{neutralTroops}:{})},randomState:random.state(),
       time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,winnerOwner:game.winnerOwner,joinedOwners:game.joinedOwners.slice(),forfeited:game.forfeited.slice(),par:JSON.parse(JSON.stringify(game.par)),
       stats:{...game.stats},dropM:{...game.dropM},ais:game.ais.map(a=>({...a})),armies:JSON.parse(JSON.stringify(game.armies)),
       sites:game.sites.map(s=>({...s})),
@@ -264,4 +269,5 @@ function simStep(dt){
   return {step,command,join,leave,snapshot,checkpoint,restore,setDefenderControlled(value){defenderControlled=!!value;},get result(){return game.result;}};
 }
 function restoreBattle(saved){const battle=createBattle(saved.config);battle.restore(saved);return battle;}
-module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA};
+// Read-only catalog metadata uses the same constants as combat.
+module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA,combatRules:{speed:SPEED,range:RANGE,fire:FIRE,hexRadius:HR}};

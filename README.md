@@ -139,13 +139,38 @@ duplica moedas. Comandos, posições e checkpoints continuam sem consultas ou
 gravações adicionais por causa da economia. Reservas ativas não sobrevivem a um
 reinício, que também interrompe a disputa sem cobrança.
 
-## Evolução do exército e parâmetros de teste
+## Perfil e tropas
 
-Todas as contas começam no nível 1, inclusive as existentes na migração 006.
-Treinamento geral vale para tanques, botes, helicópteros e armas de suas posições.
+A navegação inclui **Perfil** e **Tropas**. O nome no cabeçalho também abre o
+próprio perfil. O perfil mostra nome, usuário, data de criação, áreas atuais,
+níveis individuais, vitórias, derrotas, desistências e histórico pessoal em
+páginas de 20 partidas. Inclui ataques, defesas automáticas/online e invasores,
+com resultado individual, participantes originais, vencedor, datas e moedas
+líquidas da disputa (produção e compras ficam somente na carteira).
+Partidas interrompidas/expiradas não entram na taxa de vitórias; desistências
+entram como decisões sem vitória. Histórico legado sem roster usa os IDs do
+atacante/defensor. A consulta exige a sessão do próprio jogador e é feita ao
+abrir/atualizar o perfil, sem acrescentar leitura por comando de combate.
+
+A tela Tropas tem catálogo público com ilustrações, função, origem, força,
+dano por disparo, velocidade relativa/alcance e intervalo de tiros. Cada cartão
+abre sua própria compra e a tabela de preços, com nível atual/próximo e saldo.
+
+## Evolução individual e parâmetros de teste
+
+Contas novas começam com cinco níveis independentes: tanque (`tanque`), bote
+(`desliz`), helicóptero (`heli`), canhão (`canhao`) e bombardeiro (`central`).
+A migração 008 preserva o treinamento geral já comprado como nível inicial de
+**cada** tipo. A primeira compra individual materializa os cinco níveis em
+`world_players.troop_levels`; `army_level` passa a representar o maior nível,
+para compatibilidade e resumos. Compras futuras evoluem somente o tipo escolhido.
+A mesma tabela de custos vale separadamente para cada tipo.
 O poder cresce linearmente: `1 + 0,10 × (nível − 1)`, chegando a 190% no nível 10.
 Produção por base, capacidade, velocidade e frequência de tiros mantêm as regras
-anteriores. O multiplicador afeta o dano e a resolução das capturas.
+anteriores. O multiplicador da tropa móvel afeta seus disparos e capturas contra o tipo
+produzido pela posição alvo. Canhão/bombardeiro evoluem os disparos fixos; tropas
+enviadas dessas posições usam o nível dos tanques. A IA considera o poder dos
+tipos presentes ao escolher ataques.
 
 | Nível alcançado | Força | Custo deste upgrade |
 | --- | ---: | ---: |
@@ -160,15 +185,17 @@ anteriores. O multiplicador afeta o dano e a resolução das capturas.
 | 9 | 180% | 8.100 |
 | 10 | 190% | 12.900 |
 
-O custo acumulado é 34.050 moedas. A compra usa saldo disponível e mantém 100
+O custo acumulado é 34.050 moedas **por tipo** (170.250 para os cinco). A compra usa saldo disponível e mantém 100
 moedas para o próximo ataque quando o jogador não tem áreas produtoras. O nível,
 saldo, produção acumulada, registro da compra e extrato são gravados numa única
-transação. `requestId` é idempotente e `expectedLevel` impede compras simultâneas
+transação. `requestId` é idempotente e vinculado ao tipo; `expectedLevel` impede compras simultâneas
 acidentais de níveis consecutivos. Preço, novo nível e força são calculados no
 servidor. O cliente não escolhe esses valores.
 
-A melhoria vale nas próximas disputas. O nível do atacante e do dono é fixado
-no início; invasores usam seu próprio nível no momento de pedir entrada. Uma
+A melhoria vale nas próximas disputas. Os cinco níveis do atacante e do dono
+são fixados no início; invasores usam seus próprios níveis no momento de pedir
+entrada. Nas áreas livres a CPU usa 80% do poder **de cada tipo** do atacante;
+áreas ocupadas preservam os níveis individuais reais do dono. Uma
 compra não altera exércitos já comprometidos. Checkpoints e migração do navegador
 responsável preservam todos os perfis; a reprodução final usa a configuração e
 as entradas autorizadas, incluindo o treinamento dos invasores.
@@ -180,7 +207,7 @@ a referência de força do atacante. O perfil do setor ainda define tropas por
 posição, produção e intervalo de decisões da CPU. A entrada de um invasor mais
 forte não recalcula a guarnição; isso faz parte dos próximos testes de equilíbrio.
 
-A versão inicial é **army-v1**, com constantes em `server/progression.js`.
+A versão atual é **troops-v2**, sucedendo **army-v1**, com constantes em `server/progression.js`.
 O objetivo de 60%–83% é uma meta de balanceamento, não uma taxa garantida. Nesta
 publicação, o teste de quatro posições passa a valer em áreas livres e ocupadas;
 o fator de 80% é exclusivo das livres. As estimativas anteriores não são taxas
@@ -188,7 +215,8 @@ reais de partidas humanas e os setores ainda precisarão de ajustes.
 
 No encerramento, `world_battles.result.balance` registra versão, configuração,
 ocupação inicial, níveis/forças e se o dono assumiu a defesa. A coluna
-`world_battle_participants.army_level` guarda o nível de entrada de cada jogador.
+`world_battle_participants.army_level` guarda o maior nível de entrada; os cinco
+perfis completos estão em `result.balance.armies` e na configuração do combate.
 Esses registros permitem separar resultados contra CPU, defesa offline, dono
 participante e invasores ao avaliar as partidas publicadas. Incrementar a versão
 de balanceamento quando os parâmetros forem ajustados.
@@ -275,7 +303,8 @@ Os testes não acessam o banco de jogadores do Render/Neon.
 
 - `GET /api/health`: conexão com PostgreSQL e prontidão do mundo.
 - `GET /api/world`: mapa, proprietários, carteira, evolução, ranking e histórico.
-- `POST /api/world/army/upgrade`: comprar o próximo nível com `{expectedLevel, requestId}`.
+- `GET /api/world/profile?page=1`: perfil e histórico pessoal paginado, autenticado.
+- `POST /api/world/army/upgrade`: evoluir um tipo com `{troopKind, expectedLevel, requestId}`. O tipo é obrigatório; valores permitidos: `tanque`, `desliz`, `heli`, `canhao`, `central`.
 - `POST /api/auth/register`, `/login`, `/logout`: conta e sessão.
 - `POST /api/world/areas/:id/attack`: reserva e início de batalha.
 - `GET /api/world/battles/:id`: estado ou resultado, com visualização para jogadores autenticados.

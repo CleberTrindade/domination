@@ -12,7 +12,11 @@
   let socket=null,socketPlayer=null,socketReady=false,retryTimer=null,retryDelay=1000,requestId=0,refreshTimer=null,switchingDefense=false;
   const pending=new Map(),threats=new Map(),watchedThreats=new Map();let alertDigest='';
   let reviewOnReturn=true;
-  let upgrading=false,upgradeRequest=null;
+  let upgrading=false,upgradeRequest=null,selectedTroop='tanque';
+  let profile=null,profileOwner=null,profileLoading=false,profileError='',profileRequest=0;
+  const troopNames={tanque:'Tanque',desliz:'Bote',heli:'Helicóptero',canhao:'Canhão',central:'Bombardeiro central'};
+  const dateTime=value=>new Date(value).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const troopIcon=kind=>`<svg viewBox="0 0 100 76" aria-hidden="true" class="w-troop-art"><ellipse cx="50" cy="65" rx="36" ry="5" fill="#263a6114"/><g fill="#658bbe" stroke="#284d7b" stroke-width="3" stroke-linejoin="round">${({tanque:'<rect x="16" y="44" width="67" height="17" rx="8" fill="#284d7b"/><path d="M22 44l8-16h37l11 16z"/><rect x="38" y="19" width="25" height="14" rx="4"/><path d="M58 21h32v6H58z"/><path d="M29 51h40" stroke="#aac9ed" stroke-dasharray="6 4"/>',desliz:'<path d="M13 41h74L73 59H29z"/><path d="M29 39V25h36l8 14z"/><path d="M48 25V12m0 0 17 10H48"/><path d="M11 66q10-7 20 0t20 0 20 0 20 0" fill="none" stroke="#74bcd8"/>',heli:'<path d="M23 37q1-16 25-16t25 16q0 13-22 13H38z"/><path d="m23 31-15-8v19l18-4M50 21V11m-30 0h60M37 50v8m25-8v8m-34 0h44" fill="none"/><path d="M60 26v13h12" fill="#c4e6ee"/>',canhao:'<circle cx="37" cy="53" r="12" fill="#284d7b"/><path d="m34 36 42-24 6 11-41 26z"/><path d="m49 47 23 14H32" fill="none"/><circle cx="37" cy="53" r="5" fill="#acc4e6"/>',central:'<circle cx="50" cy="39" r="28" fill="#a6b7d3"/><path d="m50 16 7 17 26 10v6l-27-5-2 13h-8l-2-13-27 5v-6l26-10z" fill="#edf5ff"/><circle cx="50" cy="39" r="34" fill="none" stroke="#e2b84d" stroke-width="4"/>'})[kind]||''}</g></svg>`;
   const reviewedAttacks=new Map();
   let simulation=null,pendingCompletion=null,completing=false,completionTimer=null,relayBusy=false,lastHttpRelay=0,localOrders=0;
   const alerts=document.createElement('aside');alerts.id='worldAlerts';alerts.setAttribute('aria-live','polite');document.body.append(alerts);
@@ -106,9 +110,9 @@
       </div>
       <div class="w-legend"><span><i style="background:#b4afce"></i>CPU</span><span><i style="background:#78aef0"></i>Suas áreas</span><span><i style="background:#ee9a8e"></i>Rivais</span></div>
       <section class="w-area" aria-label="Área selecionada"><div class="w-area-top"><div><div class="w-kicker">ÁREA ${String(area.ordinal).padStart(2, '0')}</div><h2>${esc(area.name)}</h2></div><span class="w-status ${mine ? 'mine' : ''}">${area.battle_id ? 'EM DISPUTA' : mine ? 'CONQUISTADA' : area.owner_id ? 'OCUPADA' : 'NÃO CONQUISTADA'}</span></div>
-        <p class="w-owner">${area.owner_id ? 'Comandante: <strong>' + esc(area.owner_name) + '</strong>'+(area.owner_level?' · Exército Nv. '+area.owner_level:'') : 'Sob controle da <strong>guarnição da CPU</strong>'}</p>
+        <p class="w-owner">${area.owner_id ? 'Comandante: <strong>' + esc(area.owner_name) + '</strong>'+(area.owner_level?' · Maior nível: '+area.owner_level:'') : 'Sob controle da <strong>guarnição da CPU</strong>'}</p>
         <div class="w-def"><span>Ocupação inicial da defesa</span><b>≈ ${Math.round((area.defense_share??(area.owner_id ? .5 : area.cpu_share)) * 100)}% do mapa</b></div>
-        ${area.defense_bases?'<p class="w-defense-summary">'+area.defense_bases+' bases + bombardeiro central · Resistência '+esc(area.resistance)+(area.owner_id?' · Nível do proprietário':' · CPU com '+Math.round((data.progression?.cpuPowerRatio||.8)*100)+'% da força do atacante')+'</p>':''}
+        ${area.defense_bases?'<p class="w-defense-summary">'+area.defense_bases+' bases + bombardeiro central · Resistência '+esc(area.resistance)+(area.owner_id?' · Níveis individuais do proprietário':' · CPU com '+Math.round((data.progression?.cpuPowerRatio||.8)*100)+'% da força do atacante')+'</p>':''}
         <div class="w-area-coins"><strong>🪙 ${money(data.economy?.productionPerDay||1000)} moedas por dia</strong><small>${mine?'Produz enquanto a área estiver sob seu comando, inclusive offline.':area.economy?(area.owner_id?'Saque possível: até '+money(area.economy.maxLoot)+' moedas.':'Primeira conquista: +'+money(area.economy.cpuReward)+' moedas.')+' Reserva para entrar: '+money(area.economy.atRisk)+' moedas.':!area.owner_id&&!area.cpu_reward_claimed&&area.first_capture_reward?'Primeira conquista: +'+money(area.first_capture_reward)+' moedas.':'Conquiste para começar a produzir moedas.'}</small></div>
         <button class="w-cta" data-action="${canDefend?'defend':'attack'}" ${busy || (mine&&!canDefend)||(!area.battle_id&&data.wallet&&data.wallet.available<data.economy.minEntry) ? 'disabled' : ''}>${busy ? 'PREPARANDO…' : action}</button>
         ${!mine&&!area.battle_id&&data.wallet?'<p class="w-money-note">Mínimo para atacar: '+money(data.economy.minEntry)+' moedas disponíveis. '+(area.owner_id?'Saque: 40% do menor saldo disponível entre vencedor e cada perdedor.':'Se a CPU vencer, você perde o valor reservado.')+'</p>':''}
@@ -122,6 +126,39 @@
   const statusLabel = { won: 'conquistou', lost: 'teve o ataque contido em', abandoned: 'desistiu do ataque a', interrupted: 'teve o ataque interrompido em', expired: 'teve o ataque encerrado em' };
   function history() {
     return `<div class="w-heading"><div><h1>Últimas disputas</h1><p>Conquistas e defesas do mundo compartilhado.</p></div></div><div class="w-list">${data.history.length ? data.history.map(h => `<div class="w-list-row"><span class="place">${h.status === 'won' ? '⚑' : '◇'}</span><div><strong>${esc(h.area_name)}</strong><small>${esc(h.status==='won'?(h.winner_name||h.attacker_name):h.attacker_name)} ${statusLabel[h.status] || 'atacou'} ${esc(h.area_name)}.</small><small>${h.status === 'won' ? 'Novo proprietário registrado' : 'Propriedade preservada'} · ${new Date(h.finished_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('') : '<div class="w-empty">As batalhas concluídas aparecerão aqui.<br>Cada conquista faz parte da história de Sergipe.</div>'}</div>`;
+  }
+  async function loadProfile(page=1){
+    if(!data?.player)return;
+    const owner=data.player.id,request=++profileRequest;profileOwner=owner;profileLoading=true;profileError='';render();
+    try{const result=await api('/api/world/profile?page='+page);if(request!==profileRequest||data?.player?.id!==owner)return;profile=result;}
+    catch(e){if(request!==profileRequest||data?.player?.id!==owner)return;profileError=e.message;}
+    finally{if(request===profileRequest&&data?.player?.id===owner){profileLoading=false;render();}}
+  }
+  function navigate(key){
+    tab=key;if(key==='received')markReceivedSeen();render();
+    if(key==='profile')loadProfile();
+    document.querySelector('#worldScreen').scrollTop=0;
+  }
+  function playerProfile(){
+    if(!data.player)return '<div class="w-heading"><div><h1>Seu perfil</h1><p>Sua trajetória como comandante.</p></div></div><div class="w-empty">Entre para ver suas conquistas e o histórico pessoal.<br><button class="w-textbtn" data-action="account">ENTRAR NA CONTA</button></div>';
+    const owned=data.areas.filter(a=>a.owner_id===data.player.id),stats=profile?.stats;
+    const labels={won:'VITÓRIA',lost:'DERROTA',left:'DESISTÊNCIA',cancelled:'INTERROMPIDA'},roles={attacker:'Ataque',defender:'Defesa',invader:'Invasão'};
+    return `<div class="w-heading"><div><h1>Seu perfil</h1><p>Conquistas, defesa e evolução.</p></div><button class="w-textbtn" data-action="profile-refresh" ${profileLoading?'disabled':''}>ATUALIZAR</button></div>
+      <section class="w-profile-hero"><div class="w-avatar" aria-hidden="true">${esc(data.player.name.slice(0,1).toUpperCase())}</div><div><span class="w-kicker">COMANDANTE</span><h2>${esc(data.player.name)}</h2><p>@${esc(data.player.username)}</p>${profile?'<small>Desde '+new Date(profile.player.createdAt).toLocaleDateString('pt-BR')+'</small>':''}</div></section>
+      <div class="w-profile-stats">${[[owned.length,'Áreas atuais'],[stats?.wins??'—','Vitórias'],[stats?.losses??'—','Derrotas'],[stats?.winRate==null?'—':stats.winRate+'%','Vitórias em decisões']].map(([value,label])=>'<div><strong>'+value+'</strong><small>'+label+'</small></div>').join('')}</div>
+      <section class="w-profile-assets"><div><span class="w-kicker">SEU EXÉRCITO</span><div class="w-level-chips">${Object.entries(data.army?.troops||{}).map(([kind,t])=>'<span>'+troopNames[kind]+' <b>Nv. '+t.level+'</b></span>').join('')}</div><button class="w-textbtn" data-action="troops">VER TROPAS E EVOLUIR ›</button></div><button class="w-wallet" data-action="wallet"><span>🪙 <strong>${money(data.wallet?.available)}</strong><small> DISPONÍVEIS</small></span><span>CARTEIRA ›</span></button><p class="w-detail">${owned.length?owned.map(a=>esc(a.name)).join(' · '):'Você ainda não possui áreas.'}</p></section>
+      <div class="w-heading"><div><h2>Suas partidas</h2><p>${stats?stats.total+' concluídas · '+stats.withdrawals+' desistências · '+stats.cancelled+' interrompidas':'Ataques, defesas e invasões.'}</p></div></div>
+      <p class="w-detail">A taxa considera vitórias, derrotas e desistências. Partidas interrompidas não entram no cálculo. Defesas automáticas também aparecem no histórico.</p>
+      ${data.activeBattle?'<button class="w-banner" data-action="resume">BATALHA EM ANDAMENTO · RETOMAR ›</button>':''}
+      ${profileError?'<div class="w-error" role="alert">'+esc(profileError)+' <button class="w-textbtn" data-action="profile-refresh">TENTAR NOVAMENTE</button></div>':''}
+      ${profileLoading?'<div class="w-empty" role="status">Carregando seu histórico…</div>':profile?.matches.length?'<div class="w-personal-history">'+profile.matches.map(m=>`<article class="w-match"><div class="w-match-heading"><span class="w-match-outcome ${m.outcome}">${labels[m.outcome]||'ENCERRADA'}</span><time>${dateTime(m.finished_at)}</time></div><h3>${esc(m.area_name)}</h3><p>${roles[m.role]}${m.army_level?' · Maior nível na entrada: '+m.army_level:''}${m.automatic_defense?' · Defesa pela CPU':''}</p>${m.troop_levels?'<div class="w-level-chips">'+Object.entries(m.troop_levels).map(([kind,t])=>'<span>'+troopNames[kind]+' <b>Nv. '+t.level+'</b></span>').join('')+'</div>':''}<p>Atacante: <strong>${esc(m.attacker_name)}</strong><br>Defensor: <strong>${esc(m.defender_name||'Guarnição da CPU')}</strong>${m.winner_name?'<br>Vencedor: <strong>'+esc(m.winner_name)+'</strong>':''}</p><div class="w-match-footer"><small>Início: ${dateTime(m.started_at)}</small><b class="${m.coin_change<0?'negative':'positive'}">${m.coin_change>0?'+':''}${money(m.coin_change)} 🪙</b></div></article>`).join('')+'</div>':!profileError?'<div class="w-empty">Nenhuma partida concluída ainda.<br>Suas próximas batalhas aparecerão aqui.</div>':''}
+      ${profile&&!profileLoading&&profile.pagination.pages>1?'<div class="w-pagination"><button data-profile-page="'+(profile.pagination.page-1)+'" '+(profile.pagination.page===1?'disabled':'')+'>ANTERIOR</button><span>'+profile.pagination.page+' / '+profile.pagination.pages+'</span><button data-profile-page="'+(profile.pagination.page+1)+'" '+(profile.pagination.page===profile.pagination.pages?'disabled':'')+'>PRÓXIMA</button></div>':''}
+      <button class="w-textbtn w-logout" data-action="logout-confirm">SAIR DA CONTA</button>`;
+  }
+  function troopsScreen(){
+    return `<div class="w-heading"><div><h1>Suas tropas</h1><p>Conheça seu exército. Escolha o que evoluir.</p></div></div><div class="w-training-note"><strong>EVOLUÇÃO INDIVIDUAL</strong><p>Cada tipo possui seu próprio nível, de 1 a 10. Cada evolução acrescenta ${data.progression?.powerStep||10} pontos de força apenas ao tipo escolhido.</p><small>As melhorias valem nas próximas batalhas. As disputas em andamento mantêm os níveis de entrada.</small></div>
+      ${!data.player?'<button class="w-banner" data-action="account">ENTRE PARA SALVAR E EVOLUIR SUAS TROPAS ›</button>':''}
+      <div class="w-troop-list">${(data.troops||[]).map(t=>`<article class="w-troop-card"><div class="w-troop-heading"><div class="w-troop-illustration ${t.id}">${troopIcon(t.id)}</div><div><span class="w-kicker">${esc(t.category)}</span><h2>${esc(t.name)}</h2><span class="w-troop-level">NÍVEL ${t.level} / 10</span></div></div><p>${esc(t.description)}</p><div class="w-troop-metrics"><div><small>FORÇA</small><b>${Math.round(t.power*100)}%</b></div><div><small>DANO POR DISPARO</small><b>${money(t.damage)}</b></div><div><small>${t.speed?'VELOCIDADE RELATIVA':'ALCANCE EM HEXÁGONOS'}</small><b>${t.speed?Math.round(t.speed/42*100)+'%':money(t.range)}</b></div><div><small>INTERVALO DE TIROS</small><b>${money(t.interval)} s</b></div></div><p class="w-troop-tip"><strong>Origem:</strong> ${esc(t.base)}<br>${esc(t.tip)}</p><button class="w-cta" data-troop="${t.id}">${!data.player?'VER EVOLUÇÃO':t.nextCost?'EVOLUIR · '+money(t.nextCost)+' 🪙':'NÍVEL MÁXIMO'}</button></article>`).join('')}</div><p class="w-detail">Velocidade relativa ao tanque. O dano representa tropas retiradas por disparo; capturas também consideram a força da guarnição. Canhões e bombardeiro evoluem seus disparos fixos. As tropas enviadas dessas posições usam o nível dos tanques.</p>`;
   }
   const receivedLabel={active:'EM ANDAMENTO',won:'ÁREA PERDIDA',lost:'DEFESA BEM-SUCEDIDA',abandoned:'ATAQUE ABANDONADO',interrupted:'BATALHA INTERROMPIDA',expired:'BATALHA ENCERRADA'};
   function receivedList(){
@@ -172,42 +209,50 @@
     }
     root.innerHTML = `<header class="w-top"><div class="w-brand">DOMINATION<small>MUNDO ABERTO</small></div><div><button class="w-account" data-action="account">${data.player ? esc(data.player.name) : 'ENTRAR'}</button><span class="w-online">MUNDO COMPARTILHADO</span></div></header>
       ${data.wallet?'<button class="w-wallet" data-action="wallet" aria-label="Carteira e regras de moedas"><span>🪙 <strong>'+money(data.wallet.available)+'</strong><small> DISPONÍVEIS</small></span><span>'+money(data.wallet.reserved)+' reservadas · +'+money(data.wallet.productionPerDay)+'/dia ›</span></button>':''}
-      ${data.army?'<button class="w-army-card" data-action="army" aria-label="Exército e evolução"><span><strong>EXÉRCITO · NV. '+data.army.level+'</strong><small>Força '+Math.round(data.army.power*100)+'% · treinamento geral</small></span><b>'+(data.army.nextCost?'EVOLUIR · '+money(data.army.nextCost)+' 🪙':'NÍVEL MÁXIMO')+' ›</b></button>':''}
+      ${data.army?'<button class="w-army-card" data-action="troops" aria-label="Tropas e evolução individual"><span><strong>SEU EXÉRCITO</strong><small>5 tipos · níveis individuais</small></span><b>VER TROPAS ›</b></button>':''}
       <div class="w-breadcrumb">BRASIL <span>›</span> NORDESTE <span>›</span> <span>SERGIPE</span></div>
-      <nav class="w-tabs" aria-label="Navegação do mundo" role="tablist">${[['territories', 'TERRITÓRIOS'], ['received','ATAQUES'], ['ranking', 'RANKING'], ['history', 'HISTÓRICO']].map(([key, label]) => `<button role="tab" data-tab="${key}" aria-selected="${tab === key}">${label}${key==='received'&&data.receivedAttacks?.length?'<span class="w-tab-count">'+data.receivedAttacks.length+'</span>':''}</button>`).join('')}</nav>
+      <nav class="w-tabs" aria-label="Navegação do mundo" role="tablist">${[['territories', 'TERRITÓRIOS'], ['troops','TROPAS'], ['profile','PERFIL'], ['received','ATAQUES'], ['ranking', 'RANKING'], ['history', 'HISTÓRICO']].map(([key, label]) => `<button role="tab" data-tab="${key}" aria-selected="${tab === key}">${label}${key==='received'&&data.receivedAttacks?.length?'<span class="w-tab-count">'+data.receivedAttacks.length+'</span>':''}</button>`).join('')}</nav>
       ${error ? '<div class="w-error" role="alert">' + esc(error) + '</div>' : ''}
       ${tab==='territories'&&data.receivedAttacks?.length?'<button class="w-banner w-received-banner" data-action="received">⚔ '+data.receivedAttacks.length+' ataques sofridos · Ver lista e responder ›</button>':''}
-      ${tab === 'territories' ? map() : tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : history()}
+      ${tab === 'territories' ? map() : tab==='troops'?troopsScreen():tab==='profile'?playerProfile():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : history()}
       <footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p><button class="w-textbtn" data-action="classic">MODO CLÁSSICO ›</button></footer>`;
   }
   async function refresh(force = false) {
     try {
       const hadError = !!error;
       const next = await api('/api/world'); const digest = JSON.stringify(next);
+      if(next.player?.id!==profileOwner){profile=null;profileError='';profileLoading=false;profileOwner=next.player?.id||null;profileRequest++;}
       data = next; error = '';ensureSocket();syncThreats();
       if (force || hadError || digest !== lastDigest) { lastDigest = digest; render(); }
       reviewReceived();
+      if(tab==='profile'&&data.player&&!profile&&!profileLoading&&!profileError)loadProfile();
     } catch (e) { error = e.message; render(); }
   }
   function modal(html) { if (dialog.open) dialog.close(); dialog.innerHTML = html; dialog.showModal(); }
-  function showArmy(message='',failed=false){
-    if(!data?.army)return;
-    const army=data.army,costs=data.progression.upgradeCosts;
-    modal(`<h2>Seu exército · Nível ${army.level}</h2><p>Força atual: <strong>${Math.round(army.power*100)}%</strong> do treinamento inicial. Cada nível acrescenta ${data.progression.powerStep} pontos de força às suas tropas e armas.</p><div class="w-army-next">${army.nextLevel?'<strong>Próxima evolução: nível '+army.nextLevel+'</strong><p>Força '+Math.round(army.nextPower*100)+'% · Custo '+money(army.nextCost)+' moedas<br>Você tem '+money(data.wallet.available)+' moedas disponíveis.</p>':'<strong>Seu exército atingiu o nível máximo.</strong>'}</div><p>A melhoria vale nas próximas batalhas. Partidas já iniciadas mantêm os níveis de entrada. As moedas reservadas para disputas continuam protegidas.</p>${army.reason?'<p class="w-form-error">'+esc(army.reason)+'</p>':''}${message?'<p class="'+(failed?'w-form-error':'w-upgrade-success')+'" role="status">'+esc(message)+'</p>':''}<button class="w-cta" data-dialog="upgrade-army" ${!army.canUpgrade||upgrading?'disabled':''}>${upgrading?'EVOLUINDO…':army.nextCost?'EVOLUIR POR '+money(army.nextCost)+' MOEDAS':'NÍVEL MÁXIMO'}</button><details class="w-upgrade-details"><summary>Ver níveis e custos</summary><table><thead><tr><th>Nível</th><th>Força</th><th>Custo do nível</th></tr></thead><tbody>${costs.slice(1).map((cost,i)=>'<tr class="'+(i+1===army.level?'current':'')+'"><td>'+(i+1)+'</td><td>'+(100+i*data.progression.powerStep)+'%</td><td>'+(cost?money(cost):'Inicial')+'</td></tr>').join('')}</tbody></table></details><button class="w-textbtn" data-dialog="close">VOLTAR AO MAPA</button>`);
+  function showArmy(kind=selectedTroop,message='',failed=false){
+    selectedTroop=kind;
+    const troop=(data.troops||[]).find(t=>t.id===kind),army=data.army?.troops?.[kind];
+    if(!troop)return;
+    const costs=data.progression.upgradeCosts;
+    modal(`<div class="w-troop-modal-art">${troopIcon(kind)}</div><h2>${esc(troop.name)} · Nível ${troop.level}</h2><p>${esc(troop.description)}</p><div class="w-army-next">${troop.nextPower?'<strong>Nível '+troop.level+' → '+(troop.level+1)+'</strong><p>Força: '+Math.round(troop.power*100)+'% → '+Math.round(troop.nextPower*100)+'%<br>Dano: '+money(troop.damage)+' → '+money(troop.nextDamage)+' por disparo<br>Custo: '+money(troop.nextCost)+' moedas</p>':'<strong>Este tipo atingiu o nível máximo.</strong>'}</div><p>Esta compra evolui apenas <strong>${esc(troop.name)}</strong>. A melhoria vale nas próximas batalhas. As moedas reservadas para disputas continuam protegidas.</p>${data.wallet?'<p>Disponíveis: '+money(data.wallet.available)+' moedas · Reservadas: '+money(data.wallet.reserved)+'</p>':''}${army?.reason?'<p class="w-form-error">'+esc(army.reason)+'</p>':''}${message?'<p class="'+(failed?'w-form-error':'w-upgrade-success')+'" role="status">'+esc(message)+'</p>':''}${!data.player?'<button class="w-cta" data-dialog="login">ENTRAR PARA EVOLUIR</button>':'<button class="w-cta" data-dialog="upgrade-army" '+(!army?.canUpgrade||upgrading?'disabled':'')+'>'+(upgrading?'EVOLUINDO…':army.nextCost?'EVOLUIR POR '+money(army.nextCost)+' MOEDAS':'NÍVEL MÁXIMO')+'</button>'}<details class="w-upgrade-details"><summary>Ver níveis e custos deste tipo</summary><table><thead><tr><th>Nível</th><th>Força</th><th>Custo</th></tr></thead><tbody>${costs.slice(1).map((cost,i)=>'<tr class="'+(i+1===troop.level?'current':'')+'"><td>'+(i+1)+'</td><td>'+(100+i*data.progression.powerStep)+'%</td><td>'+(cost?money(cost):'Inicial')+'</td></tr>').join('')}</tbody></table></details><button class="w-textbtn" data-dialog="close">VOLTAR ÀS TROPAS</button>`);
   }
   async function upgradeArmy(){
-    if(upgrading||!data?.army?.canUpgrade)return;
-    const level=data.army.level;
-    if(upgradeRequest?.expectedLevel!==level)upgradeRequest={expectedLevel:level,requestId:crypto.randomUUID()};
-    upgrading=true;showArmy();
-    try{const result=await post('/api/world/army/upgrade',upgradeRequest);if(result.army)data.army=result.army;if(result.wallet)data.wallet={...data.wallet,...result.wallet};await refresh(true);upgradeRequest=null;upgrading=false;showArmy('Exército evoluído! Seu novo nível vale nas próximas batalhas.');}
-    catch(e){await refresh(true);upgrading=false;if(data?.army?.level>level){upgradeRequest=null;showArmy('Seu novo nível já foi confirmado.');}else showArmy(e.message,true);}
+    const kind=selectedTroop,army=data?.army?.troops?.[kind];
+    if(upgrading||!army?.canUpgrade)return;
+    const level=army.level;
+    if(upgradeRequest?.expectedLevel!==level||upgradeRequest?.troopKind!==kind)upgradeRequest={troopKind:kind,expectedLevel:level,requestId:crypto.randomUUID()};
+    upgrading=true;showArmy(kind);
+    try{const result=await post('/api/world/army/upgrade',upgradeRequest);if(result.army)data.army=result.army;if(result.wallet)data.wallet={...data.wallet,...result.wallet};syncTroopViews();await refresh(true);upgradeRequest=null;upgrading=false;showArmy(kind,'Melhoria confirmada! '+troopNames[kind]+' evoluiu para as próximas batalhas.');}
+    catch(e){await refresh(true);upgrading=false;if(data?.army?.troops?.[kind]?.level>level){upgradeRequest=null;showArmy(kind,'Seu novo nível já foi confirmado.');}else showArmy(kind,e.message,true);}
+  }
+  function syncTroopViews(){
+    data.troops=(data.troops||[]).map(t=>{const view=data.army?.troops?.[t.id];return view?{...t,...view,damage:view.power,nextDamage:view.nextPower}:t;});
   }
   function showWallet(){
     if(!data?.wallet)return;
     const wallet=data.wallet,rules=data.economy,labels={production:'Produção das áreas',battle_loot:'Saque da batalha',cpu_reward:'Primeira conquista da CPU',cpu_loss:'Derrota para a CPU',army_upgrade:'Evolução do exército'};
     const rewards=(data.areas||[]).map(a=>a.first_capture_reward||rules.cpuReward),minReward=Math.min(rules.cpuReward,...rewards),maxReward=Math.max(rules.cpuReward,...rewards),rewardText=minReward===maxReward?money(minReward):'de '+money(minReward)+' a '+money(maxReward);
-    modal(`<h2>Sua carteira</h2><div class="w-wallet-summary"><strong>🪙 ${money(wallet.balance)} moedas</strong><p>${money(wallet.available)} disponíveis · ${money(wallet.reserved)} reservadas<br>Produção das suas áreas: ${money(wallet.productionPerDay)} por dia</p></div><p>Cada área produz ${money(rules.productionPerDay)} moedas por dia, proporcional ao tempo de posse, inclusive offline.</p><p>Para atacar ou entrar como invasor, tenha pelo menos ${money(rules.minEntry)} moedas disponíveis. Reservamos 40% do saldo disponível na entrada. O vencedor recebe de cada perdedor 40% do menor saldo entre os dois. O restante da reserva é liberado.</p><p>A primeira conquista de uma área da CPU rende ${rewardText} moedas, conforme a resistência da guarnição. Perder para a CPU desconta a reserva. Defender é permitido sem moedas; nesse caso, não há saque entre você e seus adversários.</p><p>Desistir conta como derrota. Uma queda curta permite reconectar; uma interrupção do servidor libera as reservas sem saque.</p><h3>Últimas movimentações concluídas</h3><div class="w-coin-ledger">${wallet.entries.length?wallet.entries.map(entry=>`<div><span>${labels[entry.kind]||'Movimentação'}<small>${entry.kind==='production'?'Produção acumulada':entry.kind==='army_upgrade'?'Nível '+entry.upgrade_level:esc(entry.area_name)} · ${new Date(entry.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></span><b class="${entry.amount<0?'negative':''}">${entry.amount>0?'+':''}${money(entry.amount)}</b></div>`).join(''):'<p>Saldo inicial: '+money(rules.initialCoins)+' moedas. As próximas batalhas aparecerão aqui.</p>'}</div><button class="w-cta" data-dialog="close">VOLTAR AO MAPA</button>`);
+    modal(`<h2>Sua carteira</h2><div class="w-wallet-summary"><strong>🪙 ${money(wallet.balance)} moedas</strong><p>${money(wallet.available)} disponíveis · ${money(wallet.reserved)} reservadas<br>Produção das suas áreas: ${money(wallet.productionPerDay)} por dia</p></div><p>Cada área produz ${money(rules.productionPerDay)} moedas por dia, proporcional ao tempo de posse, inclusive offline.</p><p>Para atacar ou entrar como invasor, tenha pelo menos ${money(rules.minEntry)} moedas disponíveis. Reservamos 40% do saldo disponível na entrada. O vencedor recebe de cada perdedor 40% do menor saldo entre os dois. O restante da reserva é liberado.</p><p>A primeira conquista de uma área da CPU rende ${rewardText} moedas, conforme a resistência da guarnição. Perder para a CPU desconta a reserva. Defender é permitido sem moedas; nesse caso, não há saque entre você e seus adversários.</p><p>Desistir conta como derrota. Uma queda curta permite reconectar; uma interrupção do servidor libera as reservas sem saque.</p><h3>Últimas movimentações concluídas</h3><div class="w-coin-ledger">${wallet.entries.length?wallet.entries.map(entry=>`<div><span>${labels[entry.kind]||'Movimentação'}<small>${entry.kind==='production'?'Produção acumulada':entry.kind==='army_upgrade'?(troopNames[entry.troop_kind]||'Treinamento geral')+' · Nível '+entry.upgrade_level:esc(entry.area_name)} · ${new Date(entry.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></span><b class="${entry.amount<0?'negative':''}">${entry.amount>0?'+':''}${money(entry.amount)}</b></div>`).join(''):'<p>Saldo inicial: '+money(rules.initialCoins)+' moedas. As próximas batalhas aparecerão aqui.</p>'}</div><button class="w-cta" data-dialog="close">VOLTAR AO MAPA</button>`);
   }
   function renderBattlePanel(){
     if(!current){battlePanel.innerHTML='';panelDigest='';return;}
@@ -220,9 +265,9 @@
     if(me===0){
       const pending=current.joinState==='pending';
       const affordable=!data?.wallet||data.wallet.available>=(data.economy?.minEntry||100);
-      battlePanel.innerHTML=`<strong>ESPECTADOR · BATALHA EM ANDAMENTO</strong>${current.joinError?'<p class="w-join-error">'+esc(current.joinError)+'</p>':''}${pending?'<p>Aguardando a confirmação da sua entrada…</p>':current.canJoin&&sites.length?`<p>Escolha uma base neutra para entrar com 25 tropas.${data?.army?' Seu exército entra no nível '+data.army.level+'.':''}</p>${data?.wallet?'<p>Reserva: '+money(entryStake())+' moedas · mínimo disponível: '+money(data.economy.minEntry)+'. Saque de 40% do menor saldo contra cada adversário.</p>':''}<div class="w-join-controls"><select id="worldJoinSite" aria-label="Base neutra para entrar"><option value="" disabled selected>Escolha uma base livre</option>${sites.map(site=>`<option value="${site.id}">Base ${site.id+1} · ${kind[site.kind]||'Base'}</option>`).join('')}</select><button data-battle-action="join" ${busy||!affordable?'disabled':''}>ENTRAR</button></div>${!affordable?'<p class="w-join-error">Saldo insuficiente. Você pode continuar assistindo.</p>':''}`:'<p>'+(current.joinState==='left'?'Você saiu desta disputa e pode acompanhar o restante.':sites.length?'Os quatro exércitos já estão ocupados.':'Não há base neutra disponível. Você pode continuar assistindo.')+'</p>'}`;
+      battlePanel.innerHTML=`<strong>ESPECTADOR · BATALHA EM ANDAMENTO</strong>${current.joinError?'<p class="w-join-error">'+esc(current.joinError)+'</p>':''}${pending?'<p>Aguardando a confirmação da sua entrada…</p>':current.canJoin&&sites.length?`<p>Escolha uma base neutra para entrar com 25 tropas.${data?.army?' Suas tropas entram com os níveis individuais atuais.':''}</p>${data?.wallet?'<p>Reserva: '+money(entryStake())+' moedas · mínimo disponível: '+money(data.economy.minEntry)+'. Saque de 40% do menor saldo contra cada adversário.</p>':''}<div class="w-join-controls"><select id="worldJoinSite" aria-label="Base neutra para entrar"><option value="" disabled selected>Escolha uma base livre</option>${sites.map(site=>`<option value="${site.id}">Base ${site.id+1} · ${kind[site.kind]||'Base'}</option>`).join('')}</select><button data-battle-action="join" ${busy||!affordable?'disabled':''}>ENTRAR</button></div>${!affordable?'<p class="w-join-error">Saldo insuficiente. Você pode continuar assistindo.</p>':''}`:'<p>'+(current.joinState==='left'?'Você saiu desta disputa e pode acompanhar o restante.':sites.length?'Os quatro exércitos já estão ocupados.':'Não há base neutra disponível. Você pode continuar assistindo.')+'</p>'}`;
       const input=battlePanel.querySelector('select');if(selected&&sites.some(site=>String(site.id)===selected)&&input)input.value=selected;
-    }else battlePanel.innerHTML=eliminated?'<strong>SEU EXÉRCITO FOI ELIMINADO</strong><p>A reserva continua vinculada ao resultado.</p><button data-battle-action="leave">VOLTAR AO MAPA</button>':current.economy?'<strong>'+((current.players||[]).find(p=>p.owner===me)?.level?'Nv. '+current.players.find(p=>p.owner===me).level+' · ':'')+'🪙 '+money(current.economy.atRisk)+' reservadas</strong><p>Saque possível: até '+money(current.economy.maxLoot)+' moedas'+(current.economy.cpuReward?' · CPU: +'+money(current.economy.cpuReward):'')+'</p>':'';
+    }else battlePanel.innerHTML=eliminated?'<strong>SEU EXÉRCITO FOI ELIMINADO</strong><p>A reserva continua vinculada ao resultado.</p><button data-battle-action="leave">VOLTAR AO MAPA</button>':current.economy?'<strong>'+((current.players||[]).find(p=>p.owner===me)?.level?'Maior nível: '+current.players.find(p=>p.owner===me).level+' · ':'')+'🪙 '+money(current.economy.atRisk)+' reservadas</strong><p>Saque possível: até '+money(current.economy.maxLoot)+' moedas'+(current.economy.cpuReward?' · CPU: +'+money(current.economy.cpuReward):'')+'</p>':'';
   }
   async function watch(id){
     if(!data?.player){authForm();return;}
@@ -330,6 +375,7 @@
   }
   function stopStream() { events?.close(); events = null;simulation?.terminate();simulation=null;pendingCompletion=null;clearTimeout(completionTimer);completionTimer=null; current = null; bridge.stop();renderAlerts();renderBattlePanel(); }
   function battleResult(final) {
+    profile=null;
     if (!current) return;
     const areaName = final.areaName || current.areaName,defending=current.playerOwner===2,me=current.playerOwner??1;
     stopStream(); refresh(true);
@@ -413,12 +459,16 @@
     const mapArea=event.target.closest('[data-map-area]');if(mapArea?.dataset.mapArea){selected=mapArea.dataset.mapArea;tab='territories';render();return;}
     const button = event.target.closest('button'); if (!button || button.disabled) return;
     if (button.dataset.area) { selected = button.dataset.area; tab = 'territories'; render(); return; }
-    if (button.dataset.tab) { tab = button.dataset.tab;if(tab==='received')markReceivedSeen(); render(); return; }
+    if (button.dataset.tab) { navigate(button.dataset.tab); return; }
+    if(button.dataset.troop){showArmy(button.dataset.troop);return;}
+    if(button.dataset.profilePage){loadProfile(Number(button.dataset.profilePage));return;}
     if(receivedAction(button))return;
     const action = button.dataset.action;
     if (action === 'refresh') refresh(true);
     if(action==='wallet')showWallet();
-    if(action==='army')showArmy();
+    if(action==='army'||action==='troops')navigate('troops');
+    if(action==='profile-refresh')loadProfile(profile?.pagination.page||1);
+    if(action==='logout-confirm')modal('<h2>Sair da conta?</h2><p>Use seu usuário e senha para retornar às suas conquistas.</p><button class="w-cta" data-dialog="logout">SAIR DA CONTA</button><button class="w-textbtn" data-dialog="close">CONTINUAR NO JOGO</button>');
     if(action==='received')showReceived();
     if (action === 'attack') attack();
     if(action==='defend')defend(data.areas.find(a=>a.id===selected)?.battle_id);
@@ -426,7 +476,7 @@
     if (action === 'classic') { bridge.classic(); }
     if (action === 'account') {
       if (!data?.player) authForm();
-      else modal(`<h2>${esc(data.player.name)}</h2><p>Seu usuário: <strong>${esc(data.player.username)}</strong><br>Use essa conta para acessar suas conquistas em outro aparelho.</p><div class="w-dialog-buttons"><button class="w-cta" data-dialog="close">VOLTAR AO MAPA</button><button class="w-textbtn" data-dialog="logout">SAIR DA CONTA</button></div>`);
+      else navigate('profile');
     }
   });
   dialog.addEventListener('click', async event => {

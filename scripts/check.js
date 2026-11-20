@@ -1,5 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 for(const file of ['server/index.js','server/world-service.js','server/browser-world.js','server/economy.js','server/progression.js','server/browser-assets.js','server/battle-engine.js','server/auth.js','server/database.js','public/world.js','public/world-motion.js','public/battle-worker.js','shared/browser-battle.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
+for(const file of ['server/player-profile.js','server/troops.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
 new vm.Script(require('../server/browser-assets').browserEngine());
 const html=fs.readFileSync('public/index.html','utf8');
 for(const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);

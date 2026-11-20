@@ -33,3 +33,37 @@ test('replay binds the entrant army to the server ticket and keeps strength afte
   for(let i=0;i<160;i++)restored.advance(1/30);
   const verified=verifyBrowserBattle(factory,config,new Map([[input.nonce,input]]),restored.completion());assert.equal(verified.validatedParticipants[0].level,10);assert.equal(verified.validatedParticipants[0].power,1.9);
 });
+
+test('individual levels affect only their own moving troop in a capture',()=>{
+  const {combatProfile}=require('../server/progression'),base={tanque:1,desliz:1,heli:1,canhao:1,central:1};
+  function impact(kind,levels){
+    const army=combatProfile(levels),battle=factory.createBattle({attackerTroops:army,defenderTroops:combatProfile(base)}),saved=battle.checkpoint();
+    saved.time=10;saved.cd=0;for(const site of saved.sites)site.cd=1000;for(const ai of saved.ais)ai.timer=1000;
+    const target=saved.sites.find(s=>s.owner===2&&s.kind==='garagem');target.troops=50;
+    saved.units=[{id:1,k:kind,owner:1,n:10,P:[[0,0],[1,0]],cum:[0,1],L:1,d:0,si:0,toId:target.id,x:0,y:0,alive:true}];saved.fights=[];
+    const restored=factory.restoreBattle(saved);restored.setDefenderControlled(true);restored.step(.1);return restored.snapshot().sites[target.id].troops;
+  }
+  const upgraded={...base,heli:10};
+  for(const kind of ['tanque','desliz'])assert.equal(impact(kind,base),impact(kind,upgraded));
+  assert(Math.abs(impact('heli',base)-impact('heli',upgraded)-9)<1e-9);
+});
+
+test('fixed weapon damage follows its own upgrade and individual profiles survive joining, restoration and final replay',()=>{
+  const {combatProfile}=require('../server/progression'),base={tanque:1,desliz:1,heli:1,canhao:1,central:1};
+  function shot(kind,levels){
+    const battle=factory.createBattle({attackerTroops:combatProfile(levels)}),saved=battle.checkpoint();saved.time=10;saved.cd=0;
+    for(const site of saved.sites)site.cd=1000;for(const ai of saved.ais)ai.timer=1000;
+    const gun=saved.sites.find(s=>s.kind===kind);gun.owner=1;gun.cd=0;
+    saved.units=[{id:1,k:'heli',owner:2,n:10,P:[[gun.x+20,gun.y],[gun.x+120,gun.y]],cum:[0,100],L:100,d:0,si:0,toId:4,x:gun.x+20,y:gun.y,alive:true}];saved.fights=[];
+    const restored=factory.restoreBattle(saved);restored.setDefenderControlled(true);restored.step(.01);return restored.snapshot().units[0].n;
+  }
+  assert.equal(shot('central',{...base,canhao:10}),shot('central',base));assert.equal(shot('canhao',{...base,heli:10}),shot('canhao',base));
+  assert.equal(shot('central',{...base,central:10}),8.1);assert.equal(shot('canhao',{...base,canhao:10}),8.1);
+  const config={centralOwner:2,share:.5,defenderBaseCount:3,maxSeconds:1,attackerTroops:combatProfile({...base,tanque:7}),defenderTroops:combatProfile(base,.8,true)};
+  const troopProfile=combatProfile({...base,heli:10,canhao:6}),ticket={nonce:'individual',kind:'join',owner:3,site:12,armyLevel:10,armyPower:1.9,armyTroops:troopProfile,playerId:'third',playerName:'Third',joinedAt:new Date().toISOString()};
+  const runner=createBrowserBattle(factory,{config});assert(runner.input(ticket));const restored=createBrowserBattle(factory,{config,resume:runner.checkpoint(),authorizedInputs:[ticket]});
+  assert.deepEqual(restored.snapshot().armies[3].troops,troopProfile);
+  for(let frame=0;frame<160;frame++)restored.advance(1/30);
+  const verified=verifyBrowserBattle(factory,config,new Map([[ticket.nonce,ticket]]),restored.completion());assert.deepEqual(verified.validatedParticipants[0].troops,troopProfile);
+  assert.equal(factory.createBattle().join(3,12,{level:1,power:1,troops:{heli:{level:99,power:9}}}),false);
+});

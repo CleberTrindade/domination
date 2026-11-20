@@ -1,5 +1,6 @@
 'use strict';
 const {randomUUID}=require('node:crypto');
+const {levelsFor}=require('./progression');
 const RULES=Object.freeze({initialCoins:1000,minEntry:100,productionPerDay:1000,cpuReward:300,lootPercent:40});
 const DAY=86400000n,CENTS=100n;
 const coins=value=>Number(value)/100;
@@ -8,7 +9,8 @@ function projectWallet(row,at){
   const since=new Date(row.coin_income_at).getTime(),until=Math.max(since,at);
   const numerator=BigInt(Math.floor(until-since))*BigInt(row.owned||0)*BigInt(RULES.productionPerDay)*CENTS+BigInt(row.coin_income_remainder);
   const produced=numerator/DAY;
-  return {playerId:row.id,balance:BigInt(row.coin_balance)+produced,produced,remainder:numerator%DAY,at:until,owned:Number(row.owned||0),level:Number(row.army_level||1)};
+  const levels=levelsFor(row);
+  return {playerId:row.id,balance:BigInt(row.coin_balance)+produced,produced,remainder:numerator%DAY,at:until,owned:Number(row.owned||0),level:Math.max(...Object.values(levels)),levels};
 }
 async function readWallets(db,ids,at,lock=false){
   const unique=[...new Set(ids.filter(Boolean))].sort();if(!unique.length)return new Map();
@@ -16,10 +18,10 @@ async function readWallets(db,ids,at,lock=false){
   if(lock){
     // Lock in a stable order. Count ownership in a fresh statement after waiting
     // for other settlements, so income always uses the latest committed owner.
-    rows=(await db.query('SELECT p.id,p.coin_balance,p.coin_income_at,p.coin_income_remainder,p.army_level FROM world_players p WHERE p.id=ANY($1::uuid[]) ORDER BY p.id FOR UPDATE OF p',[unique])).rows;
+    rows=(await db.query('SELECT p.id,p.coin_balance,p.coin_income_at,p.coin_income_remainder,p.army_level,p.troop_levels FROM world_players p WHERE p.id=ANY($1::uuid[]) ORDER BY p.id FOR UPDATE OF p',[unique])).rows;
     const owned=new Map((await db.query('SELECT owner_id,count(*)::int AS owned FROM world_areas WHERE owner_id=ANY($1::uuid[]) GROUP BY owner_id',[unique])).rows.map(row=>[row.owner_id,row.owned]));
     rows=rows.map(row=>({...row,owned:owned.get(row.id)||0}));
-  }else rows=(await db.query('SELECT p.id,p.coin_balance,p.coin_income_at,p.coin_income_remainder,p.army_level,(SELECT count(*)::int FROM world_areas a WHERE a.owner_id=p.id) AS owned FROM world_players p WHERE p.id=ANY($1::uuid[])',[unique])).rows;
+  }else rows=(await db.query('SELECT p.id,p.coin_balance,p.coin_income_at,p.coin_income_remainder,p.army_level,p.troop_levels,(SELECT count(*)::int FROM world_areas a WHERE a.owner_id=p.id) AS owned FROM world_players p WHERE p.id=ANY($1::uuid[])',[unique])).rows;
   return new Map(rows.map(row=>[row.id,projectWallet(row,at)]));
 }
 function settleAmounts(stakes,winnerOwner,status,cpuRewardAvailable,cpuRewardCoins=RULES.cpuReward){
