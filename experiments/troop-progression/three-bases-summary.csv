@@ -1,0 +1,91 @@
+area,attackerLevel,ownerLevel,policy,games,wins,previousWins,timeouts
+Litoral Sul,1,1,simple,50,50,16,0
+Litoral Sul,1,1,coordinated,50,50,22,0
+Agreste,1,1,simple,50,50,10,0
+Agreste,1,1,coordinated,50,50,18,0
+Alto Sertão,1,1,simple,50,48,11,0
+Alto Sertão,1,1,coordinated,50,48,8,0
+São Francisco,1,1,simple,50,35,1,3
+São Francisco,1,1,coordinated,50,49,1,0
+Capital,1,1,simple,50,10,0,2
+Capital,1,1,coordinated,50,33,1,0
+Litoral Sul,1,5,simple,50,38,3,4
+Litoral Sul,1,5,coordinated,50,38,3,0
+Agreste,1,5,simple,50,22,0,5
+Agreste,1,5,coordinated,50,32,1,0
+Alto Sertão,1,5,simple,50,6,0,6
+Alto Sertão,1,5,coordinated,50,21,1,0
+São Francisco,1,5,simple,50,1,0,2
+São Francisco,1,5,coordinated,50,4,0,0
+Capital,1,5,simple,50,0,0,0
+Capital,1,5,coordinated,50,1,0,0
+Litoral Sul,1,10,simple,50,5,0,3
+Litoral Sul,1,10,coordinated,50,10,0,0
+Agreste,1,10,simple,50,0,0,2
+Agreste,1,10,coordinated,50,3,0,0
+Alto Sertão,1,10,simple,50,0,0,0
+Alto Sertão,1,10,coordinated,50,3,0,0
+São Francisco,1,10,simple,50,0,0,0
+São Francisco,1,10,coordinated,50,0,0,0
+Capital,1,10,simple,50,0,0,0
+Capital,1,10,coordinated,50,0,0,0
+Litoral Sul,5,1,simple,50,50,45,0
+Litoral Sul,5,1,coordinated,50,50,50,0
+Agreste,5,1,simple,50,50,23,0
+Agreste,5,1,coordinated,50,50,42,0
+Alto Sertão,5,1,simple,50,50,13,0
+Alto Sertão,5,1,coordinated,50,50,35,0
+São Francisco,5,1,simple,50,50,10,0
+São Francisco,5,1,coordinated,50,50,19,0
+Capital,5,1,simple,50,50,5,0
+Capital,5,1,coordinated,50,50,9,0
+Litoral Sul,5,5,simple,50,50,16,0
+Litoral Sul,5,5,coordinated,50,50,24,0
+Agreste,5,5,simple,50,50,9,0
+Agreste,5,5,coordinated,50,48,16,0
+Alto Sertão,5,5,simple,50,49,11,0
+Alto Sertão,5,5,coordinated,50,46,4,0
+São Francisco,5,5,simple,50,35,1,0
+São Francisco,5,5,coordinated,50,40,2,0
+Capital,5,5,simple,50,13,0,1
+Capital,5,5,coordinated,50,28,1,0
+Litoral Sul,5,10,simple,50,37,2,2
+Litoral Sul,5,10,coordinated,50,34,4,0
+Agreste,5,10,simple,50,27,0,3
+Agreste,5,10,coordinated,50,19,0,0
+Alto Sertão,5,10,simple,50,5,0,4
+Alto Sertão,5,10,coordinated,50,17,0,0
+São Francisco,5,10,simple,50,1,0,1
+São Francisco,5,10,coordinated,50,9,0,0
+Capital,5,10,simple,50,0,0,0
+Capital,5,10,coordinated,50,1,0,0
+Litoral Sul,10,1,simple,50,50,50,0
+Litoral Sul,10,1,coordinated,50,50,50,0
+Agreste,10,1,simple,50,50,50,0
+Agreste,10,1,coordinated,50,50,50,0
+Alto Sertão,10,1,simple,50,50,50,0
+Alto Sertão,10,1,coordinated,50,50,50,0
+São Francisco,10,1,simple,50,50,42,0
+São Francisco,10,1,coordinated,50,50,48,0
+Capital,10,1,simple,50,50,29,0
+Capital,10,1,coordinated,50,50,42,0
+Litoral Sul,10,5,simple,50,50,39,0
+Litoral Sul,10,5,coordinated,50,50,44,0
+Agreste,10,5,simple,50,50,20,0
+Agreste,10,5,coordinated,50,50,36,0
+Alto Sertão,10,5,simple,50,50,34,0
+Alto Sertão,10,5,coordinated,50,50,31,0
+São Francisco,10,5,simple,50,50,6,0
+São Francisco,10,5,coordinated,50,49,15,0
+Capital,10,5,simple,50,50,4,0
+Capital,10,5,coordinated,50,46,7,0
+Litoral Sul,10,10,simple,50,50,16,0
+Litoral Sul,10,10,coordinated,50,50,23,0
+Agreste,10,10,simple,50,50,12,0
+Agreste,10,10,coordinated,50,44,15,0
+Alto Sertão,10,10,simple,50,49,7,0
+Alto Sertão,10,10,coordinated,50,43,5,0
+São Francisco,10,10,simple,50,33,1,1
+São Francisco,10,10,coordinated,50,34,1,0
+Capital,10,10,simple,50,7,0,3
+Capital,10,10,coordinated,50,9,0,0

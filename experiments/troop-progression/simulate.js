@@ -12,13 +12,25 @@ function prototypeFactory(){
   let source=fs.readFileSync(enginePath,'utf8');
   source=replaceOnce(source,'function initialSites(share,difficulty=1,centralOwner=0){','function rawInitialSites(share,difficulty=1,centralOwner=0){');
   source=replaceOnce(source,'function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner=0}={}){',`const setups=new Map();
-function initialSites(share,difficulty=1,centralOwner=0){
-  const key=[share,difficulty,centralOwner].join(':');
-  if(!setups.has(key))setups.set(key,rawInitialSites(share,difficulty,centralOwner));
+function initialSites(share,difficulty=1,centralOwner=0,defenderBaseCount=null){
+  const key=[share,difficulty,centralOwner,defenderBaseCount].join(':');
+  if(!setups.has(key)){
+    const setup=rawInitialSites(share,difficulty,centralOwner);
+    if(defenderBaseCount!==null){
+      if(!Number.isInteger(defenderBaseCount)||defenderBaseCount<1||defenderBaseCount>15)throw Error('Invalid experimental defender base count');
+      const home=setup.sites.find(site=>site.owner===2&&site.hq);
+      const nearby=setup.sites.filter(site=>site.owner===2&&site.id!==HX.center&&site!==home).sort((a,b)=>Math.hypot(a.x-home.x,a.y-home.y)-Math.hypot(b.x-home.x,b.y-home.y)||a.id-b.id).slice(0,defenderBaseCount-1);
+      const keep=new Set([home.id,...nearby.map(site=>site.id),...(centralOwner===2?[HX.center]:[])]);
+      for(const site of setup.sites)if(site.owner===2&&!keep.has(site.id)){site.owner=0;site.hq=false;site.troops=Math.round(BASE0*PCT[site.kind]);}
+      setup.defenderShare=setup.sites.filter(site=>site.owner===2).reduce((n,site)=>n+weights[site.id],0)/HX.cells.length;
+    }
+    setups.set(key,setup);
+  }
   const setup=setups.get(key);return {...setup,sites:setup.sites.map(site=>({...site}))};
 }
-function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner=0,attackerPower=1,defenderPower=1,neutralScaling=false}={}){
+function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner=0,attackerPower=1,defenderPower=1,neutralScaling=false,defenderBaseCount=null}={}){
   const power=owner=>owner===0?(neutralScaling==='attacker'?attackerPower:neutralScaling?defenderPower:1):owner===2?defenderPower:attackerPower;`);
+  source=replaceOnce(source,'setup=initialSites(share,difficulty,centralOwner);','setup=initialSites(share,difficulty,centralOwner,defenderBaseCount);');
   // One combat multiplier per troop: shot damage scales only with the shooter.
   // Scaling damage by both shooter AND target would square the requested ratio.
   source=replaceOnce(source,'b.troops-=u.n;','b.troops-=u.n*power(u.owner)/power(b.owner);');
@@ -87,8 +99,8 @@ function validateBaseline(){
     assert.equal(JSON.stringify(copy.snapshot()),JSON.stringify(real.snapshot()),'Baseline differs: '+area.name);
   }
 }
-function simulate(area,level,ratio,seed,policy,neutralScaling=false){
-  const config={...area,seed,centralOwner:2,attackerPower:1+.1*(level-1),defenderPower:(1+.1*(level-1))*ratio,neutralScaling};
+function simulate(area,level,ratio,seed,policy,neutralScaling=false,overrides={}){
+  const config={...area,seed,centralOwner:2,attackerPower:1+.1*(level-1),defenderPower:(1+.1*(level-1))*ratio,neutralScaling,...overrides};
   const engine=factory.createBattle(config),interval=policy==='simple'?90:45;
   let snapshot=engine.snapshot(),peak=1;
   for(let frame=0;frame<11000&&!snapshot.over;frame++){

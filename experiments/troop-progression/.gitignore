@@ -2,3 +2,4 @@
 *.json
 *.csv
 !summary.csv
+!three-bases-summary.csv
