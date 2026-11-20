@@ -16,3 +16,16 @@
 .world-mode #backToWorld{display:none}
 @media(max-height:760px){#worldRoot{padding:12px 14px;gap:10px}.w-map{min-height:210px;aspect-ratio:400/295}.w-heading h1{font-size:29px}.w-brand{font-size:26px}.w-area{padding:12px}.w-area h2{font-size:22px}}
 @media(prefers-reduced-motion:reduce){.w-territory{transition:none}}
+.w-node .w-busy{width:29px;height:29px;right:-15px;top:-13px;background:#b95148}
+.w-swords{width:25px;height:25px;overflow:visible;flex-shrink:0;fill:#edf5ff;stroke:#fff;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.w-swords g{transform-box:fill-box;transform-origin:center bottom;animation:sword-clash-left .7s ease-in-out infinite}
+.w-swords .sword-right{animation-name:sword-clash-right}
+.in-battle>span{outline:2px solid #ffb960;outline-offset:4px}
+@keyframes sword-clash-left{0%,100%{transform:rotate(-14deg)}45%,60%{transform:rotate(8deg)}}
+@keyframes sword-clash-right{0%,100%{transform:rotate(14deg)}45%,60%{transform:rotate(-8deg)}}
+#worldAlerts{position:fixed;z-index:35;left:50%;top:72px;transform:translateX(-50%);width:calc(100% - 28px);max-width:450px;display:flex;flex-direction:column;gap:7px;max-height:32dvh;overflow:auto;pointer-events:none}
+#worldAlerts:empty{display:none}.w-attack-alert{pointer-events:auto;display:flex;align-items:center;gap:12px;padding:12px 15px;border:2px solid #fff;border-radius:14px;background:#fff2dc;color:#76442b;box-shadow:0 5px 20px #182f5545;text-align:left;cursor:pointer}
+.w-attack-alert .w-swords{width:36px;height:36px;fill:#4d658a;stroke:#6d4251}.w-attack-alert strong,.w-attack-alert small,.w-attack-alert b{display:block}.w-attack-alert strong{font:17px 'Lilita One'}.w-attack-alert small{font-size:10px;margin:3px 0}.w-attack-alert b{font-size:9px;letter-spacing:.5px;color:#a04b35}
+#worldCommandStatus{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:12;max-width:85%;padding:7px 11px;border-radius:9px;background:#193a68de;color:#fff;font:12px Nunito;text-align:center;pointer-events:none}
+#worldCommandStatus:empty{display:none}#worldCommandStatus.failed{background:#9c453be8}
+@media(prefers-reduced-motion:reduce){.w-swords g{animation:none}}

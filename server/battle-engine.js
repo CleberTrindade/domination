@@ -49,6 +49,7 @@ function initialSites(share,difficulty=1){
   return {sites,defenderShare:best.reduce((n,id)=>n+weights[id],0)/HX.cells.length};
 }
 function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360}={}){
+  let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
   const game={sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,cd:3,
@@ -167,24 +168,25 @@ function simStep(dt){
   }
   g.units=us.filter(u=>u.alive);g.fights=g.fights.filter(f=>!f.done);
   for(const k in g.dropM)g.dropM[k]=Math.min(1,g.dropM[k]+dt/18);
-  for(const ai of g.ais){ai.timer-=dt;if(ai.timer<=0){ai.timer=g.aip.int*(0.7+random()*0.6);aiThink(ai)}}
+  if(!defenderControlled)for(const ai of g.ais){ai.timer-=dt;if(ai.timer<=0){ai.timer=g.aip.int*(0.7+random()*0.6);aiThink(ai)}}
   if(!alive(1))endGame(false);
   else if(!alive(2))endGame(true);
 }
 
-  function command(action){
+  function command(action,owner=1){
     if(game.over||game.cd>0||!action||typeof action!=='object')return false;
+    if(owner!==1&&(owner!==2||!defenderControlled))return false;
     if(action.type==='send'){
       if(!Array.isArray(action.sources)||action.sources.length>17||!Number.isInteger(action.target))return false;
       const target=game.sites[action.target];if(!target)return false;
       let sent=false;for(const id of new Set(action.sources)){
         if(!Number.isInteger(id))continue;const source=game.sites[id];
-        if(source&&source.owner===1&&canReach(source,target)&&source.troops>=1){send(source,target);sent=true;}
+        if(source&&source.owner===owner&&canReach(source,target)&&source.troops>=1){send(source,target);sent=true;}
       }return sent;
     }
     if(action.type==='drop'&&Number.isInteger(action.site)){
-      const s=game.sites[action.site];if(!s||s.owner!==1||game.dropM[1]<1)return false;
-      s.troops+=12;game.dropM[1]=0;game.fx.push({type:'txt',x:s.x,y:s.y-22,t:0,text:'+12'});return true;
+      const s=game.sites[action.site];if(!s||s.owner!==owner||game.dropM[owner]<1)return false;
+      s.troops+=12;game.dropM[owner]=0;game.fx.push({type:'txt',x:s.x,y:s.y-22,t:0,text:'+12'});return true;
     }
     return false;
   }
@@ -223,7 +225,7 @@ function simStep(dt){
     for(const fight of game.fights){fight.a.fight=fight;fight.b.fight=fight;}
     game.fx=[];random.restore(saved.randomState);
   }
-  return {step,command,snapshot,checkpoint,restore,get result(){return game.result;}};
+  return {step,command,snapshot,checkpoint,restore,setDefenderControlled(value){defenderControlled=!!value;},get result(){return game.result;}};
 }
 function restoreBattle(saved){const battle=createBattle(saved.config);battle.restore(saved);return battle;}
 module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA};

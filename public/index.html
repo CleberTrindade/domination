@@ -879,10 +879,14 @@ $('#btnDrop').addEventListener('click',()=>{
 /* ---- comandos (online: agendados para alguns ticks à frente) ---- */
 function cmdSend(owner,srcs,dst){
   const g=game;if(!srcs.length||!dst)return;
-  if(g.mode==='world'){g.worldCommand({type:'send',sources:srcs.map(s=>s.id),target:dst.id});return;}
   const ok=srcs.filter(s=>canReach(s,dst));
   if(!ok.length){if(owner===g.me||g.mode==='local')toast('🌊 Tanque não atravessa a água — use o heliporto ou os botes');return}
   srcs=ok;
+  if(g.mode==='world'){
+    srcs=srcs.filter(s=>s.owner===g.me&&s.troops>=1);
+    if(!srcs.length){window.DOMINATION_WORLD_BRIDGE.commandStatus('Aguarde a base produzir tropas.',true);return;}
+    g.worldCommand({type:'send',sources:srcs.map(s=>s.id),target:dst.id});return;
+  }
   if(g.mode==='online'){g.myActs.push({id:g.me+':'+(++g.actN),o:owner,k:g.tick+inDelay(g),t:'s',s:srcs.map(x=>x.id),d:dst.id});return}
   srcs.forEach(x=>send(x,dst));
 }
@@ -1517,8 +1521,10 @@ function hud(){
   const n=g.sites.length,order=g.mode==='solo'?[1,2,3,4,0]:[g.me].concat(Array.from({length:g.n},(_,i)=>i+1).filter(o=>o!==g.me),[0]);
   const key=cnt.join(',')+g.me;
   if(key!==lastBar){lastBar=key;$('#pbar').innerHTML=order.filter(o=>cnt[o]).map(o=>`<div style="width:${cnt[o]/n*100}%;background:${COL[g.pal[o]].fill}"></div>`).join('')}
-  if(g.mode!=='solo'||g.cpu){const el=Math.max(0,g.time),mm=Math.floor(el/60),ss=Math.floor(el%60);$('#lvTag').innerHTML='DUELO<br>'+mm+':'+String(ss).padStart(2,'0')}
-  if(g.mode==='world')$('#lvTag').innerHTML='ÁREA '+g.worldOrdinal+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
+  if(g.mode!=='solo'||g.cpu){
+    const tag=(g.mode==='world'?(g.me===2?'DEFESA ':'ÁREA ')+g.worldOrdinal:'DUELO')+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
+    if(g.timeTag!==tag){g.timeTag=tag;$('#lvTag').innerHTML=tag;}
+  }
   if(g.mode==='online'){const k='L'+g.elim.join(',')+(g.gone?Object.keys(g.gone).join(','):'');if(k!==g.legKey){g.legKey=k;$('#legend').innerHTML=Array.from({length:g.n},(_,i)=>i+1).map(o=>`<span class="${g.elim.includes(o)?'out':''}"><i style="background:${COL[g.pal[o]].base}"></i>${o===g.me?'Você':esc(g.names[o])}</span>`).join('')}}
   const b=$('#btnDrop'),dm=g.dropM[g.me]||0;b.style.setProperty('--p',Math.round(dm*100));
   b.classList.toggle('ready',dm>=1&&!g.dropMode);b.classList.toggle('active',g.dropMode);
@@ -1529,10 +1535,12 @@ window.DOMINATION_WORLD_BRIDGE={
   start(record,onCommand){
     closeModal();
     const L=buildLevel(1,MW,MAPH,{nAI:1});
+    const me=record.playerOwner||1;
     newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n:2,elim:[],worldCommand:onCommand,
-      worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,lastServerAt:performance.now(),names:{1:'Você',2:record.defenderName},cd:record.snapshot.cd});
+      me,mine:[me],pal:palFor(me,2),worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
     document.body.classList.add('world-battle');
-    $('#legend').innerHTML='<span><i style="background:#2457c0"></i>Você</span><span><i style="background:#c22d27"></i>Defesa CPU</span>';
+    this.control(record.defenderControlled);
+    this.commandStatus('');
     $('#hint').textContent='Elimine o inimigo · o bombardeiro é uma vantagem';$('#hint').style.opacity=1;
     this.apply(record.snapshot);
   },
@@ -1548,16 +1556,26 @@ window.DOMINATION_WORLD_BRIDGE={
     g.fx=snapshot.fx.map(f=>({...f,s:f.site!=null?g.sites[f.site]:null,from:units.get(f.from),to:units.get(f.to)})).filter(f=>f.type!=='ushot'||(f.from&&f.to));
     if(g.time>8)$('#hint').style.opacity=0;
   },
+  control(controlled){
+    if(!game||game.mode!=='world')return;
+    $('#legend').innerHTML='<span><i style="background:#2457c0"></i>Você · '+(game.me===2?'Defesa':'Ataque')+'</span><span><i style="background:#c22d27"></i>'+(game.me===2?'Atacante':controlled?'Defesa online':'Defesa CPU')+'</span>';
+  },
+  commandStatus(message,failed=false){
+    let status=$('#worldCommandStatus');
+    if(!status){status=document.createElement('div');status.id='worldCommandStatus';status.setAttribute('role','status');$('#game').append(status);}
+    clearTimeout(this.statusTimer);status.textContent=message;status.classList.toggle('failed',failed);
+    if(message)this.statusTimer=setTimeout(()=>{status.textContent='';},failed?4000:1800);
+  },
   stop(){if(game&&game.mode==='world'){game=null;PTR.clear();$('#game').classList.remove('on');$('#legend').innerHTML='';}document.body.classList.remove('world-battle');},
   classic(){this.stop();document.body.classList.remove('world-mode');setTab('battle');},
-  show(){if(game&&game.mode!=='world')exitGame();document.body.classList.add('world-mode');}
+  show(){if(game&&game.mode!=='world')exitGame();document.body.classList.add('world-mode');document.body.classList.remove('world-battle');$('#game').classList.remove('on');}
 };
 
 window.DOMDBG=()=>({game,VX,VY,SC,HX,send});
 let last=performance.now();
 function loop(now){
   const dt=Math.min(0.1,(now-last)/1000);last=now;
-  if(game){frame(dt);if(game){render();hud()}}
+  if(game){frame(dt);if(game&&(game.mode!=='world'||document.body.classList.contains('world-battle'))){render();hud()}}
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

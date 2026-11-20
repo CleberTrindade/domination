@@ -16,6 +16,9 @@
         const next=new Map();
         for(const unit of units){
           const old=tracks.get(unit.id);
+          // Command acknowledgements can repeat the same position between regular states.
+          // Keep the animation running instead of restarting its interpolation window.
+          if(!reset&&old&&old.to===unit.d){next.set(unit.id,old);continue;}
           const from=!reset&&old?distance(old,now):unit.d;
           next.set(unit.id,{from,to:unit.d,at:now,duration,visual:old?.visual||{}});
         }

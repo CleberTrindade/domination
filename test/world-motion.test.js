@@ -90,3 +90,10 @@ test('browser entry exposes the motion factory before the game renderer starts',
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-motion'),'utf8'),context);
   assert.equal(typeof context.window.createWorldMotion,'function');
 });
+test('immediate command confirmations do not restart in-flight motion',()=>{
+  const motion=createWorldMotion();motion.receive([unit(0)],0,0);
+  motion.receive([unit(10)],.1,100);
+  motion.receive([unit(10)],.1,150);
+  near(motion.sample([unit(10)],175).units[0].d,7.5);
+  near(motion.sample([unit(10)],200).units[0].d,10);
+});

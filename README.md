@@ -11,9 +11,13 @@ A publicação e o banco de produção da `main` permanecem independentes.
 - Cadastro com usuário, nome de comandante e senha; sessões persistidas no banco
   permitem entrar na mesma conta em outro aparelho.
 - Primeiro ataque: a CPU ocupa aproximadamente 30%–40% dos hexágonos.
-- Ataque a uma área conquistada: a CPU defende em nome do proprietário com
-  aproximadamente metade dos hexágonos. Essa defesa automática vale também
-  quando o proprietário está online nesta primeira versão.
+- Ataque a uma área conquistada: a defesa começa com aproximadamente metade dos
+  hexágonos. A CPU comanda até o proprietário clicar em **Assumir defesa**.
+- O proprietário online recebe um aviso de ataque. A área em disputa exibe duas
+  espadas animadas no mapa; o aviso também aparece ao entrar durante uma batalha.
+- Ao assumir a defesa, o proprietário controla suas bases, tropas e paraquedas
+  no mesmo combate do atacante. Seus exércitos aparecem em azul na sua tela.
+  Ao sair ou perder a conexão, a CPU retoma a defesa sem entregar o território.
 - Uma posição inicial para o atacante; as outras posições começam neutras.
 - Vitória por eliminação das bases **e** tropas inimigas. O bombardeiro continua
   disputável e não é uma condição de vitória.
@@ -31,14 +35,29 @@ A publicação e o banco de produção da `main` permanecem independentes.
 
 O navegador recebe o estado por SSE e pode se reconectar à mesma batalha. Após
 recarregar a página, use **Retomar batalha**. A simulação continua durante uma
-queda breve. Mais de 30 segundos sem um cliente conectado encerra o ataque.
+queda breve. Mais de 30 segundos sem o atacante conectado encerra o ataque,
+mesmo se o defensor continuar online.
 O limite de cada combate é de seis minutos, além da contagem inicial.
 
-As posições chegam do servidor a cada 200 ms. O navegador suaviza o movimento
+As posições chegam do servidor aproximadamente a cada 100 ms. O navegador suaviza o movimento
 entre atualizações, seguindo a rota de cada tropa em cada quadro da animação.
 Essa camada visual não simula combate, não avança além da última posição recebida
 e não altera as unidades oficiais. Após uma desconexão longa, sincroniza a posição
 imediatamente ao receber o estado da batalha.
+
+Ordens e avisos online usam um WebSocket autenticado na mesma origem. Durante
+uma conexão ativa, cada ordem usa a sessão já validada, sem uma consulta ao banco
+por comando. A sessão é revalidada periodicamente e sair da conta fecha o canal.
+Se esse canal estiver indisponível, os comandos usam HTTP. Ambos os caminhos
+confirmam a execução ou informam a recusa; uma ordem sem confirmação não é
+reenviada automaticamente para evitar enviar tropas duas vezes.
+O cliente descarta estados antigos que cheguem depois de uma confirmação mais
+recente. A simulação usa o tempo decorrido do servidor em passos curtos para
+compensar atrasos do temporizador sem saltar as verificações de combate.
+
+É possível voltar ao mapa enquanto um ataque continua. Para trocar um ataque
+próprio pela defesa de outra área, a interface pede para encerrar o ataque atual.
+Depois de um reinício, a CPU assume temporariamente até o dono retomar a defesa.
 
 O servidor salva o andamento das batalhas no banco a cada dois segundos e também
 ao desligar normalmente. Após uma publicação ou reinício, o próximo acesso retoma
@@ -110,6 +129,9 @@ Os testes não acessam o banco de jogadores do Render/Neon.
 - `GET /api/world/battles/:id/events`: fluxo de estados e resultado.
 - `POST /api/world/battles/:id/commands`: ordens validadas no servidor.
 - `POST /api/world/battles/:id/surrender`: desistência.
+- `POST /api/world/battles/:id/defend`: assumir defesa (somente proprietário).
+- `POST /api/world/battles/:id/release`: devolver defesa à CPU.
+- `WS /api/world/socket`: avisos de ataque e ordens com confirmação imediata.
 
 ## Publicação
 
@@ -122,8 +144,7 @@ Os testes não acessam o banco de jogadores do Render/Neon.
 
 ## Próximas etapas
 
-Esta primeira versão tem defesa automática pela CPU. Defesa humana em tempo real,
-mais estados/países, novas topologias de campo e recuperação de senha por e-mail
+Mais estados/países, novas topologias de campo e recuperação de senha por e-mail
 são evoluções futuras.
 O servidor de desenvolvimento opera em uma única instância; várias instâncias
 exigirão coordenação das simulações e do fluxo de estados entre processos.

@@ -82,7 +82,9 @@ function leave(ws, name) {
   if (!r.size) rooms.delete(name); else broadcast(name);
 }
 
-wss.on('connection', ws => {
+wss.on('connection', (ws,req) => {
+  ws.isAlive=true;ws.on('pong',()=>{ws.isAlive=true;});
+  if(world.connectSocket(req,ws))return;
   ws.id = 'p' + (++seq).toString(36) + Math.random().toString(36).slice(2, 7);
   ws.rooms = new Set(); ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });

@@ -2,6 +2,27 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createBattle, restoreBattle, initialSites, MAPDATA } = require('../server/battle-engine');
+test('human defense pauses CPU orders, enforces sides, and resumes CPU without changing the rules',()=>{
+  const battle=createBattle({share:.5,seed:14});
+  for(let i=0;i<61;i++)battle.step(.05);
+  const defender=battle.snapshot().sites.filter(s=>s.owner===2).map(s=>s.id);
+  assert.equal(battle.command({type:'send',sources:defender,target:0},2),false);
+  battle.setDefenderControlled(true);
+  for(let i=0;i<200;i++)battle.step(.05);
+  assert.equal(battle.snapshot().units.length,0,'CPU must not issue orders while a human controls defense');
+  assert.equal(battle.command({type:'send',sources:[4],target:0,owner:1},2),false);
+  assert(battle.command({type:'send',sources:defender,target:0,owner:1},2));
+  assert(battle.snapshot().units.every(u=>u.owner===2));
+  assert.equal(battle.command({type:'drop',site:defender[0]},1),false);
+  const saved=battle.checkpoint(),restored=restoreBattle(saved);
+  assert.equal(restored.command({type:'send',sources:defender,target:0},2),false,'restart returns defense to CPU until its owner reconnects');
+  const idle=createBattle({share:.5,seed:14});
+  idle.setDefenderControlled(true);
+  for(let i=0;i<260;i++)idle.step(.05);
+  idle.setDefenderControlled(false);
+  for(let i=0;i<200;i++)idle.step(.05);
+  assert(idle.snapshot().units.some(u=>u.owner===2),'CPU resumes automatic defense after release');
+});
 test('initial occupation is measured by hexes; bombarder stays neutral', () => {
   for (const share of [.32,.34,.35,.37,.39]) {
     const setup = initialSites(share, 1);
