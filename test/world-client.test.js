@@ -6,6 +6,19 @@ function element(){return {innerHTML:'',textContent:'',style:{},dataset:{},liste
   classList:{add(){},remove(){},toggle(){}},addEventListener(type,fn){this.listeners[type]=fn;},
   setAttribute(){},append(child){this.children.push(child);},showModal(){this.open=true;},close(){this.open=false;},querySelector(){return element();}};}
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+test('wallet shows available and reserved funds, entry risk, production, and the completed coin statement',async()=>{
+  const root=element(),dialog=element(),body=element(),listeners={};
+  const world={player:{id:'third',name:'Terceiro'},wallet:{balance:1000,available:600,reserved:400,productionPerDay:1000,entries:[{kind:'battle_loot',amount:-400,area_name:'Agreste',created_at:'2026-11-20T15:00:00Z'}]},economy:{initialCoins:1000,minEntry:100,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'rival',owner_name:'Rival',economy:{atRisk:240,maxLoot:240,cpuReward:0}}],ranking:[],history:[]};
+  const document={body,hidden:false,createElement:element,addEventListener(type,fn){listeners[type]=fn;},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
+  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async()=>({ok:true,json:async()=>structuredClone(world)})};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  assert(root.innerHTML.includes('600</strong>'));assert(root.innerHTML.includes('400 reservadas'));
+  assert(root.innerHTML.includes('1.000 moedas por dia'));assert(root.innerHTML.includes('Saque possível: até 240'));assert(root.innerHTML.includes('Reserva para entrar: 240'));
+  await root.listeners.click({target:{closest:()=>({dataset:{action:'wallet'}})}});
+  assert(dialog.innerHTML.includes('Sua carteira'));assert(dialog.innerHTML.includes('300 moedas'));assert(dialog.innerHTML.includes('Defender é permitido sem moedas'));assert(dialog.innerHTML.includes('-400'));
+  world.wallet.available=99;listeners.visibilitychange();await flush();
+  assert(root.innerHTML.includes('data-action="attack" disabled'),'insufficient funds disable initiating attacks without hiding the map');
+});
 test('a third player sees the public attack alert, watches read-only, then selects a neutral base to join',async()=>{
   const root=element(),dialog=element(),body=element(),game=element(),back=element(),calls=[],started=[],sources=[],select={id:'worldJoinSite',value:'12'};
   const engine=createBattle({centralOwner:2,share:.5}),snapshot=engine.snapshot();

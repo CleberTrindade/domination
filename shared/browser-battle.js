@@ -54,6 +54,7 @@
       if(input.kind==='control')engine.setDefenderControlled(input.controlled);
       else if(input.kind==='join'){
         const accepted=engine.join(input.owner,input.site);
+        if(typeof input.confirmedAccepted==='boolean'&&input.confirmedAccepted!==accepted)throw Error('A confirmação de entrada diverge da simulação.');
         if(accepted)validatedParticipants.push({playerId:input.playerId,name:input.playerName,owner:input.owner,joinedAt:input.joinedAt});
         if(accepted!==action.accepted)throw Error('Entrada de participante inválida.');
       }else if(input.kind==='leave')engine.leave(input.owner);

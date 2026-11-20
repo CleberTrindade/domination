@@ -42,6 +42,9 @@ A publicação e o banco de produção da `main` permanecem independentes.
   um invasor que entrou depois, numa transação do banco.
   Derrota, desistência, interrupção e tempo esgotado preservam o proprietário.
 - Ranking por áreas sob comando e histórico das últimas doze disputas.
+- Carteira de moedas com saldo disponível, reservado, produção diária e extrato.
+  Saldo inicial de 1.000 moedas; mínimo de 100 disponíveis para atacar ou entrar
+  como invasor. Defender não exige saldo mínimo.
 - Uma batalha ativa por área e uma participação ativa por jogador. As demais áreas ficam livres.
 - O combate começa no navegador do atacante, em um Web Worker. O servidor
   repassa ordens, reserva a área em memória e grava a batalha somente no final,
@@ -88,6 +91,48 @@ interrompem as batalhas em andamento e preservam o proprietário. Elas não têm
 mais recuperação por checkpoint no banco. Batalhas ativas da arquitetura
 anterior também são encerradas sem transferir áreas na migração.
 
+## Moedas, produção e saque
+
+- Cada área produz **1.000 moedas a cada 24 horas**, proporcionalmente ao tempo de
+  posse, inclusive offline. A produção começa na conquista. Para contas e áreas
+  anteriores à economia, começa na aplicação da migração 005, sem retroatividade.
+- A primeira conquista de cada área da CPU dá **300 moedas** ao vencedor. Áreas
+  já conquistadas antes da migração não pagam esse bônus novamente.
+- Na entrada, **40% do saldo disponível** de cada participante ficam reservados
+  em RAM. O defensor recebe uma reserva automática no início do ataque, mesmo
+  offline. Reservas de outras disputas são descontadas do saldo disponível; uma
+  mesma moeda não pode ser comprometida em duas batalhas deste servidor.
+- O saldo de referência fica fixo para aquela entrada. Produção ou saques de
+  outras disputas posteriores não aumentam o valor em risco nessa batalha.
+- O vencedor recebe de **cada perdedor** o menor valor entre as duas reservas:
+  `40% × min(saldo disponível do vencedor na entrada, saldo disponível do perdedor na entrada)`.
+  Com 1.000 contra 5.000, o saque é de 400 em qualquer direção. Vencendo outros
+  três exércitos com pelo menos 1.000 cada, o jogador recebe 1.200 no total.
+- O vencedor também conquista a área. Perdedores não pagam uns aos outros. O
+  restante de cada reserva é liberado. Desistir não evita a perda para o vencedor;
+  sair com outros invasores mantém a reserva vinculada ao encerramento da disputa.
+- A CPU não possui carteira saqueável. Quando vence, as reservas dos derrotados
+  são descontadas e registradas como `cpu_loss`. Quando perde, paga somente o
+  bônus de primeira conquista; eventuais perdedores humanos seguem o saque normal.
+- Um defensor com zero moedas pode comandar sua defesa e manter ou perder a área.
+  Sua reserva é zero: não perde moedas e não recebe saque dos adversários caso vença.
+- Interrupção/reinício do servidor e expiração por versão da área liberam reservas
+  sem saque ou bônus. Desconexão sem recuperação por mais de 30 segundos conta
+  como abandono, preservando a área e aplicando a derrota.
+
+Os valores ficam em `server/economy.js` (`RULES`); a migração 005 concede o saldo
+inicial às contas existentes. Moedas são persistidas em centésimos inteiros;
+frações menores da produção são carregadas para o próximo cálculo. Consultar a
+carteira apenas projeta a produção, sem gravar nem exigir cron. Antes de trocar
+o proprietário, a transação final credita a produção acumulada ao dono anterior
+e inicia o período do novo dono, preservando a divisão correta do rendimento.
+
+No encerramento, saldo, extrato (`world_coin_ledger`), resultado e propriedade são
+atualizados na mesma transação. Uma falha desfaz tudo; repetir a conclusão não
+duplica moedas. Comandos, posições e checkpoints continuam sem consultas ou
+gravações adicionais por causa da economia. Reservas ativas não sobrevivem a um
+reinício, que também interrompe a disputa sem cobrança.
+
 ## Mapa de Sergipe
 
 O contorno vem da [API de Malhas do IBGE, UF 28](https://servicodados.ibge.gov.br/api/v3/malhas/estados/28?formato=application%2Fvnd.geo%2Bjson&qualidade=intermediaria).
@@ -113,6 +158,7 @@ server/world-service.js entrada do serviço de mundo
 server/browser-world.js API, reservas em RAM, retransmissão e gravação final
 server/browser-assets.js entrega do mesmo motor para o navegador
 server/battle-engine.js movimento, produção, combate, bombardeiros e CPU
+server/economy.js       carteira, reservas, produção offline e saque final
 server/database.js      aplicação transacional de migrações versionadas
 server/migrations/      esquema e áreas iniciais
 ```
@@ -154,6 +200,9 @@ ocupação por hexágonos e regressão das salas clássicas. Exercitam o worker 
 ordens idempotentes e a ausência de gravações no início e durante o combate.
 Incluem avisos públicos, espectador sem controle, entradas concorrentes, limite de
 quatro exércitos, troca do navegador responsável e conquista por um invasor tardio.
+Também cobrem saque simétrico e com quatro exércitos, saldo zero, produção offline
+e suas frações, reservas em ataques simultâneos, recompensa única da CPU,
+desistência, interrupção, repetição da conclusão e rollback de falha no extrato.
 Os testes não acessam o banco de jogadores do Render/Neon.
 
 - `GET /api/health`: conexão com PostgreSQL e prontidão do mundo.

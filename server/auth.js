@@ -1,6 +1,7 @@
 'use strict';
 const { randomBytes, randomUUID, scrypt, timingSafeEqual, createHash } = require('node:crypto');
 const { promisify } = require('node:util');
+const { RULES } = require('./economy');
 const derive = promisify(scrypt);
 const hashToken = token => createHash('sha256').update(token).digest('hex');
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -38,7 +39,7 @@ async function authenticate(pool, req, res, action, input, secure) {
     const name = typeof input.name === 'string' ? input.name.trim().replace(/[\u0000-\u001f<>]/g, '') : '';
     if (name.length < 2 || name.length > 24) throw new HttpError(400, 'Escolha um nome de comandante com 2 a 24 caracteres.');
     try {
-      player = (await pool.query('INSERT INTO world_players(id,username,display_name,password_hash) VALUES($1,$2,$3,$4) RETURNING id,username,display_name', [randomUUID(), username, name, await passwordHash(password)])).rows[0];
+      player = (await pool.query('INSERT INTO world_players(id,username,display_name,password_hash,coin_balance) VALUES($1,$2,$3,$4,$5) RETURNING id,username,display_name', [randomUUID(), username, name, await passwordHash(password), RULES.initialCoins*100])).rows[0];
     } catch (error) { if (error.code === '23505') throw new HttpError(409, 'Esse usuário já está em uso.'); throw error; }
   } else if (action === 'login') {
     const found = (await pool.query('SELECT id,username,display_name,password_hash FROM world_players WHERE username=$1', [username])).rows[0];

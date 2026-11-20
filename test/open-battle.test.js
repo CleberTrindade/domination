@@ -88,6 +88,10 @@ test('third-party spectators can claim free bases and a late entrant can win the
       const final=await api('/api/world/battles/'+record.id+'/complete',hostPlayer,{...runner.completion(),hostEpoch:currentBattle().hostEpoch});assert.equal(final.status,200);assert.equal(final.data.winnerId,joiner.id);assert.equal(final.data.winnerName,joiner.name);
       assert.equal((await pool.query("SELECT owner_id FROM world_areas WHERE id='se-agreste'")).rows[0].owner_id,joiner.id);
       assert.equal((await pool.query('SELECT winner_id FROM world_battles WHERE id=$1',[record.id])).rows[0].winner_id,joiner.id);
+      assert.equal(final.data.economy.participants.find(p=>p.owner===3).change,1200);
+      assert.equal(final.data.economy.participants.find(p=>p.owner===1).change,-400,'leaving the match does not release the losing stake');
+      assert.equal(final.data.economy.participants.find(p=>p.owner===4).change,-400);
+      assert.equal((await api('/api/world',joiner)).data.wallet.balance,2200);
       const roster=(await pool.query('SELECT player_id,side,outcome FROM world_battle_participants WHERE battle_id=$1 ORDER BY side',[record.id])).rows;
       assert.equal(roster.length,4);assert.equal(roster.find(p=>p.side===3).outcome,'won');assert.equal(roster.find(p=>p.side===4).outcome,'left');
       const map=(await api('/api/world',joiner)).data;assert.equal(map.history.find(h=>h.id===record.id).winner_name,joiner.name);

@@ -5,6 +5,8 @@ const {createBrowserBattle,verifyBrowserBattle}=require('../shared/browser-battl
 test('final verification rejects a false join receipt rather than assigning an army to the wrong account',()=>{
   const input={nonce:'join',kind:'join',owner:3,site:12,playerId:'third',playerName:'Third',joinedAt:new Date().toISOString()};
   assert.throws(()=>verifyBrowserBattle(factory,{share:.5,centralOwner:2},new Map([[input.nonce,input]]),{frames:0,inputs:[{nonce:'join',frame:0,accepted:false}]}),/Entrada de participante inválida/);
+  input.confirmedAccepted=false;
+  assert.throws(()=>verifyBrowserBattle(factory,{share:.5,centralOwner:2},new Map([[input.nonce,input]]),{frames:0,inputs:[{nonce:'join',frame:0,accepted:true}]}),/confirmação de entrada diverge/,'a released coin reservation cannot be reused by changing the final receipt');
 });
 test('the actual browser worker executes orders immediately and simulates without any network or database',()=>{
   let time=0,timer;const messages=[];
