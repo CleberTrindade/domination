@@ -16,6 +16,13 @@ A publicação e o banco de produção da `main` permanecem independentes.
   hexágonos. A CPU comanda até o proprietário clicar em **Assumir defesa**.
 - O proprietário online recebe um aviso de ataque. A área em disputa exibe duas
   espadas animadas no mapa; o aviso também aparece ao entrar durante uma batalha.
+- Os demais jogadores online recebem um aviso público e podem **Assistir batalha**.
+  Espectadores acompanham o campo sem controlar tropas nem receber o registro
+  privado da simulação.
+- Havendo vaga, o espectador escolhe uma base neutra numerada no campo ou na lista
+  e clica em **Entrar**. Começa com 25 tropas em um exército próprio. São até quatro
+  exércitos: atacante, defensor/CPU e dois invasores. Entradas na mesma base são
+  confirmadas uma por vez; quem sair não pode reaparecer nessa disputa.
 - Ao assumir a defesa, o proprietário controla suas bases, tropas e paraquedas
   no mesmo combate do atacante. Seus exércitos aparecem em azul na sua tela.
   Ao sair ou perder a conexão, a CPU retoma a defesa sem entregar o território.
@@ -31,11 +38,12 @@ A publicação e o banco de produção da `main` permanecem independentes.
 - Uma posição inicial para o atacante; as outras posições começam neutras.
 - Vitória por eliminação das bases **e** tropas inimigas. O bombardeiro continua
   disputável e não é uma condição de vitória.
-- Ao vencer, o servidor transfere a área para o atacante numa transação do banco.
+- Ao vencer, o servidor transfere a área para o comandante vencedor, inclusive
+  um invasor que entrou depois, numa transação do banco.
   Derrota, desistência, interrupção e tempo esgotado preservam o proprietário.
 - Ranking por áreas sob comando e histórico das últimas doze disputas.
-- Uma batalha ativa por área e uma por atacante. As demais áreas ficam livres.
-- O combate acontece no navegador do atacante, em um Web Worker. O servidor
+- Uma batalha ativa por área e uma participação ativa por jogador. As demais áreas ficam livres.
+- O combate começa no navegador do atacante, em um Web Worker. O servidor
   repassa ordens, reserva a área em memória e grava a batalha somente no final,
   depois de validar o resultado.
 - Batalhas usam o mapa e a arte clássicos; as cinco áreas variam a ocupação inicial
@@ -46,15 +54,18 @@ A publicação e o banco de produção da `main` permanecem independentes.
 
 O navegador atacante calcula produção, movimento, CPU, combate e vitória em passos
 de 1/30 s. Ordens locais respondem sem aguardar a viagem ao servidor. O Web Worker
-separa essa simulação da interface. O defensor acompanha posições retransmitidas
-a cada 100 ms e envia ordens ao navegador que hospeda a batalha. A CPU pausa ao
+separa essa simulação da interface. Defensor, invasores e espectadores acompanham
+posições retransmitidas a cada 100 ms. Participantes enviam ordens ao navegador
+que hospeda a batalha. A CPU pausa ao
 assumir a defesa e volta quando o proprietário sai.
 
 Não há INSERT de batalha no início nem checkpoints no banco durante o combate.
 Reservas, ordens autorizadas e o último estado para reconexão ficam em RAM.
 Ao finalizar, o servidor reproduz uma vez a sequência autorizada com o mesmo
 motor e semente, verifica a vitória e grava resultado e propriedade na mesma
-transação. Informar apenas `won` ou inventar tropas no pacote não conquista áreas.
+transação. Vencedor e participantes são determinados pela reprodução das entradas
+autorizadas; o registro de participantes também é gravado somente no final.
+Informar apenas `won` ou inventar tropas no pacote não conquista áreas.
 Contas, sessões e consultas ao mapa continuam usando PostgreSQL.
 
 Ordens e avisos usam WebSocket autenticado, com HTTP como alternativa. A sessão
@@ -63,10 +74,14 @@ um identificador: retransmiti-la após perder a confirmação não envia as trop
 novamente. O cliente descarta posições antigas que cheguem tarde.
 
 Recarregar a página permite **Retomar batalha** a partir do último estado em RAM,
-normalmente com até 500 ms de diferença. Mais de 30 segundos sem receber o
-navegador atacante encerra a disputa, mesmo com o defensor online. O combate tem
+normalmente com até 500 ms de diferença. Após três segundos sem estados do navegador
+responsável, outro participante conectado pode assumir a simulação. Espectadores
+não assumem essa função. Sem um participante disponível por mais de 30 segundos,
+a disputa termina preservando o proprietário. O combate tem
 seis minutos mais a contagem inicial. Voltar ao mapa mantém a simulação ativa.
-Trocar um ataque próprio por uma defesa pede o encerramento do ataque atual.
+Trocar um ataque próprio por uma defesa pede a saída da participação atual.
+Sair de uma disputa com invasores libera suas bases e mantém os demais no combate;
+se necessário, o navegador responsável também é trocado.
 
 Como partidas ativas não são persistidas, reinícios/publicações do servidor
 interrompem as batalhas em andamento e preservam o proprietário. Elas não têm
@@ -137,22 +152,27 @@ reservas concorrentes, comandos inválidos, vitória confirmada pelo servidor,
 transferência e preservação de propriedade, reconexão em memória, abandono,
 ocupação por hexágonos e regressão das salas clássicas. Exercitam o worker real,
 ordens idempotentes e a ausência de gravações no início e durante o combate.
+Incluem avisos públicos, espectador sem controle, entradas concorrentes, limite de
+quatro exércitos, troca do navegador responsável e conquista por um invasor tardio.
 Os testes não acessam o banco de jogadores do Render/Neon.
 
 - `GET /api/health`: conexão com PostgreSQL e prontidão do mundo.
 - `GET /api/world`: mapa, proprietários, ranking e histórico.
 - `POST /api/auth/register`, `/login`, `/logout`: conta e sessão.
 - `POST /api/world/areas/:id/attack`: reserva e início de batalha.
-- `GET /api/world/battles/:id`: estado ou resultado da própria batalha.
+- `GET /api/world/battles/:id`: estado ou resultado, com visualização para jogadores autenticados.
 - `GET /api/world/battles/:id/events`: fluxo de estados e resultado.
 - `POST /api/world/battles/:id/commands`: ordens validadas no servidor.
 - `POST /api/world/battles/:id/surrender`: desistência.
+- `POST /api/world/battles/:id/join`: solicitar entrada pela base neutra `{site}`.
+- `POST /api/world/battles/:id/leave`: sair da participação e permitir que os demais continuem.
 - `POST /api/world/battles/:id/defend`: assumir defesa (somente proprietário).
 - `POST /api/world/battles/:id/release`: devolver defesa à CPU.
 - `POST /api/world/battles/:id/relay`: repassar estado do navegador, apenas em RAM.
 - `POST /api/world/battles/:id/complete`: validar e salvar a batalha encerrada.
 - `POST /api/world/battles/:id/retaliate`: iniciar revanche ou contra-ataque;
-  somente o defensor original pode responder, e o alvo deve pertencer ao agressor.
+  somente o defensor original pode responder, e o alvo deve pertencer a um dos
+  adversários registrados nessa disputa.
   O vínculo com a batalha original é gravado em `retaliation_of` apenas no final.
 - `WS /api/world/socket`: avisos de ataque e ordens com confirmação imediata.
 

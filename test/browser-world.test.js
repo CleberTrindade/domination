@@ -43,13 +43,13 @@ test('browser combat persists only completed battles and preserves world, sessio
       assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_battles')).rows[0].n,0);
       await api('/api/world/battles/'+record.id+'/surrender',cookie,{});
     });
-    await t.test('owners are notified and can take over defense while third parties cannot inspect it',async()=>{
+    await t.test('owners take over defense while third parties can only spectate',async()=>{
       await pool.query("UPDATE world_areas SET owner_id=$1 WHERE id='se-aracaju'",[bob.data.player.id]);
       ownerSocket=realtime(bob.cookie);attackerSocket=realtime(alice.cookie);
       await Promise.all([ownerSocket.next(m=>m.type==='ready'),attackerSocket.next(m=>m.type==='ready')]);
       record=(await api('/api/world/areas/se-aracaju/attack',alice.cookie,{})).data;runner=createBrowserBattle(factory,record);
       assert.equal((await ownerSocket.next(m=>m.type==='under_attack')).battleId,record.id);
-      assert.equal((await api('/api/world/battles/'+record.id,charlie.cookie)).status,403);
+      const watching=await api('/api/world/battles/'+record.id,charlie.cookie);assert.equal(watching.status,200);assert.equal(watching.data.playerOwner,0);assert.equal(watching.data.authorizedInputs,undefined);assert.equal(watching.data.resume,undefined);
       assert.equal((await api('/api/world/battles/'+record.id+'/defend',alice.cookie,{})).status,403);
       const defense=await api('/api/world/battles/'+record.id+'/defend',bob.cookie,{});assert.equal(defense.data.playerOwner,2);
       const attackEvents=await events(record,alice.cookie),defenseEvents=await events(record,bob.cookie);

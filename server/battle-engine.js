@@ -52,10 +52,10 @@ function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner
   let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
-  const game={sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,cd:3,
+  const game={sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,winnerOwner:null,joinedOwners:[],forfeited:[],cd:3,
     stats:{cap:0,kill:0},dropM:{1:.35,2:.35},par:{1:{prod:1.2,cap:60},2:aip},aip,ais:[{id:2,timer:7,dead:false}]};
   const toast=()=>{};
-  function endGame(win){if(!game.over){game.over=true;game.result=win?'won':'lost';}}
+  function endGameOwner(owner){if(!game.over){game.over=true;game.winnerOwner=owner;game.result=owner===2?'lost':'won';}}
 const unitKind=s=>s.kind==='heli'?'heli':s.kind==='botes'?'desliz':'tanque';
 const canReach=(a,b)=>!!a&&!!b&&a!==b&&(unitKind(a)!=='tanque'||HX.comp[a.cell]===HX.comp[b.cell]);
 function mkPath(a,b,k){
@@ -169,13 +169,13 @@ function simStep(dt){
   g.units=us.filter(u=>u.alive);g.fights=g.fights.filter(f=>!f.done);
   for(const k in g.dropM)g.dropM[k]=Math.min(1,g.dropM[k]+dt/18);
   if(!defenderControlled)for(const ai of g.ais){ai.timer-=dt;if(ai.timer<=0){ai.timer=g.aip.int*(0.7+random()*0.6);aiThink(ai)}}
-  if(!alive(1))endGame(false);
-  else if(!alive(2))endGame(true);
+  const remaining=Object.keys(g.par).map(Number).filter(owner=>!g.forfeited.includes(owner)&&alive(owner));
+  if(remaining.length===1)endGameOwner(remaining[0]);
 }
 
   function command(action,owner=1){
     if(game.over||game.cd>0||!action||typeof action!=='object')return false;
-    if(owner!==1&&(owner!==2||!defenderControlled))return false;
+    if(!game.par[owner]||game.forfeited.includes(owner)||(owner===2&&!defenderControlled))return false;
     if(action.type==='send'){
       if(!Array.isArray(action.sources)||action.sources.length>17||!Number.isInteger(action.target))return false;
       const target=game.sites[action.target];if(!target)return false;
@@ -196,10 +196,25 @@ function simStep(dt){
     game.fx=game.fx.filter(f=>f.t<1.2).slice(-60);
     if(game.cd>0){game.cd=Math.max(0,game.cd-dt);return;}
     simStep(dt);
-    if(game.time>=maxSeconds&&!game.over){game.reason='time';endGame(false);}
+    if(game.time>=maxSeconds&&!game.over){game.reason='time';endGameOwner(2);}
+  }
+  function join(owner,siteId){
+    const site=game.sites[siteId];
+    if(game.over||!Number.isInteger(owner)||owner<3||owner>4||game.par[owner]||!site||site.owner!==0||site.kind==='central')return false;
+    game.par[owner]={...game.par[1]};game.dropM[owner]=.35;game.joinedOwners.push(owner);
+    site.owner=owner;site.troops=25;site.hq=true;site.cd=0;
+    return true;
+  }
+  function leave(owner){
+    if(game.over||owner===2||!game.par[owner]||game.forfeited.includes(owner))return false;
+    game.forfeited.push(owner);
+    for(const site of game.sites)if(site.owner===owner){site.owner=0;site.hq=false;site.troops=Math.floor(site.troops);}
+    game.units=game.units.filter(unit=>unit.owner!==owner);
+    game.fights=game.fights.filter(f=>{if(f.a.owner===owner||f.b.owner===owner){f.a.fight=null;f.b.fight=null;return false;}return true;});
+    return true;
   }
   function snapshot(){
-    return {time:game.time,cd:game.cd,over:game.over,result:game.result,reason:game.reason||null,
+    return {time:game.time,cd:game.cd,over:game.over,result:game.result,reason:game.reason||null,winnerOwner:game.winnerOwner,joinedOwners:game.joinedOwners.slice(),forfeited:game.forfeited.slice(),activeOwners:Object.keys(game.par).map(Number).filter(alive),
       defenderShare:setup.defenderShare,par:game.par,dropM:game.dropM,
       sites:game.sites.map(s=>({id:s.id,owner:s.owner,troops:s.troops,hq:s.hq,tx:s.tx,ty:s.ty})),
       units:game.units.map(u=>({id:u.id,k:u.k,owner:u.owner,n:u.n,P:u.P,cum:u.cum,L:u.L,d:u.d,si:u.si,x:u.x,y:u.y,alive:u.alive,
@@ -209,7 +224,7 @@ function simStep(dt){
   }
   function checkpoint(){
     return {version:1,config:{share,difficulty,seed,maxSeconds,centralOwner},randomState:random.state(),
-      time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,
+      time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,winnerOwner:game.winnerOwner,joinedOwners:game.joinedOwners.slice(),forfeited:game.forfeited.slice(),par:JSON.parse(JSON.stringify(game.par)),
       stats:{...game.stats},dropM:{...game.dropM},ais:game.ais.map(a=>({...a})),
       sites:game.sites.map(s=>({...s})),
       units:game.units.map(({to,fight,...u})=>({...u,toId:to.id})),
@@ -218,6 +233,7 @@ function simStep(dt){
   function restore(saved){
     if(saved.version!==1)throw new Error('Unsupported battle checkpoint');
     for(const key of ['time','uid','cd','over','result','reason','stats','dropM','ais'])game[key]=saved[key];
+    game.winnerOwner=saved.winnerOwner??(saved.result==='won'?1:saved.result==='lost'?2:null);game.joinedOwners=saved.joinedOwners||[];game.forfeited=saved.forfeited||[];if(saved.par)game.par=JSON.parse(JSON.stringify(saved.par));
     game.sites=saved.sites.map(s=>({...s}));
     game.units=saved.units.map(({toId,...u})=>({...u,to:game.sites[toId],fight:null}));
     const units=new Map(game.units.map(u=>[u.id,u]));
@@ -225,7 +241,7 @@ function simStep(dt){
     for(const fight of game.fights){fight.a.fight=fight;fight.b.fight=fight;}
     game.fx=[];random.restore(saved.randomState);
   }
-  return {step,command,snapshot,checkpoint,restore,setDefenderControlled(value){defenderControlled=!!value;},get result(){return game.result;}};
+  return {step,command,join,leave,snapshot,checkpoint,restore,setDefenderControlled(value){defenderControlled=!!value;},get result(){return game.result;}};
 }
 function restoreBattle(saved){const battle=createBattle(saved.config);battle.restore(saved);return battle;}
 module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA};

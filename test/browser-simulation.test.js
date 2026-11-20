@@ -1,7 +1,11 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const factory=require('../server/battle-engine'),{browserEngine}=require('../server/browser-assets');
-const {createBrowserBattle}=require('../shared/browser-battle');
+const {createBrowserBattle,verifyBrowserBattle}=require('../shared/browser-battle');
+test('final verification rejects a false join receipt rather than assigning an army to the wrong account',()=>{
+  const input={nonce:'join',kind:'join',owner:3,site:12,playerId:'third',playerName:'Third',joinedAt:new Date().toISOString()};
+  assert.throws(()=>verifyBrowserBattle(factory,{share:.5,centralOwner:2},new Map([[input.nonce,input]]),{frames:0,inputs:[{nonce:'join',frame:0,accepted:false}]}),/Entrada de participante inválida/);
+});
 test('the actual browser worker executes orders immediately and simulates without any network or database',()=>{
   let time=0,timer;const messages=[];
   const context={performance:{now:()=>time},postMessage:message=>messages.push(structuredClone(message)),setInterval:fn=>{timer=fn;}};context.self=context;

@@ -1382,6 +1382,7 @@ cv.addEventListener('pointerdown',e=>{
   const g=game;if(!g||!playable(g))return;
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
   const m=toMap(e),s=hit(m);
+  if(g.mode==='world'&&g.me===0){if(s)window.WorldApp.selectJoinSite(s.id);return;}
   if(g.dropMode){if(s&&s.owner===g.me)cmdDrop(g.me,s);g.dropMode=false;return}
   if(g.mode!=='local'&&g.tapSel&&s&&s!==g.tapSel){if(g.tapSel.owner===g.me)cmdSend(g.me,[g.tapSel],s);g.tapSel=null;return}
   g.tapSel=null;
@@ -1465,6 +1466,11 @@ function render(){
   for(const s of bs)drawBase(c,s,P[s.owner]||0,X,Y,SC);
   for(const s of bs){const col=P[s.owner]||0,cap=s.owner?g.par[s.owner].cap:0,tr=Math.floor(s.troops);
     badge(c,X(s.x+18),Y(s.y+13),tr,col,s.owner?tr/cap:0.35,SC,s.owner&&s.troops>=cap-0.01)}
+  if(g.mode==='world'&&g.me===0)for(const available of g.joinableSites||[]){
+    const s=g.sites[available.id];if(!s||s.owner!==0)continue;
+    c.strokeStyle=g.joinSelected===s.id?'#f5c64b':'#fff';c.lineWidth=2.5;hexPath(c,X(s.x),Y(s.y),HR*1.08*SC);c.stroke();
+    c.beginPath();c.arc(X(s.x-20),Y(s.y-22),10*SC,0,7);c.fillStyle='#386d91';c.fill();c.font=`${11*SC}px "Lilita One"`;c.textAlign='center';c.textBaseline='middle';c.fillStyle='#fff';c.fillText(s.id+1,X(s.x-20),Y(s.y-22));
+  }
   // tropas
   const us=units.slice().sort((a,b)=>a.y-b.y);
   for(const u of us){
@@ -1519,11 +1525,11 @@ function render(){
 let lastBar='';
 function hud(){
   const g=game,cnt=[0,0,0,0,0];for(const s of g.sites)cnt[s.owner]++;
-  const n=g.sites.length,order=g.mode==='solo'?[1,2,3,4,0]:[g.me].concat(Array.from({length:g.n},(_,i)=>i+1).filter(o=>o!==g.me),[0]);
+  const n=g.sites.length,order=g.mode==='solo'?[1,2,3,4,0]:g.me?[g.me].concat(Array.from({length:g.n},(_,i)=>i+1).filter(o=>o!==g.me),[0]):Array.from({length:g.n},(_,i)=>i+1).concat([0]);
   const key=cnt.join(',')+g.me;
   if(key!==lastBar){lastBar=key;$('#pbar').innerHTML=order.filter(o=>cnt[o]).map(o=>`<div style="width:${cnt[o]/n*100}%;background:${COL[g.pal[o]].fill}"></div>`).join('')}
   if(g.mode!=='solo'||g.cpu){
-    const tag=(g.mode==='world'?(g.me===2?'DEFESA ':'ÁREA ')+g.worldOrdinal:'DUELO')+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
+    const tag=(g.mode==='world'?(g.me===0?'ASSISTINDO ':g.me===2?'DEFESA ':'ÁREA ')+g.worldOrdinal:'DUELO')+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
     if(g.timeTag!==tag){g.timeTag=tag;$('#lvTag').innerHTML=tag;}
   }
   if(g.mode==='online'){const k='L'+g.elim.join(',')+(g.gone?Object.keys(g.gone).join(','):'');if(k!==g.legKey){g.legKey=k;$('#legend').innerHTML=Array.from({length:g.n},(_,i)=>i+1).map(o=>`<span class="${g.elim.includes(o)?'out':''}"><i style="background:${COL[g.pal[o]].base}"></i>${o===g.me?'Você':esc(g.names[o])}</span>`).join('')}}
@@ -1536,13 +1542,14 @@ window.DOMINATION_WORLD_BRIDGE={
   start(record,onCommand){
     closeModal();
     const L=buildLevel(1,MW,MAPH,{nAI:1});
-    const me=record.playerOwner||1;
-    newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n:2,elim:[],worldCommand:onCommand,
-      me,mine:[me],pal:palFor(me,2),worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
+    const me=record.playerOwner??1,n=record.maxOwners||2;
+    newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n,elim:[],worldCommand:onCommand,
+      me,mine:me?[me]:[],pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
     document.body.classList.add('world-battle');
-    this.control(record.defenderControlled);
+    this.control(record.defenderControlled,record);
+    $('#btnDrop').style.display=me?'':'none';
     this.commandStatus('');
-    $('#hint').textContent='Elimine o inimigo · o bombardeiro é uma vantagem';$('#hint').style.opacity=1;
+    $('#hint').textContent=me?'Elimine os outros exércitos · o bombardeiro é uma vantagem':'Você está acompanhando esta batalha';$('#hint').style.opacity=me?1:0;
     this.apply(record.snapshot);
   },
   apply(snapshot){
@@ -1557,10 +1564,14 @@ window.DOMINATION_WORLD_BRIDGE={
     g.fx=snapshot.fx.map(f=>({...f,s:f.site!=null?g.sites[f.site]:null,from:units.get(f.from),to:units.get(f.to)})).filter(f=>f.type!=='ushot'||(f.from&&f.to));
     if(g.time>8)$('#hint').style.opacity=0;
   },
-  control(controlled){
+  control(controlled,record){
     if(!game||game.mode!=='world')return;
-    $('#legend').innerHTML='<span><i style="background:#2457c0"></i>Você · '+(game.me===2?'Defesa':'Ataque')+'</span><span><i style="background:#c22d27"></i>'+(game.me===2?'Atacante':controlled?'Defesa online':'Defesa CPU')+'</span>';
+    if(record?.players)game.worldPlayers=record.players;
+    if(record?.joinableSites)game.joinableSites=record.joinableSites;
+    const players=game.worldPlayers||[{owner:1,name:'Atacante'},{owner:2,name:controlled?'Defesa online':'Defesa CPU'}];
+    $('#legend').innerHTML=players.map(player=>'<span><i style="background:'+COL[game.pal[player.owner]].base+'"></i>'+esc(player.owner===game.me?'Você · '+(game.me===2?'Defesa':game.me===1?'Ataque':'Invasor'):player.name)+'</span>').join('');
   },
+  selectJoinSite(id){if(game?.mode==='world')game.joinSelected=id;},
   commandStatus(message,failed=false){
     let status=$('#worldCommandStatus');
     if(!status){status=document.createElement('div');status.id='worldCommandStatus';status.setAttribute('role','status');$('#game').append(status);}

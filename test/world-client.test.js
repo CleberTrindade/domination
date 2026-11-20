@@ -6,6 +6,28 @@ function element(){return {innerHTML:'',textContent:'',style:{},dataset:{},liste
   classList:{add(){},remove(){},toggle(){}},addEventListener(type,fn){this.listeners[type]=fn;},
   setAttribute(){},append(child){this.children.push(child);},showModal(){this.open=true;},close(){this.open=false;},querySelector(){return element();}};}
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+test('a third player sees the public attack alert, watches read-only, then selects a neutral base to join',async()=>{
+  const root=element(),dialog=element(),body=element(),game=element(),back=element(),calls=[],started=[],sources=[],select={id:'worldJoinSite',value:'12'};
+  const engine=createBattle({centralOwner:2,share:.5}),snapshot=engine.snapshot();
+  const watch={id:'live',areaId:'se-agreste',areaName:'Agreste',status:'active',mode:'browser',isHost:false,playerOwner:0,epoch:'live',revision:0,maxOwners:4,snapshot,canJoin:true,joinableSites:[{id:12,kind:'H'}],players:[{owner:1,name:'Atacante'},{owner:2,name:'Defensor'}]};
+  const world={player:{id:'third',name:'Terceiro'},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'defender',owner_name:'Defensor',battle_id:'live',attacker_id:'host'}],ranking:[],history:[]};
+  const bridge={start(record,command){started.push({record,command});},apply(){},control(){},commandStatus(){},stop(){},show(){}};
+  class Events{constructor(){this.handlers={};sources.push(this);}addEventListener(type,fn){this.handlers[type]=fn;}close(){}}
+  const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog,'#game':game,'#backToWorld':back,'#worldJoinSite':select}[selector]||element();}};
+  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:bridge},location:{protocol:'https:',host:'game.example'},
+    WebSocket:class{constructor(){this.readyState=1;}close(){}},EventSource:Events,Worker:class{constructor(){throw Error('A spectator must not host the simulation');}},AbortController,setTimeout,clearTimeout,setInterval(){},
+    fetch:async(path,options)=>{calls.push({path,body:options.body&&JSON.parse(options.body)});return {ok:true,json:async()=>structuredClone(path==='/api/world'?world:path.endsWith('/join')?{...watch,joinState:'pending',canJoin:false}:watch)};}};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  assert(body.children[0].innerHTML.includes('Agreste sob ataque'));assert(root.innerHTML.includes('ASSISTIR BATALHA'));
+  await root.listeners.click({target:{closest:()=>({dataset:{action:'attack'}})}});await flush();
+  assert.equal(started[0].record.playerOwner,0);const panel=game.children[0];assert(panel.innerHTML.includes('ESPECTADOR'));assert(panel.innerHTML.includes('Base 13 · Heliporto'));
+  const before=calls.length;await started[0].command({type:'send',sources:[4],target:0});assert.equal(calls.length,before);
+  await panel.listeners.click({target:{closest:()=>({dataset:{battleAction:'join'}})}});await flush();
+  assert.equal(calls.find(call=>call.path.endsWith('/join')).body.site,12);assert(panel.innerHTML.includes('Aguardando a confirmação'));
+  assert(engine.join(3,12));
+  sources[0].handlers.state({data:JSON.stringify({...watch,playerOwner:3,joinState:'active',canJoin:false,revision:1,snapshot:engine.snapshot(),players:[...watch.players,{owner:3,name:'Terceiro'}]})});
+  assert.equal(started.at(-1).record.playerOwner,3);assert.equal(panel.innerHTML,'');
+});
 test('returning player sees every recent attack, is not repeatedly interrupted, and can select a counterattack target',async()=>{
   const root=element(),dialog=element(),body=element(),back=element(),calls=[],started=[],storage=new Map(),listeners={};
   const world={player:{id:'guardian',name:'Guardião'},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32,owner_id:'raider',owner_name:'Rival A'}],ranking:[],history:[],receivedAttacks:[
@@ -26,7 +48,7 @@ test('returning player sees every recent attack, is not repeatedly interrupted, 
   world.receivedAttacks.unshift({...world.receivedAttacks[0],id:'recent-3'});listeners.visibilitychange();await flush();
   assert(dialog.open);assert(dialog.innerHTML.includes('Últimos 3 ataques sofridos'));
   await dialog.listeners.click({target:{closest:()=>({dataset:{counter:'recent-2'}})}});
-  assert(dialog.innerHTML.includes('Contra-atacar Rival B'));assert(dialog.innerHTML.includes('Vale do São Francisco'));
+  assert(dialog.innerHTML.includes('Escolha onde contra-atacar'));assert(dialog.innerHTML.includes('Vale do São Francisco'));
   await dialog.listeners.click({target:{closest:()=>({dataset:{respond:'recent-2',target:'se-sao-francisco'}})}});await flush();
   const response=calls.find(call=>call.path.endsWith('/recent-2/retaliate'));assert(response);assert.equal(response.body.areaId,'se-sao-francisco');
   assert.equal(started[0].areaId,'se-sao-francisco');assert.equal(dialog.open,false);
@@ -64,10 +86,10 @@ test('owner sees attack alert and animated map indicator, joins defense, receive
   assert(requests.includes('/api/world/battles/battle/release'));
 });
 
-test('defending player selects owner two and sees its own units in blue using the real game bridge',()=>{
+test('defenders, spectators and late entrants use safe controls and distinct army palettes in the real bridge',()=>{
   const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8'),elements=new Map();
   const context={window:{createWorldMotion},document:{body:element(),createElement:element},performance:{now:()=>100},setTimeout,clearTimeout,
-    game:null,PTR:new Map(),closeModal(){},buildLevel(){return {sites:Array.from({length:17},(_,id)=>({id}))};},MW:390,MAPH:640,
+    COL:[{}, {base:"blue"},{base:"red"},{base:"green"},{base:"purple"}],esc:value=>String(value),game:null,PTR:new Map(),closeModal(){},buildLevel(){return {sites:Array.from({length:17},(_,id)=>({id}))};},MW:390,MAPH:640,
     $(selector){if(!elements.has(selector))elements.set(selector,element());return elements.get(selector);},exitGame(){},setTab(){}};
   vm.createContext(context);
   vm.runInContext("const OPP_COLS=[2,3,4];"+html.match(/function palFor[^\n]+/)[0]+"\nfunction newGame(value){game=value;game.units=[];game.fx=[];}\n"+
@@ -78,4 +100,9 @@ test('defending player selects owner two and sees its own units in blue using th
   assert.equal(context.game.pal[2],1,'defender troops use the blue palette');
   assert.equal(context.game.pal[1],2,'attacker troops use the red palette');
   assert(elements.get('#legend').innerHTML.includes('Você · Defesa'));
+  const players=[1,2,3,4].map(owner=>({owner,name:'Comandante '+owner}));
+  context.window.DOMINATION_WORLD_BRIDGE.start({snapshot,playerOwner:0,maxOwners:4,players},()=>{});
+  assert.equal(context.game.me,0);assert.equal(context.game.mine.length,0);assert.equal(context.game.pal[4],4);assert.equal(elements.get('#btnDrop').style.display,'none');
+  context.window.DOMINATION_WORLD_BRIDGE.start({snapshot,playerOwner:3,maxOwners:4,players},()=>{});
+  assert.equal(context.game.me,3);assert.equal(context.game.mine[0],3);assert.equal(context.game.pal[3],1);assert.equal(new Set(context.game.pal.slice(1)).size,4);
 });

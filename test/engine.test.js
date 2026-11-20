@@ -2,6 +2,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createBattle, restoreBattle, initialSites, MAPDATA } = require('../server/battle-engine');
+test('late entry cannot steal an occupied base, control another army or respawn after leaving',()=>{
+  const battle=createBattle({share:.5,centralOwner:2});assert.equal(battle.join(3,12),true);
+  assert.equal(battle.join(4,12),false);assert.equal(battle.join(5,3),false);assert.equal(battle.join(4,0),false);
+  for(let i=0;i<110;i++)battle.step(1/30);
+  assert.equal(battle.command({type:'send',sources:[4],target:0},3),false);
+  assert(battle.command({type:'send',sources:[12],target:0},3));assert(battle.snapshot().units.some(unit=>unit.owner===3));
+  assert(battle.leave(3));assert.equal(battle.snapshot().sites[12].owner,0);assert(!battle.snapshot().units.some(unit=>unit.owner===3));
+  assert.equal(battle.join(3,12),false);assert.equal(battle.join(4,12),true);
+  const restored=restoreBattle(battle.checkpoint());assert.deepEqual(restored.snapshot(),battle.snapshot());
+});
 test('territory owners start with the central bombarder and its hexes count toward the initial occupation',()=>{
   for(const share of [.32,.34,.35,.37,.39,.5]){
     const setup=initialSites(share,3,2);assert.equal(setup.sites[0].owner,2);
