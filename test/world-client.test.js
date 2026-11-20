@@ -6,6 +6,31 @@ function element(){return {innerHTML:'',textContent:'',style:{},dataset:{},liste
   classList:{add(){},remove(){},toggle(){}},addEventListener(type,fn){this.listeners[type]=fn;},
   setAttribute(){},append(child){this.children.push(child);},showModal(){this.open=true;},close(){this.open=false;},querySelector(){return element();}};}
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+test('returning player sees every recent attack, is not repeatedly interrupted, and can select a counterattack target',async()=>{
+  const root=element(),dialog=element(),body=element(),back=element(),calls=[],started=[],storage=new Map(),listeners={};
+  const world={player:{id:'guardian',name:'Guardião'},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32,owner_id:'raider',owner_name:'Rival A'}],ranking:[],history:[],receivedAttacks:[
+    {id:'recent-1',area_name:'Litoral Sul',attacker_name:'Rival A',status:'won',started_at:'2026-11-19T22:00:00Z',revengeArea:{id:'se-litoral-sul',name:'Litoral Sul',busy:false},counterAreas:[{id:'se-agreste',name:'Agreste',busy:false}]},
+    {id:'recent-2',area_name:'Alto Sertão',attacker_name:'Rival B',status:'lost',started_at:'2026-11-19T21:00:00Z',revengeArea:null,counterAreas:[{id:'se-sao-francisco',name:'Vale do São Francisco',busy:false}]}
+  ]};
+  const bridge={start(record){started.push(record);},stop(){},show(){},control(){},apply(){},commandStatus(){}};
+  const document={body,hidden:false,createElement:element,querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog,'#backToWorld':back}[selector]||element();},addEventListener(type,fn){listeners[type]=fn;}};
+  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:bridge},location:{protocol:'https:',host:'game.example'},
+    localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
+    WebSocket:class{constructor(){this.readyState=1;}close(){}},EventSource:class{addEventListener(){}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},
+    fetch:async(path,options)=>{calls.push({path,body:options.body&&JSON.parse(options.body)});return {ok:true,json:async()=>path.endsWith('/retaliate')?{id:'response',areaId:'se-sao-francisco',areaName:'Vale do São Francisco',status:'active',playerOwner:1,snapshot:{time:0}}:structuredClone(world)};}};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  assert(dialog.open);assert(dialog.innerHTML.includes('Últimos 2 ataques sofridos'));assert(dialog.innerHTML.includes('Rival A'));assert(dialog.innerHTML.includes('Rival B'));
+  assert(dialog.innerHTML.includes('REVANCHE'));assert(dialog.innerHTML.includes('CONTRA-ATACAR'));assert(storage.has('domination_received_guardian'));
+  await dialog.listeners.click({target:{closest:()=>({dataset:{dialog:'close'}})}});
+  listeners.visibilitychange();await flush();assert.equal(dialog.open,false,'unchanged history should not reopen on every return');
+  world.receivedAttacks.unshift({...world.receivedAttacks[0],id:'recent-3'});listeners.visibilitychange();await flush();
+  assert(dialog.open);assert(dialog.innerHTML.includes('Últimos 3 ataques sofridos'));
+  await dialog.listeners.click({target:{closest:()=>({dataset:{counter:'recent-2'}})}});
+  assert(dialog.innerHTML.includes('Contra-atacar Rival B'));assert(dialog.innerHTML.includes('Vale do São Francisco'));
+  await dialog.listeners.click({target:{closest:()=>({dataset:{respond:'recent-2',target:'se-sao-francisco'}})}});await flush();
+  const response=calls.find(call=>call.path.endsWith('/recent-2/retaliate'));assert(response);assert.equal(response.body.areaId,'se-sao-francisco');
+  assert.equal(started[0].areaId,'se-sao-francisco');assert.equal(dialog.open,false);
+});
 test('owner sees attack alert and animated map indicator, joins defense, receives command acknowledgements and releases to CPU',async()=>{
   const root=element(),dialog=element(),body=element(),back=element(),requests=[],sockets=[],sources=[],started=[],applied=[],feedback=[];
   const area={id:'se-aracaju',name:'Aracaju · Capital',ordinal:5,description:'Defenda sua área.',cpu_share:.39,owner_id:'guardian',owner_name:'Guardião',battle_id:'battle',attacker_id:'raider',attacker_name:'Rival'};

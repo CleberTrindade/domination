@@ -19,6 +19,15 @@ A publicação e o banco de produção da `main` permanecem independentes.
 - Ao assumir a defesa, o proprietário controla suas bases, tropas e paraquedas
   no mesmo combate do atacante. Seus exércitos aparecem em azul na sua tela.
   Ao sair ou perder a conexão, a CPU retoma a defesa sem entregar o território.
+- A aba **Ataques** lista os últimos 20 ataques sofridos, incluindo os que estão
+  em andamento. Ao entrar ou retornar, novidades abrem a lista com agressor,
+  área, data e resultado. A visualização é lembrada por conta neste navegador.
+- **Revanche** tenta recuperar a área perdida que ainda pertence ao agressor.
+  **Contra-atacar** permite escolher outra área dele. Ataques em andamento têm
+  a opção **Defender agora**. Se o agressor não tem áreas, não há alvo disponível.
+- O bombardeiro central começa com o proprietário da área (lado defensor); em
+  áreas ainda livres, começa com a CPU. Ele entra no cálculo dos 30%–40% ou 50%
+  de ocupação inicial e continua podendo ser capturado durante o combate.
 - Uma posição inicial para o atacante; as outras posições começam neutras.
 - Vitória por eliminação das bases **e** tropas inimigas. O bombardeiro continua
   disputável e não é uma condição de vitória.
@@ -142,6 +151,9 @@ Os testes não acessam o banco de jogadores do Render/Neon.
 - `POST /api/world/battles/:id/release`: devolver defesa à CPU.
 - `POST /api/world/battles/:id/relay`: repassar estado do navegador, apenas em RAM.
 - `POST /api/world/battles/:id/complete`: validar e salvar a batalha encerrada.
+- `POST /api/world/battles/:id/retaliate`: iniciar revanche ou contra-ataque;
+  somente o defensor original pode responder, e o alvo deve pertencer ao agressor.
+  O vínculo com a batalha original é gravado em `retaliation_of` apenas no final.
 - `WS /api/world/socket`: avisos de ataque e ordens com confirmação imediata.
 
 ## Publicação

@@ -2,6 +2,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createBattle, restoreBattle, initialSites, MAPDATA } = require('../server/battle-engine');
+test('territory owners start with the central bombarder and its hexes count toward the initial occupation',()=>{
+  for(const share of [.32,.34,.35,.37,.39,.5]){
+    const setup=initialSites(share,3,2);assert.equal(setup.sites[0].owner,2);
+    assert(Math.abs(setup.defenderShare-share)<=1/MAPDATA.cells.length);
+    assert.equal(setup.sites.filter(s=>s.owner===1).length,1);
+  }
+  const battle=createBattle({centralOwner:2,seed:33});battle.setDefenderControlled(true);
+  const checkpoint=battle.checkpoint();assert.equal(checkpoint.config.centralOwner,2);
+  assert.equal(restoreBattle(checkpoint).snapshot().sites[0].owner,2);
+  for(let i=0;i<61;i++)battle.step(.05);
+  assert(battle.command({type:'send',sources:[4],target:0}));
+  for(let i=0;i<450&&battle.snapshot().sites[0].owner!==1;i++)battle.step(.05);
+  assert.equal(battle.snapshot().sites[0].owner,1,'the bombarder remains capturable during combat');assert.equal(battle.result,null);
+});
 test('human defense pauses CPU orders, enforces sides, and resumes CPU without changing the rules',()=>{
   const battle=createBattle({share:.5,seed:14});
   for(let i=0;i<61;i++)battle.step(.05);

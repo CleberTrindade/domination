@@ -9,6 +9,8 @@
   let events = null, current = null, reconnecting = false;
   let socket=null,socketPlayer=null,socketReady=false,retryTimer=null,retryDelay=1000,requestId=0,refreshTimer=null,switchingDefense=false;
   const pending=new Map(),threats=new Map();
+  let reviewOnReturn=true;
+  const reviewedAttacks=new Map();
   let simulation=null,pendingCompletion=null,completing=false,completionTimer=null,relayBusy=false,lastHttpRelay=0,localOrders=0;
   const alerts=document.createElement('aside');alerts.id='worldAlerts';alerts.setAttribute('aria-live','polite');document.body.append(alerts);
   async function api(path, options = {}) {
@@ -98,7 +100,7 @@
         <p class="w-owner">${area.owner_id ? 'Comandante: <strong>' + esc(area.owner_name) + '</strong>' : 'Sob controle da <strong>guarnição da CPU</strong>'}</p>
         <div class="w-def"><span>Ocupação inicial da defesa</span><b>≈ ${Math.round((area.owner_id ? .5 : area.cpu_share) * 100)}% do mapa</b></div>
         <button class="w-cta" data-action="${canDefend?'defend':'attack'}" ${busy || (mine&&!canDefend) || (area.battle_id && !ownBattle&&!canDefend) ? 'disabled' : ''}>${busy ? 'PREPARANDO…' : action}</button>
-        <p class="w-detail">${esc(area.description)} ${area.owner_id ? area.defender_controlled?'O proprietário está comandando a defesa online.':'A CPU defende até o proprietário assumir o controle.' : 'Vença a guarnição para registrar a área em seu nome.'}</p>
+        <p class="w-detail">${esc(area.description)} ${area.owner_id ? area.defender_controlled?'O proprietário está comandando a defesa online.':'A CPU defende até o proprietário assumir o controle.' : 'Vença a guarnição para registrar a área em seu nome.'} O bombardeiro central começa com ${area.owner_id?'o proprietário':'a CPU'}.</p>
       </section>
       <p class="w-detail" style="margin:0;text-align:center">Vence quem eliminar o inimigo. O bombardeiro é uma vantagem disputável.</p>`;
   }
@@ -109,15 +111,59 @@
   function history() {
     return `<div class="w-heading"><div><h1>Últimas disputas</h1><p>Conquistas e defesas do mundo compartilhado.</p></div></div><div class="w-list">${data.history.length ? data.history.map(h => `<div class="w-list-row"><span class="place">${h.status === 'won' ? '⚑' : '◇'}</span><div><strong>${esc(h.area_name)}</strong><small>${esc(h.attacker_name)} ${statusLabel[h.status] || 'atacou'} ${esc(h.area_name)}.</small><small>${h.status === 'won' ? 'Novo proprietário registrado' : 'Propriedade preservada'} · ${new Date(h.finished_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('') : '<div class="w-empty">As batalhas concluídas aparecerão aqui.<br>Cada conquista faz parte da história de Sergipe.</div>'}</div>`;
   }
+  const receivedLabel={active:'EM ANDAMENTO',won:'ÁREA PERDIDA',lost:'DEFESA BEM-SUCEDIDA',abandoned:'ATAQUE ABANDONADO',interrupted:'BATALHA INTERROMPIDA',expired:'BATALHA ENCERRADA'};
+  function receivedList(){
+    const attacks=data.receivedAttacks||[];
+    if(!data.player)return '<div class="w-empty">Entre na sua conta para consultar os ataques às suas áreas.</div>';
+    if(!attacks.length)return '<div class="w-empty">Nenhum ataque sofrido até agora.<br>As próximas disputas aparecerão aqui.</div>';
+    return `<div class="w-received-list">${attacks.map(a=>`<article class="w-received-card"><div class="w-received-top"><span class="w-received-icon">${a.status==='active'?swords():'⚔'}</span><div><strong>${esc(a.attacker_name)}</strong><small>Atacou ${esc(a.area_name)}</small></div></div><span class="w-received-status ${a.status==='won'?'lost':''}">${receivedLabel[a.status]||'BATALHA ENCERRADA'}</span><time>${new Date(a.started_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</time><div class="w-received-actions">${a.canDefend?`<button class="w-reply defend" data-respond-defense="${esc(a.id)}">DEFENDER AGORA</button>`:''}${a.revengeArea?`<button class="w-reply" data-respond="${esc(a.id)}" data-target="${esc(a.revengeArea.id)}" ${busy||a.revengeArea.busy?'disabled':''}>REVANCHE${a.revengeArea.busy?' · EM DISPUTA':''}</button>`:''}${a.counterAreas?.length?`<button class="w-reply secondary" data-counter="${esc(a.id)}" ${busy||a.counterAreas.every(area=>area.busy)?'disabled':''}>CONTRA-ATACAR</button>`:''}</div>${a.status!=='active'&&!a.revengeArea&&!a.counterAreas?.length?'<small class="w-no-target">O agressor não possui áreas para contra-atacar.</small>':''}</article>`).join('')}</div>`;
+  }
+  function markReceivedSeen(){
+    if(!data?.player)return;
+    const signature=(data.receivedAttacks||[]).map(a=>a.id+':'+a.status).join('|');
+    reviewedAttacks.set(data.player.id,signature);
+    try{localStorage.setItem('domination_received_'+data.player.id,signature);}catch{}
+  }
+  function showReceived(){
+    const count=(data.receivedAttacks||[]).length;
+    modal(`<h2>${count===1?'Você sofreu um ataque':count?'Últimos '+count+' ataques sofridos':'Ataques sofridos'}</h2><p>Confira as últimas disputas e escolha como responder.</p>${receivedList()}<p class="w-form-error" role="alert"></p><div class="w-dialog-buttons"><button class="w-cta" data-dialog="close">VOLTAR AO MAPA</button></div>`);
+    markReceivedSeen();
+  }
+  function reviewReceived(){
+    if(!reviewOnReturn||!data?.player||current||dialog.open)return;
+    reviewOnReturn=false;
+    let seen=reviewedAttacks.get(data.player.id);
+    if(seen===undefined)try{seen=localStorage.getItem('domination_received_'+data.player.id);}catch{}
+    const attacks=data.receivedAttacks||[],signature=attacks.map(a=>a.id+':'+a.status).join('|');
+    if(attacks.length&&seen!==signature)showReceived();
+  }
+  async function respond(id,areaId){
+    if(busy)return;
+    if(current){modal('<h2>Você está em batalha</h2><p>Conclua seu ataque ou devolva a defesa à CPU antes de iniciar uma revanche ou contra-ataque.</p><div class="w-dialog-buttons"><button class="w-cta" data-dialog="close">CONTINUAR</button></div>');return;}
+    busy=true;
+    try{const record=await post('/api/world/battles/'+id+'/retaliate',{areaId});dialog.close();connectBattle(record);}
+    catch(e){await refresh(true);busy=false;showReceived();dialog.querySelector('.w-form-error').textContent=e.message;}
+    finally{busy=false;if(!current)render();}
+  }
+  function receivedAction(button){
+    if(button.dataset.respondDefense){dialog.close();defend(button.dataset.respondDefense);return true;}
+    if(button.dataset.respond){respond(button.dataset.respond,button.dataset.target);return true;}
+    if(button.dataset.counter){
+      const attack=(data.receivedAttacks||[]).find(a=>a.id===button.dataset.counter);if(!attack)return true;
+      modal(`<h2>Contra-atacar ${esc(attack.attacker_name)}</h2><p>Escolha uma área do agressor para conquistar.</p><div class="w-counter-targets">${attack.counterAreas.map(area=>`<button class="w-reply" data-respond="${esc(attack.id)}" data-target="${esc(area.id)}" ${area.busy?'disabled':''}>${esc(area.name)}${area.busy?' · em disputa':''}</button>`).join('')}</div><p class="w-form-error" role="alert"></p><div class="w-dialog-buttons"><button class="w-textbtn" data-dialog="received">VOLTAR AOS ATAQUES</button></div>`);return true;
+    }
+    return false;
+  }
   function render() {
     if (!data) {
       root.innerHTML = `<header class="w-top"><div class="w-brand">DOMINATION<small>MUNDO ABERTO</small></div></header><div class="w-empty">${esc(error || 'Conectando ao mundo…')}${error ? '<br><button class="w-textbtn" data-action="refresh">TENTAR NOVAMENTE</button><br><button class="w-textbtn" data-action="classic">MODO CLÁSSICO ›</button>' : ''}</div>`; return;
     }
     root.innerHTML = `<header class="w-top"><div class="w-brand">DOMINATION<small>MUNDO ABERTO</small></div><div><button class="w-account" data-action="account">${data.player ? esc(data.player.name) : 'ENTRAR'}</button><span class="w-online">MUNDO COMPARTILHADO</span></div></header>
       <div class="w-breadcrumb">BRASIL <span>›</span> NORDESTE <span>›</span> <span>SERGIPE</span></div>
-      <nav class="w-tabs" aria-label="Navegação do mundo" role="tablist">${[['territories', 'TERRITÓRIOS'], ['ranking', 'RANKING'], ['history', 'HISTÓRICO']].map(([key, label]) => `<button role="tab" data-tab="${key}" aria-selected="${tab === key}">${label}</button>`).join('')}</nav>
+      <nav class="w-tabs" aria-label="Navegação do mundo" role="tablist">${[['territories', 'TERRITÓRIOS'], ['received','ATAQUES'], ['ranking', 'RANKING'], ['history', 'HISTÓRICO']].map(([key, label]) => `<button role="tab" data-tab="${key}" aria-selected="${tab === key}">${label}${key==='received'&&data.receivedAttacks?.length?'<span class="w-tab-count">'+data.receivedAttacks.length+'</span>':''}</button>`).join('')}</nav>
       ${error ? '<div class="w-error" role="alert">' + esc(error) + '</div>' : ''}
-      ${tab === 'territories' ? map() : tab === 'ranking' ? ranking() : history()}
+      ${tab==='territories'&&data.receivedAttacks?.length?'<button class="w-banner w-received-banner" data-action="received">⚔ '+data.receivedAttacks.length+' ataques sofridos · Ver lista e responder ›</button>':''}
+      ${tab === 'territories' ? map() : tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : history()}
       <footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p><button class="w-textbtn" data-action="classic">MODO CLÁSSICO ›</button></footer>`;
   }
   async function refresh(force = false) {
@@ -126,6 +172,7 @@
       const next = await api('/api/world'); const digest = JSON.stringify(next);
       data = next; error = '';ensureSocket();syncThreats();
       if (force || hadError || digest !== lastDigest) { lastDigest = digest; render(); }
+      reviewReceived();
     } catch (e) { error = e.message; render(); }
   }
   function modal(html) { if (dialog.open) dialog.close(); dialog.innerHTML = html; dialog.showModal(); }
@@ -282,9 +329,11 @@
     const mapArea=event.target.closest('[data-map-area]');if(mapArea?.dataset.mapArea){selected=mapArea.dataset.mapArea;tab='territories';render();return;}
     const button = event.target.closest('button'); if (!button || button.disabled) return;
     if (button.dataset.area) { selected = button.dataset.area; tab = 'territories'; render(); return; }
-    if (button.dataset.tab) { tab = button.dataset.tab; render(); return; }
+    if (button.dataset.tab) { tab = button.dataset.tab;if(tab==='received')markReceivedSeen(); render(); return; }
+    if(receivedAction(button))return;
     const action = button.dataset.action;
     if (action === 'refresh') refresh(true);
+    if(action==='received')showReceived();
     if (action === 'attack') attack();
     if(action==='defend')defend(data.areas.find(a=>a.id===selected)?.battle_id);
     if (action === 'resume') resume();
@@ -296,10 +345,13 @@
   });
   dialog.addEventListener('click', async event => {
     const button = event.target.closest('button'); if (!button) return;
+    if(button.disabled)return;
+    if(receivedAction(button))return;
     const action = button.dataset.dialog;
     if (action === 'close') dialog.close();
     if (action === 'register') authForm(true);
     if (action === 'login') authForm(false);
+    if(action==='received')showReceived();
     if(action==='switch-defense')defend(button.dataset.battle,true);
     if(action==='release-defense'&&current?.playerOwner===2){
       button.disabled=true;
@@ -317,12 +369,12 @@
     if (event.target.id !== 'worldAuthForm') return;
     event.preventDefault(); const form = event.target, submit = form.querySelector('[type=submit]');
     const input = Object.fromEntries(new FormData(form)); submit.disabled = true;
-    try { await post('/api/auth/' + (form.dataset.register === 'true' ? 'register' : 'login'), input); dialog.close(); await refresh(true); }
+    try { await post('/api/auth/' + (form.dataset.register === 'true' ? 'register' : 'login'), input); dialog.close();reviewOnReturn=true; await refresh(true); }
     catch (e) { form.querySelector('.w-form-error').textContent = e.message; submit.disabled = false; }
   });
   document.querySelector('#backToWorld').addEventListener('click', () => window.WorldApp.show());
   alerts.addEventListener('click',event=>{const button=event.target.closest('[data-defense]');if(button)defend(button.dataset.defense);});
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) {refresh(true);ensureSocket();} });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) {reviewOnReturn=true;refresh(true);ensureSocket();} });
   setInterval(()=>{if(socketReady)socket.send(JSON.stringify({type:'ping'}));},20000);
   setInterval(() => { if (!document.hidden&&(!current||!socketReady)) refresh(); }, 12000);
   refresh(true);

@@ -31,13 +31,13 @@ const HX=(()=>{
 
 const weights=HX.seeds.map((_,id)=>HX.cells.filter(c=>c.t===id).length);
 function seeded(seed){const random=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};random.state=()=>seed;random.restore=value=>{seed=value|0;};return random;}
-function initialSites(share,difficulty=1){
+function initialSites(share,difficulty=1,centralOwner=0){
   const sites=HX.seeds.map((s,id)=>{const c=HX.cells[s.cell];return{id,x:c.x,y:c.y,cell:s.cell,kind:s.kind,n:s.n,owner:0,troops:Math.round(BASE0*PCT[s.kind]),hq:false,cd:0}});
   const attacker=HX.corners[0],defender=HX.corners[1],target=share*HX.cells.length;
   const candidates=sites.filter(s=>s.id!==attacker&&s.id!==defender&&s.id!==HX.center);
   let best=null,bestScore=Infinity;
   for(let bits=0;bits<2**candidates.length;bits++){
-    const ids=[defender];for(let j=0;j<candidates.length;j++)if(bits&(1<<j))ids.push(candidates[j].id);
+    const ids=centralOwner===2?[defender,HX.center]:[defender];for(let j=0;j<candidates.length;j++)if(bits&(1<<j))ids.push(candidates[j].id);
     const size=ids.reduce((n,id)=>n+weights[id],0);
     const distance=ids.reduce((n,id)=>n+Math.hypot(sites[id].x-sites[defender].x,sites[id].y-sites[defender].y)*weights[id],0);
     const score=Math.abs(size-target)*100000+distance;
@@ -48,9 +48,9 @@ function initialSites(share,difficulty=1){
   sites[attacker].owner=1;sites[attacker].hq=true;sites[attacker].troops=38;
   return {sites,defenderShare:best.reduce((n,id)=>n+weights[id],0)/HX.cells.length};
 }
-function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360}={}){
+function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner=0}={}){
   let defenderControlled=false;
-  const random=seeded(seed),setup=initialSites(share,difficulty);
+  const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
   const game={sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,cd:3,
     stats:{cap:0,kill:0},dropM:{1:.35,2:.35},par:{1:{prod:1.2,cap:60},2:aip},aip,ais:[{id:2,timer:7,dead:false}]};
@@ -208,7 +208,7 @@ function simStep(dt){
       stats:game.stats};
   }
   function checkpoint(){
-    return {version:1,config:{share,difficulty,seed,maxSeconds},randomState:random.state(),
+    return {version:1,config:{share,difficulty,seed,maxSeconds,centralOwner},randomState:random.state(),
       time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,
       stats:{...game.stats},dropM:{...game.dropM},ais:game.ais.map(a=>({...a})),
       sites:game.sites.map(s=>({...s})),

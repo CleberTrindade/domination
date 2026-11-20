@@ -19,7 +19,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
   function state(battle,owner=1,full=false){
     const record={id:battle.id,areaId:battle.areaId,areaName:battle.areaName,attackerName:battle.attackerName,defenderName:battle.defenderName,
       playerOwner:owner,defenderControlled:!!battle.defenderControlled,status:battle.status,startedAt:battle.startedAt,
-      epoch:battle.id,revision:battle.revision,mode:'browser',config:battle.config,snapshot:battle.snapshot};
+      epoch:battle.id,revision:battle.revision,mode:'browser',config:battle.config,snapshot:battle.snapshot,retaliationOf:battle.retaliationOf||null};
     if(full&&owner===1){record.resume=battle.resume;record.authorizedInputs=[...battle.inputs.values()];}
     return record;
   }
@@ -50,10 +50,10 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
           if(existing&&existing.status!=='active')return existing.result||{status:existing.status};
           const area=(await db.query('SELECT version FROM world_areas WHERE id=$1 FOR UPDATE',[battle.areaId])).rows[0];
           const finalStatus=area?.version===battle.areaVersion?status:'expired';
-          const result={status:finalStatus,reason,areaId:battle.areaId,areaName:battle.areaName,captures:stats.cap||0,kills:stats.kill||0};
+          const result={status:finalStatus,reason,areaId:battle.areaId,areaName:battle.areaName,captures:stats.cap||0,kills:stats.kill||0,retaliationOf:battle.retaliationOf||null};
           if(finalStatus==='won')await db.query('UPDATE world_areas SET owner_id=$1,conquered_at=now(),version=version+1 WHERE id=$2 AND version=$3',[battle.attackerId,battle.areaId,battle.areaVersion]);
-          await db.query("INSERT INTO world_battles(id,area_id,attacker_id,defender_id,area_version,status,defense_share,started_at,finished_at,expires_at,result) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),now(),$9::jsonb)",
-            [battle.id,battle.areaId,battle.attackerId,battle.defenderId,battle.areaVersion,finalStatus,battle.defenseShare,battle.startedAt,JSON.stringify(result)]);
+          await db.query("INSERT INTO world_battles(id,area_id,attacker_id,defender_id,area_version,status,defense_share,started_at,finished_at,expires_at,result,retaliation_of) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),now(),$9::jsonb,$10)",
+            [battle.id,battle.areaId,battle.attackerId,battle.defenderId,battle.areaVersion,finalStatus,battle.defenseShare,battle.startedAt,JSON.stringify(result),battle.retaliationOf||null]);
           return result;
         });
         battle.status=final.status;battle.final=final;
@@ -67,7 +67,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     let battle=battles.get(id);if(battle){if(!ownerFor(battle,playerId))throw new HttpError(403,'Essa batalha pertence a outro comandante.');return battle;}
     const row=(await pool.query('SELECT * FROM world_battles WHERE id=$1',[id])).rows[0];
     if(!row)throw new HttpError(404,'A batalha não está mais disponível. Volte ao mapa para iniciar outra.');
-    battle={id,attackerId:row.attacker_id,defenderId:row.defender_id,status:row.status,final:row.result};
+    battle={id,areaId:row.area_id,attackerId:row.attacker_id,defenderId:row.defender_id,status:row.status,final:row.result};
     if(!ownerFor(battle,playerId))throw new HttpError(403,'Essa batalha pertence a outro comandante.');
     return battle;
   }
@@ -76,7 +76,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     // Legacy server-simulated matches cannot be resumed with a browser input log.
     await pool.query("UPDATE world_battles SET status='interrupted',finished_at=now(),simulation=NULL,result=jsonb_build_object('status','interrupted','reason','server_restart','areaId',area_id) WHERE status='active'");
   }
-  async function start(player,areaId){
+  async function start(player,areaId,retaliationOf=null){
     if(closing)throw new HttpError(503,'O servidor está reiniciando.');rate('start:'+player.id,8,60000);
     const task=startQueue.then(async()=>{
       for(const battle of battles.values())if(battle.status==='active'){
@@ -85,11 +85,17 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       }
       const area=(await pool.query('SELECT a.*,p.display_name AS owner_name FROM world_areas a LEFT JOIN world_players p ON p.id=a.owner_id WHERE a.id=$1',[areaId])).rows[0];
       if(!area)throw new HttpError(404,'Área não encontrada.');if(area.owner_id===player.id)throw new HttpError(409,'Essa área já pertence a você.');
-      const config={share:area.owner_id ? .50 : area.cpu_share,difficulty:area.ordinal,seed:randomInt(1,2147483647)};
+      if(retaliationOf){
+        const original=await lookup(retaliationOf,player.id);
+        if(original.defenderId!==player.id)throw new HttpError(403,'Somente quem sofreu o ataque pode responder.');
+        if(original.status==='active')throw new HttpError(409,'A batalha ainda está em andamento. Assuma a defesa.');
+        if(area.owner_id!==original.attackerId)throw new HttpError(409,'Essa área não pertence mais ao agressor. Atualize a lista de ataques.');
+      }
+      const config={share:area.owner_id ? .50 : area.cpu_share,difficulty:area.ordinal,seed:randomInt(1,2147483647),centralOwner:2};
       const initial=engineFactory.createBattle(config).snapshot();
       const battle={id:randomUUID(),areaId:area.id,areaName:area.name,areaVersion:area.version,attackerId:player.id,attackerName:player.display_name,
         defenderId:area.owner_id,defenderName:area.owner_name||'Guarnição da CPU',config,snapshot:initial,defenseShare:initial.defenderShare,
-        status:'active',startedAt:new Date(now()).toISOString(),lastClientAt:now(),lastHostAt:now(),revision:0,streams:new Set(),inputs:new Map(),resume:null};
+        status:'active',startedAt:new Date(now()).toISOString(),lastClientAt:now(),lastHostAt:now(),revision:0,streams:new Set(),inputs:new Map(),resume:null,retaliationOf};
       battles.set(battle.id,battle);notify('world_changed',{});
       if(battle.defenderId)notify('under_attack',{battleId:battle.id,areaId:battle.areaId,areaName:battle.areaName,attackerName:battle.attackerName},battle.defenderId);
       return state(battle,1,true);
@@ -100,7 +106,19 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     for(const area of areas){const battle=[...battles.values()].find(b=>b.areaId===area.id&&b.status==='active');Object.assign(area,{battle_id:battle?.id||null,attacker_id:battle?.attackerId||null,attacker_name:battle?.attackerName||null,defender_controlled:!!battle?.defenderControlled});}
     const ranking=(await pool.query('SELECT p.id,p.display_name AS name,count(*)::int AS areas FROM world_players p JOIN world_areas a ON a.owner_id=p.id GROUP BY p.id,p.display_name ORDER BY areas DESC,p.display_name LIMIT 10')).rows;
     const history=(await pool.query("SELECT b.id,b.status,b.finished_at,a.name AS area_name,p.display_name AS attacker_name,d.display_name AS defender_name FROM world_battles b JOIN world_areas a ON a.id=b.area_id JOIN world_players p ON p.id=b.attacker_id LEFT JOIN world_players d ON d.id=b.defender_id WHERE b.status<>'active' ORDER BY b.finished_at DESC LIMIT 12")).rows;
-    return {player:publicPlayer(player),country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,activeBattle:areas.find(a=>a.attacker_id===player?.id)?.battle_id||null};
+    let receivedAttacks=[];
+    if(player){
+      receivedAttacks=(await pool.query("SELECT b.id,b.area_id,a.name AS area_name,b.attacker_id,p.display_name AS attacker_name,b.status,b.started_at,b.finished_at FROM world_battles b JOIN world_areas a ON a.id=b.area_id JOIN world_players p ON p.id=b.attacker_id WHERE b.defender_id=$1 AND b.status<>'active' ORDER BY b.started_at DESC,b.id DESC LIMIT 20",[player.id])).rows;
+      for(const battle of battles.values())if(battle.status==='active'&&battle.defenderId===player.id)receivedAttacks.push({id:battle.id,area_id:battle.areaId,area_name:battle.areaName,attacker_id:battle.attackerId,attacker_name:battle.attackerName,status:'active',started_at:battle.startedAt,finished_at:null});
+      receivedAttacks.sort((a,b)=>new Date(b.started_at)-new Date(a.started_at)||b.id.localeCompare(a.id));receivedAttacks=receivedAttacks.slice(0,20);
+      for(const attack of receivedAttacks){
+        const original=areas.find(a=>a.id===attack.area_id);
+        attack.canDefend=attack.status==='active'&&original?.owner_id===player.id&&original.battle_id===attack.id;
+        attack.revengeArea=attack.status!=='active'&&original?.owner_id===attack.attacker_id?{id:original.id,name:original.name,busy:!!original.battle_id}:null;
+        attack.counterAreas=attack.status==='active'?[]:areas.filter(a=>a.owner_id===attack.attacker_id&&a.id!==attack.revengeArea?.id).map(a=>({id:a.id,name:a.name,busy:!!a.battle_id}));
+      }
+    }
+    return {player:publicPlayer(player),country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,receivedAttacks,activeBattle:areas.find(a=>a.attacker_id===player?.id)?.battle_id||null};
   }
   function execute(battle,player,command){
     const owner=ownerFor(battle,player.id);if(!owner)throw new HttpError(403,'Essa batalha pertence a outro comandante.');
@@ -197,9 +215,15 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       if(!player)throw new HttpError(401,'Entre na sua conta para disputar territórios.');
       const area=pathname.match(/^\/api\/world\/areas\/([a-z-]+)\/attack$/)?.[1];
       if(area&&req.method==='POST'){json(201,await start(player,area));return true;}
-      const match=pathname.match(/^\/api\/world\/battles\/([^/]+)(?:\/(events|commands|surrender|defend|release|relay|complete))?$/);
+      const match=pathname.match(/^\/api\/world\/battles\/([^/]+)(?:\/(events|commands|surrender|defend|release|relay|complete|retaliate))?$/);
       if(!match||!UUID.test(match[1]))throw new HttpError(404,'Rota não encontrada.');
       const [,id,action]=match,battle=await lookup(id,player.id),owner=ownerFor(battle,player.id);
+      if(action==='retaliate'&&req.method==='POST'){
+        if(owner!==2)throw new HttpError(403,'Somente quem sofreu o ataque pode responder.');
+        const input=await body(req);
+        if(typeof input.areaId!=='string'||!/^se-[a-z-]+$/.test(input.areaId))throw new HttpError(400,'Escolha a área para responder ao ataque.');
+        json(201,await start(player,input.areaId,id));return true;
+      }
       if(battle.final){json(200,{id,playerOwner:owner,status:battle.status,final:battle.final});return true;}
       if(!action&&req.method==='GET'){json(200,state(battle,owner,true));return true;}
       if(action==='events'&&req.method==='GET'){
