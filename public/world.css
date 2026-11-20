@@ -29,3 +29,9 @@
 #worldCommandStatus{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:12;max-width:85%;padding:7px 11px;border-radius:9px;background:#193a68de;color:#fff;font:12px Nunito;text-align:center;pointer-events:none}
 #worldCommandStatus:empty{display:none}#worldCommandStatus.failed{background:#9c453be8}
 @media(prefers-reduced-motion:reduce){.w-swords g{animation:none}}
+.w-map{aspect-ratio:400/370;min-height:0;background:linear-gradient(145deg,#c3e9ed,#a1d5e5 65%,#86c4dd)}
+.w-state-shadow{fill:#e1ddf2;stroke:#fff;stroke-width:3;stroke-linejoin:round}.w-state-outline{fill:none;stroke:#fff;stroke-width:2.8;stroke-linejoin:round;pointer-events:none}
+.w-map .w-territory{stroke-width:1.7;cursor:pointer}.w-map .w-territory.chosen{stroke:#ffe29b;stroke-width:4}
+.w-compass{fill:#3a7191;font:10px Nunito;font-weight:900}.w-neighbor{fill:#53839a;font:9px Nunito;letter-spacing:2px;font-weight:800}.w-ocean{fill:#397b9a;font:9px Nunito;letter-spacing:1.4px;font-weight:800}
+.w-map-note{font-size:7px;letter-spacing:1px}.w-node>span{width:30px;height:30px;border-radius:10px;font-size:17px}.w-node em{font-size:7px;letter-spacing:0}
+@media(max-height:760px){.w-map{min-height:0;aspect-ratio:400/370}}

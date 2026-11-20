@@ -15,7 +15,7 @@ test('owner sees attack alert and animated map indicator, joins defense, receive
   class Socket{constructor(){this.readyState=1;this.sent=[];sockets.push(this);}send(raw){this.sent.push(JSON.parse(raw));}close(){this.readyState=3;}}
   class Events{constructor(){this.handlers={};sources.push(this);}addEventListener(type,fn){this.handlers[type]=fn;}close(){}}
   const document={body,hidden:false,querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog,'#backToWorld':back}[selector]||element();},createElement:element,addEventListener(){}};
-  const context={document,window:{DOMINATION_WORLD_BRIDGE:bridge},location:{protocol:'https:',host:'game.example'},WebSocket:Socket,EventSource:Events,AbortController,
+  const context={crypto:require('node:crypto').webcrypto,document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:bridge},location:{protocol:'https:',host:'game.example'},WebSocket:Socket,EventSource:Events,AbortController,
     setTimeout,clearTimeout,setInterval(){},FormData:class{},fetch:async(path,options)=>{requests.push(path);return {ok:true,json:async()=>path.endsWith('/defend')?structuredClone(record):path.endsWith('/release')?{released:true}:structuredClone(data)};}};
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   const alerts=body.children[0];assert(alerts.innerHTML.includes('Sua área está sob ataque!'));assert(alerts.innerHTML.includes('Aracaju · Capital'));
@@ -27,7 +27,7 @@ test('owner sees attack alert and animated map indicator, joins defense, receive
   const sending=started[0].command({type:'send',sources:[1],target:0});
   const command=sockets[0].sent.at(-1);assert.equal(command.type,'command');assert.equal(command.battleId,'battle');
   sockets[0].onmessage({data:JSON.stringify({type:'ack',requestId:command.requestId,battleId:'battle',accepted:true,record:{...record,revision:3,snapshot:{time:2}}})});
-  await sending;assert.equal(feedback.at(-1).text,'Ordem confirmada');assert.equal(applied.at(-1).time,2);
+  await sending;assert.equal(feedback.at(-1).text,'Ordem enviada ao combate');assert.equal(applied.at(-1).time,2);
   const count=applied.length;
   sources[0].handlers.state({data:JSON.stringify({...record,revision:2,snapshot:{time:1.5}})});
   assert.equal(applied.length,count,'late SSE packets must not rewind a confirmed command');

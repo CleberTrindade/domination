@@ -1,21 +1,15 @@
-/* Shared-world UI. Ownership, commands and battle outcomes are server-controlled. */
+/* Combat runs in the attacker's browser worker. The server relays inputs and saves validated results. */
 (() => {
   'use strict';
   const root = document.querySelector('#worldRoot'), dialog = document.querySelector('#worldDialog');
   const bridge = window.DOMINATION_WORLD_BRIDGE;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const position = { 'se-litoral-sul': [47, 77], 'se-agreste': [40, 49], 'se-alto-sertao': [36, 24], 'se-sao-francisco': [68, 25], 'se-aracaju': [72, 59] };
-  const shapes = {
-    'se-alto-sertao': '100,28 164,22 196,64 184,116 139,137 81,108 69,67',
-    'se-sao-francisco': '164,22 246,30 303,70 322,118 269,144 228,121 184,116 196,64',
-    'se-agreste': '81,108 139,137 184,116 228,121 246,177 212,214 159,222 107,200 79,159',
-    'se-aracaju': '269,144 322,118 344,163 328,218 294,256 254,249 212,214 246,177 228,121',
-    'se-litoral-sul': '107,200 159,222 212,214 254,249 294,256 258,295 211,320 155,300 127,258'
-  };
+  const geography=window.DOMINATION_SERGIPE_MAP,position=geography.positions,shapes=geography.regions;
   let data = null, selected = 'se-litoral-sul', tab = 'territories', lastDigest = '', error = '', busy = false;
   let events = null, current = null, reconnecting = false;
   let socket=null,socketPlayer=null,socketReady=false,retryTimer=null,retryDelay=1000,requestId=0,refreshTimer=null,switchingDefense=false;
   const pending=new Map(),threats=new Map();
+  let simulation=null,pendingCompletion=null,completing=false,completionTimer=null,relayBusy=false,lastHttpRelay=0,localOrders=0;
   const alerts=document.createElement('aside');alerts.id='worldAlerts';alerts.setAttribute('aria-live','polite');document.body.append(alerts);
   async function api(path, options = {}) {
     const {timeout=15000,...request}=options,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
@@ -23,7 +17,7 @@
       const response = await fetch(path, { credentials: 'same-origin', ...request,signal:controller.signal,
         headers: options.body ? { 'Content-Type': 'application/json', ...options.headers } : options.headers });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Não foi possível conectar. Tente novamente.');
+      if (!response.ok) {const error=new Error(result.error || 'Não foi possível conectar. Tente novamente.');error.status=response.status;throw error;}
       return result;
     }catch(e){if(e.name==='AbortError')throw new Error('A conexão demorou. Confira o estado da batalha antes de repetir a ordem.');throw e;}
     finally{clearTimeout(timer);}
@@ -61,17 +55,17 @@
     ws.onerror=()=>{};
     ws.onclose=()=>{
       if(socket!==ws)return;socketReady=false;socket=null;
-      for(const [id,entry]of pending){clearTimeout(entry.timer);entry.resolve({accepted:false,message:'A conexão caiu antes da confirmação. Confira suas tropas antes de repetir.'});pending.delete(id);}
+      for(const [id,entry]of pending){clearTimeout(entry.timer);entry.resolve({accepted:false,uncertain:true,message:'A conexão caiu antes da confirmação. Confira suas tropas antes de repetir.'});pending.delete(id);}
       if(data?.player?.id===playerId){retryTimer=setTimeout(()=>ensureSocket(),retryDelay);retryDelay=Math.min(8000,retryDelay*2);}
     };
   }
   function socketCommand(battleId,command){
     return new Promise(resolve=>{
       const id=++requestId;
-      const timer=setTimeout(()=>{pending.delete(id);resolve({accepted:false,message:'A confirmação demorou. Confira suas tropas antes de repetir a ordem.'});},3500);
+      const timer=setTimeout(()=>{pending.delete(id);resolve({accepted:false,uncertain:true,message:'A confirmação demorou. Confira suas tropas antes de repetir a ordem.'});},3500);
       pending.set(id,{battleId,timer,resolve});
       try{socket.send(JSON.stringify({type:'command',battleId,requestId:id,command}));}
-      catch{clearTimeout(timer);pending.delete(id);resolve({accepted:false,message:'Conexão interrompida. Aguarde a reconexão.'});}
+      catch{clearTimeout(timer);pending.delete(id);resolve({accepted:false,uncertain:true,message:'Conexão interrompida. Aguarde a reconexão.'});}
     });
   }
   function areaClass(area) { return area.owner_id ? (area.owner_id === data?.player?.id ? 'mine' : 'rival') : ''; }
@@ -87,12 +81,17 @@
       ${owned === 5 ? '<div class="w-claim">Sergipe está sob seu comando. Defenda suas cinco áreas!</div>' : ''}
       ${data.activeBattle && !ownBattle ? '<button class="w-banner" data-action="resume">Você tem uma batalha em andamento. Toque para retomar.</button>' : ''}
       <div class="w-map" aria-label="Mapa de campanha de Sergipe">
-        <svg viewBox="0 0 400 330" aria-hidden="true"><defs><filter id="islandShadow"><feDropShadow dx="0" dy="8" stdDeviation="0" flood-color="#599dbb" flood-opacity=".6"/></filter></defs>
+        <svg viewBox="${geography.viewBox}" aria-hidden="true"><defs><filter id="islandShadow"><feDropShadow dx="0" dy="5" stdDeviation="1" flood-color="#427f9a" flood-opacity=".4"/></filter><clipPath id="sergipeBoundary"><path d="${geography.outline}"/></clipPath></defs>
           <path class="sea-line" d="M18 77h23m-12 5h25M337 48h30m-16 5h24M23 239h39m-28 6h20M303 300h45m-35 5h26"/>
-          <g filter="url(#islandShadow)">${data.areas.map(a => `<polygon class="w-territory ${areaClass(a)} ${a.id === selected ? 'chosen' : ''}" points="${shapes[a.id]}"/>`).join('')}</g>
+          <path class="w-state-shadow" d="${geography.outline}" filter="url(#islandShadow)"/>
+          <g clip-path="url(#sergipeBoundary)">${data.areas.map(a => `<polygon data-map-area="${a.id}" class="w-territory ${areaClass(a)} ${a.id === selected ? 'chosen' : ''}" points="${shapes[a.id]}"/>`).join('')}</g>
+          <path class="w-state-outline" d="${geography.outline}"/>
+          <g class="w-compass" transform="translate(354 35)"><text y="-7" text-anchor="middle">N</text><path d="M0 0l-5 17 5-4 5 4z"/></g>
+          <text class="w-neighbor" x="74" y="220" transform="rotate(-65 74 220)">BAHIA</text><text class="w-neighbor" x="280" y="99" transform="rotate(28 280 99)">ALAGOAS</text>
+          <text class="w-ocean" x="270" y="295" transform="rotate(-48 270 295)">OCEANO ATLÂNTICO</text>
         </svg>
         ${data.areas.map(a => `<button class="w-node ${areaClass(a)} ${a.id === selected ? 'selected' : ''} ${a.battle_id?'in-battle':''}" style="left:${position[a.id][0]}%;top:${position[a.id][1]}%" data-area="${a.id}" aria-label="${esc(a.name)}${a.battle_id?' — em batalha':''}" aria-pressed="${a.id === selected}"><span>${a.ordinal}${a.battle_id ? '<b class="w-busy">'+swords()+'</b>' : ''}</span><em>${a.id === 'se-sao-francisco' ? 'SÃO FRANCISCO' : a.id === 'se-aracaju' ? 'CAPITAL' : esc(a.name.toUpperCase())}</em></button>`).join('')}
-        <small class="w-map-note">MAPA DE CAMPANHA · 5 SETORES</small>
+        <small class="w-map-note">CONTORNO IBGE · 5 SETORES DE JOGO</small>
       </div>
       <div class="w-legend"><span><i style="background:#b4afce"></i>CPU</span><span><i style="background:#78aef0"></i>Suas áreas</span><span><i style="background:#ee9a8e"></i>Rivais</span></div>
       <section class="w-area" aria-label="Área selecionada"><div class="w-area-top"><div><div class="w-kicker">ÁREA ${String(area.ordinal).padStart(2, '0')}</div><h2>${esc(area.name)}</h2></div><span class="w-status ${mine ? 'mine' : ''}">${area.battle_id ? 'EM DISPUTA' : mine ? 'CONQUISTADA' : area.owner_id ? 'OCUPADA' : 'NÃO CONQUISTADA'}</span></div>
@@ -141,24 +140,70 @@
   function applyRecord(record){
     if(current?.id!==record.id)return;
     if(record.epoch===current.epoch&&(record.revision||0)<(current.revision||0))return;
-    Object.assign(current,record);bridge.apply(record.snapshot);bridge.control(record.defenderControlled);
+    Object.assign(current,record);if(!simulation)bridge.apply(record.snapshot);bridge.control(record.defenderControlled);
+  }
+  function startSimulation(record){
+    simulation?.terminate();simulation=null;pendingCompletion=null;clearTimeout(completionTimer);completionTimer=null;
+    if(record.mode!=='browser'||record.playerOwner===2)return;
+    const worker=new Worker('/battle-worker.js');simulation=worker;
+    worker.onmessage=event=>{
+      if(simulation!==worker||current?.id!==record.id)return;
+      const message=event.data;
+      if(message.type==='state'){
+        current.snapshot=message.snapshot;bridge.apply(message.snapshot);
+        if(!message.snapshot.over)pendingCompletion=null;
+      }
+      if(message.type==='command'&&message.owner===1)bridge.commandStatus(message.accepted?'Ordem executada':'Ordem recusada: confira as tropas e a rota.',!message.accepted);
+      if(message.type==='relay')relayState(record.id,message);
+      if(message.type==='complete'){pendingCompletion=message.completion;finishSimulation();}
+    };
+    worker.onerror=()=>bridge.commandStatus('A simulação foi interrompida. Recarregue para retomar a batalha.',true);
+    worker.postMessage({type:'start',record});
+  }
+  async function relayState(id,message){
+    if(current?.id!==id)return;
+    if(socketReady&&socket.bufferedAmount<256*1024){socket.send(JSON.stringify({type:'relay',battleId:id,snapshot:message.snapshot,resume:message.resume}));return;}
+    if(relayBusy||Date.now()-lastHttpRelay<500)return;
+    relayBusy=true;lastHttpRelay=Date.now();
+    try{await post('/api/world/battles/'+id+'/relay',{snapshot:message.snapshot,resume:message.resume});}catch{}finally{relayBusy=false;}
+  }
+  async function finishSimulation(){
+    if(!simulation||!pendingCompletion||completing||localOrders||completionTimer)return;
+    const id=current?.id;if(!id)return;completing=true;
+    try{
+      bridge.commandStatus('Validando e salvando o resultado…');
+      const final=await post('/api/world/battles/'+id+'/complete',pendingCompletion);
+      if(current?.id===id)battleResult(final.final||final);
+    }catch(e){if(current?.id===id){if(e.status===404){battleResult({status:'interrupted',reason:'server_restart'});return;}bridge.commandStatus(e.message,true);clearTimeout(completionTimer);completionTimer=setTimeout(()=>{completionTimer=null;finishSimulation();},2000);}}
+    finally{completing=false;}
   }
   async function sendCommand(command) {
     if (!current) return;
     const id=current.id;
-    bridge.commandStatus('Enviando ordem…');
+    command={...command,nonce:crypto.randomUUID()};
+    const optimistic=!!simulation&&socketReady;
+    if(optimistic)simulation.postMessage({type:'input',input:{nonce:command.nonce,kind:'command',owner:1,command}});
+    else bridge.commandStatus('Enviando ordem…');
+    localOrders++;
     try {
-      const result=socketReady?await socketCommand(id,command):await api('/api/world/battles/'+id+'/commands',{method:'POST',body:JSON.stringify(command),timeout:6000});
+      let result;
+      if(socketReady){
+        result=await socketCommand(id,command);
+        // Retry the same idempotency key if acknowledgement was lost.
+        if(result.uncertain)result=await api('/api/world/battles/'+id+'/commands',{method:'POST',body:JSON.stringify(command),timeout:6000});
+      }else result=await api('/api/world/battles/'+id+'/commands',{method:'POST',body:JSON.stringify(command),timeout:6000});
       if(current?.id!==id)return;
-      if(!result.accepted){bridge.commandStatus(result.message||'A ordem não pôde ser executada.',true);return;}
+      if(!result.accepted){if(optimistic)simulation?.postMessage({type:'reject',nonce:command.nonce});bridge.commandStatus(result.message||'A ordem não pôde ser executada.',true);return;}
+      if(simulation&&result.input)simulation.postMessage({type:'input',input:result.input});
       if(result.record)applyRecord(result.record);
-      bridge.commandStatus('Ordem confirmada');
+      if(!simulation)bridge.commandStatus('Ordem enviada ao combate');
     }
     catch (e) {
-      if(current?.id===id)bridge.commandStatus(e.message,true);
+      if(current?.id===id){if(optimistic)simulation?.postMessage({type:'reject',nonce:command.nonce});bridge.commandStatus(e.message,true);}
     }
+    finally{localOrders--;finishSimulation();}
   }
-  function stopStream() { events?.close(); events = null; current = null; bridge.stop();renderAlerts(); }
+  function stopStream() { events?.close(); events = null;simulation?.terminate();simulation=null;pendingCompletion=null;clearTimeout(completionTimer);completionTimer=null; current = null; bridge.stop();renderAlerts(); }
   function battleResult(final) {
     if (!current) return;
     const areaName = final.areaName || current.areaName,defending=current.playerOwner===2;
@@ -174,8 +219,10 @@
     events?.close(); current = record;renderAlerts();
     const area = data?.areas.find(a => a.id === record.areaId);
     bridge.start({ ...record, ordinal: area?.ordinal || 1 }, sendCommand);
+    startSimulation(record);
     events = new EventSource('/api/world/battles/' + record.id + '/events');
     events.addEventListener('state', event => applyRecord(JSON.parse(event.data)));
+    events.addEventListener('input',event=>{if(current?.id===record.id)simulation?.postMessage({type:'input',input:JSON.parse(event.data)});});
     events.addEventListener('result', event => { if (!switchingDefense&&current?.id === record.id) battleResult(JSON.parse(event.data)); });
     events.addEventListener('saving', () => { document.querySelector('#hint').textContent = 'Salvando o resultado…'; document.querySelector('#hint').style.opacity = 1; });
     events.onerror = async () => {
@@ -183,7 +230,7 @@
       document.querySelector('#hint').textContent = 'Reconectando… mantenha esta janela aberta.'; document.querySelector('#hint').style.opacity = 1;
       reconnecting = true;
       try { const latest = await api('/api/world/battles/' + record.id); if (latest.final && current?.id === record.id) battleResult(latest.final); }
-      catch (e) { if (current) document.querySelector('#hint').textContent = e.message; }
+      catch (e) { if(current?.id===record.id&&e.status===404)battleResult({status:'interrupted',reason:'server_restart'});else if (current) document.querySelector('#hint').textContent = e.message; }
       finally { reconnecting = false; }
     };
   }
@@ -232,6 +279,7 @@
     }
   };
   root.addEventListener('click', async event => {
+    const mapArea=event.target.closest('[data-map-area]');if(mapArea?.dataset.mapArea){selected=mapArea.dataset.mapArea;tab='territories';render();return;}
     const button = event.target.closest('button'); if (!button || button.disabled) return;
     if (button.dataset.area) { selected = button.dataset.area; tab = 'territories'; render(); return; }
     if (button.dataset.tab) { tab = button.dataset.tab; render(); return; }
@@ -276,6 +324,6 @@
   alerts.addEventListener('click',event=>{const button=event.target.closest('[data-defense]');if(button)defend(button.dataset.defense);});
   document.addEventListener('visibilitychange', () => { if (!document.hidden) {refresh(true);ensureSocket();} });
   setInterval(()=>{if(socketReady)socket.send(JSON.stringify({type:'ping'}));},20000);
-  setInterval(() => { if (!document.hidden) refresh(); }, 12000);
+  setInterval(() => { if (!document.hidden&&(!current||!socketReady)) refresh(); }, 12000);
   refresh(true);
 })();

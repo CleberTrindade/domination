@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const { WebSocketServer } = require('ws');
 const { migrate } = require('./database');
 const { createWorldService } = require('./world-service');
+const { browserEngine } = require('./browser-assets');
 
 function databasePool() {
   if (!process.env.DATABASE_URL) return null;
@@ -18,6 +19,7 @@ function databasePool() {
 async function createApplication({ pool = databasePool(), worldOptions = {} } = {}) {
   if (pool) await migrate(pool);
   const world = createWorldService(pool, worldOptions);
+  await world.initialize();
   const APP_ENV = process.env.APP_ENV || 'mundo-aberto';
   const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
   const SIM_DELAY = +process.env.SIM_DELAY_MS || 0;
@@ -28,8 +30,12 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/index.html', ['index.html', 'text/html; charset=utf-8']],
     ['/world.js', ['world.js', 'application/javascript; charset=utf-8']],
     ['/world-motion.js', ['world-motion.js', 'application/javascript; charset=utf-8']],
+    ['/battle-worker.js', ['battle-worker.js', 'application/javascript; charset=utf-8']],
+    ['/sergipe-map.js', ['sergipe-map.js', 'application/javascript; charset=utf-8']],
     ['/world.css', ['world.css', 'text/css; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
+  assets.set('/battle-engine.js',{body:browserEngine(),mime:'application/javascript; charset=utf-8'});
+  assets.set('/browser-battle.js',{body:fs.readFileSync(path.join(__dirname,'../shared/browser-battle.js')),mime:'application/javascript; charset=utf-8'});
   async function databaseStatus() {
     if (!pool) return 'not_configured';
     if (!dbProbe || Date.now() - dbProbeAt > 30000) {
@@ -66,7 +72,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
       res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ error: 'not_found' }));
     } catch { if (!res.headersSent) res.writeHead(503); res.end(); }
   });
-  const wss = new WebSocketServer({ server: srv, maxPayload: 16 * 1024 });
+  const wss = new WebSocketServer({ server: srv, maxPayload: 512 * 1024 });
 function broadcast(name) {
   const r = rooms.get(name); if (!r) return;
   const peers = []; for (const [w, p] of r) peers.push({ peer: w.id, presence: p });
@@ -90,6 +96,7 @@ wss.on('connection', (ws,req) => {
   ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ t: 'hello', peer: ws.id }));
   ws.on('message', buf => {
+    if(buf.length>16*1024){ws.close(1009);return;}
     let m; try { m = JSON.parse(buf); } catch { return; }
     if (!m || typeof m !== 'object') return;
     if (m.t === 'ping') { ws.send('{"t":"pong"}'); return; }

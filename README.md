@@ -7,7 +7,8 @@ A publicação e o banco de produção da `main` permanecem independentes.
 
 - Brasil → Nordeste → Sergipe, com cinco áreas de campanha: Litoral Sul, Agreste,
   Alto Sertão, Vale do São Francisco e Aracaju · Capital. São setores de jogo,
-  representados por um mapa ilustrativo; não são divisões administrativas oficiais.
+  recortados no contorno real de Sergipe do IBGE; as áreas internas são setores
+  de jogo, não divisões administrativas oficiais.
 - Cadastro com usuário, nome de comandante e senha; sessões persistidas no banco
   permitem entrar na mesma conta em outro aparelho.
 - Primeiro ataque: a CPU ocupa aproximadamente 30%–40% dos hexágonos.
@@ -25,49 +26,51 @@ A publicação e o banco de produção da `main` permanecem independentes.
   Derrota, desistência, interrupção e tempo esgotado preservam o proprietário.
 - Ranking por áreas sob comando e histórico das últimas doze disputas.
 - Uma batalha ativa por área e uma por atacante. As demais áreas ficam livres.
-- O combate acontece no servidor. O cliente só envia ordens de envio de tropas e
-  de paraquedas; não pode informar o vencedor ou a quantidade de tropas.
+- O combate acontece no navegador do atacante, em um Web Worker. O servidor
+  repassa ordens, reserva a área em memória e grava a batalha somente no final,
+  depois de validar o resultado.
 - Batalhas usam o mapa e a arte clássicos; as cinco áreas variam a ocupação inicial
   e o comportamento da defesa. Melhorias e moedas locais não afetam esse modo.
 - O modo clássico (campanha, CPU, duelo local e salas online) continua disponível.
 
-## Reconexão e encerramento
+## Simulação, reconexão e encerramento
 
-O navegador recebe o estado por SSE e pode se reconectar à mesma batalha. Após
-recarregar a página, use **Retomar batalha**. A simulação continua durante uma
-queda breve. Mais de 30 segundos sem o atacante conectado encerra o ataque,
-mesmo se o defensor continuar online.
-O limite de cada combate é de seis minutos, além da contagem inicial.
+O navegador atacante calcula produção, movimento, CPU, combate e vitória em passos
+de 1/30 s. Ordens locais respondem sem aguardar a viagem ao servidor. O Web Worker
+separa essa simulação da interface. O defensor acompanha posições retransmitidas
+a cada 100 ms e envia ordens ao navegador que hospeda a batalha. A CPU pausa ao
+assumir a defesa e volta quando o proprietário sai.
 
-As posições chegam do servidor aproximadamente a cada 100 ms. O navegador suaviza o movimento
-entre atualizações, seguindo a rota de cada tropa em cada quadro da animação.
-Essa camada visual não simula combate, não avança além da última posição recebida
-e não altera as unidades oficiais. Após uma desconexão longa, sincroniza a posição
-imediatamente ao receber o estado da batalha.
+Não há INSERT de batalha no início nem checkpoints no banco durante o combate.
+Reservas, ordens autorizadas e o último estado para reconexão ficam em RAM.
+Ao finalizar, o servidor reproduz uma vez a sequência autorizada com o mesmo
+motor e semente, verifica a vitória e grava resultado e propriedade na mesma
+transação. Informar apenas `won` ou inventar tropas no pacote não conquista áreas.
+Contas, sessões e consultas ao mapa continuam usando PostgreSQL.
 
-Ordens e avisos online usam um WebSocket autenticado na mesma origem. Durante
-uma conexão ativa, cada ordem usa a sessão já validada, sem uma consulta ao banco
-por comando. A sessão é revalidada periodicamente e sair da conta fecha o canal.
-Se esse canal estiver indisponível, os comandos usam HTTP. Ambos os caminhos
-confirmam a execução ou informam a recusa; uma ordem sem confirmação não é
-reenviada automaticamente para evitar enviar tropas duas vezes.
-O cliente descarta estados antigos que cheguem depois de uma confirmação mais
-recente. A simulação usa o tempo decorrido do servidor em passos curtos para
-compensar atrasos do temporizador sem saltar as verificações de combate.
+Ordens e avisos usam WebSocket autenticado, com HTTP como alternativa. A sessão
+é reutilizada por até um minuto e revalidada depois desse prazo. Cada ordem tem
+um identificador: retransmiti-la após perder a confirmação não envia as tropas
+novamente. O cliente descarta posições antigas que cheguem tarde.
 
-É possível voltar ao mapa enquanto um ataque continua. Para trocar um ataque
-próprio pela defesa de outra área, a interface pede para encerrar o ataque atual.
-Depois de um reinício, a CPU assume temporariamente até o dono retomar a defesa.
+Recarregar a página permite **Retomar batalha** a partir do último estado em RAM,
+normalmente com até 500 ms de diferença. Mais de 30 segundos sem receber o
+navegador atacante encerra a disputa, mesmo com o defensor online. O combate tem
+seis minutos mais a contagem inicial. Voltar ao mapa mantém a simulação ativa.
+Trocar um ataque próprio por uma defesa pede o encerramento do ataque atual.
 
-O servidor salva o andamento das batalhas no banco a cada dois segundos e também
-ao desligar normalmente. Após uma publicação ou reinício, o próximo acesso retoma
-a partida do último estado salvo. Em uma falha abrupta, a retomada usa o último
-checkpoint que conseguiu ser gravado. A instância antiga deixa de registrar resultados
-depois que a nova assume a partida.
+Como partidas ativas não são persistidas, reinícios/publicações do servidor
+interrompem as batalhas em andamento e preservam o proprietário. Elas não têm
+mais recuperação por checkpoint no banco. Batalhas ativas da arquitetura
+anterior também são encerradas sem transferir áreas na migração.
 
-Reservas sem reconexão expiram em até 90 segundos. Batalhas da versão anterior,
-que não possuíam estado salvo, são encerradas sem alterar a propriedade da área.
-A propriedade conquistada, as contas e o histórico ficam no banco.
+## Mapa de Sergipe
+
+O contorno vem da [API de Malhas do IBGE, UF 28](https://servicodados.ibge.gov.br/api/v3/malhas/estados/28?formato=application%2Fvnd.geo%2Bjson&qualidade=intermediaria).
+O GeoJSON original está em `shared/geography/sergipe-ibge.geojson`. O SVG usa
+projeção geográfica com correção de longitude pela latitude média, preservando
+o formato e a orientação norte. Cinco setores são recortados por esse contorno.
+O arquivo estático `public/sergipe-map.js` evita consultas ao IBGE ao abrir o jogo.
 
 ## Estrutura
 
@@ -76,10 +79,15 @@ public/index.html       arte e renderização clássicos, ponte para o modo mund
 public/world.js         mapa de campanha, conta, ranking e cliente de batalha
 public/world-motion.js  interpolação visual das tropas, separada do combate
 public/world.css        interface responsiva do mundo aberto
+public/battle-worker.js simulação local fora da thread da interface
+public/sergipe-map.js   contorno IBGE e setores de campanha
+shared/browser-battle.js simulação local e validação final reproduzível
 shared/map.json         definição do mapa usada pelo simulador do servidor
 server/index.js         HTTP, arquivos estáticos, saúde e salas WebSocket clássicas
 server/auth.js          senhas scrypt e sessões com cookie HttpOnly
-server/world-service.js API, reservas, controle das batalhas e persistência
+server/world-service.js entrada do serviço de mundo
+server/browser-world.js API, reservas em RAM, retransmissão e gravação final
+server/browser-assets.js entrega do mesmo motor para o navegador
 server/battle-engine.js movimento, produção, combate, bombardeiros e CPU
 server/database.js      aplicação transacional de migrações versionadas
 server/migrations/      esquema e áreas iniciais
@@ -117,8 +125,9 @@ npm test
 
 Os testes usam PostgreSQL em WASM (PGlite), isolado em memória. Cobrem autenticação,
 reservas concorrentes, comandos inválidos, vitória confirmada pelo servidor,
-transferência e preservação de propriedade, reconexão, expiração, reinício,
-migrações idempotentes, ocupação por hexágonos e regressão das salas clássicas.
+transferência e preservação de propriedade, reconexão em memória, abandono,
+ocupação por hexágonos e regressão das salas clássicas. Exercitam o worker real,
+ordens idempotentes e a ausência de gravações no início e durante o combate.
 Os testes não acessam o banco de jogadores do Render/Neon.
 
 - `GET /api/health`: conexão com PostgreSQL e prontidão do mundo.
@@ -131,6 +140,8 @@ Os testes não acessam o banco de jogadores do Render/Neon.
 - `POST /api/world/battles/:id/surrender`: desistência.
 - `POST /api/world/battles/:id/defend`: assumir defesa (somente proprietário).
 - `POST /api/world/battles/:id/release`: devolver defesa à CPU.
+- `POST /api/world/battles/:id/relay`: repassar estado do navegador, apenas em RAM.
+- `POST /api/world/battles/:id/complete`: validar e salvar a batalha encerrada.
 - `WS /api/world/socket`: avisos de ataque e ordens com confirmação imediata.
 
 ## Publicação
