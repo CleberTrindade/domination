@@ -8,8 +8,8 @@ function areaProfile(ordinal){
 }
 function troopView(wallet,available,minEntry,kind){
   const level=wallet.levels?.[kind]??wallet.level,maximum=level>=ARMY_RULES.maxLevel,nextLevel=maximum?null:level+1,nextCost=maximum?null:ARMY_RULES.upgradeCosts[nextLevel];
-  const requiredBuffer=wallet.owned===0?BigInt(minEntry*100):0n,cost=BigInt((nextCost||0)*100);
-  const reason=maximum?'Este tipo atingiu o nível máximo.':available<cost?'Moedas disponíveis insuficientes.':available-cost<requiredBuffer?'Mantenha '+minEntry+' moedas disponíveis para iniciar seu próximo ataque.':null;
+  const cost=BigInt((nextCost||0)*100);
+  const reason=maximum?'Este tipo atingiu o nível máximo.':available<cost?'Moedas disponíveis insuficientes.':null;
   return {kind,level,power:powerFor(level),maxLevel:ARMY_RULES.maxLevel,nextLevel,nextPower:nextLevel?powerFor(nextLevel):null,nextCost,canUpgrade:!reason,reason};
 }
 function levelsFor(row){return Object.fromEntries(TROOP_KINDS.map(kind=>[kind,row.troop_levels?.[kind]??Number(row.army_level||1)]));}

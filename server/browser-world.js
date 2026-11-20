@@ -30,17 +30,16 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     for(const battle of battles.values())if(!battle.final)for(const stake of battle.stakes?.values()||[])if(stake.playerId===playerId&&!stake.rejected)amount+=stake.stake;
     return amount;
   }
-  async function reserveStake(battle,playerId,owner,required=true){
+  async function reserveStake(battle,playerId,owner){
     const wallet=(await readWallets(pool,[playerId],now())).get(playerId);
     const balance=wallet.balance-reservedFor(playerId),available=balance>0n?balance:0n;
-    if(required&&available<BigInt(RULES.minEntry*100))throw new HttpError(409,'Você precisa de pelo menos '+RULES.minEntry+' moedas disponíveis para atacar ou entrar na disputa.');
     const stake={playerId,owner,balance:available,stake:stakeFor(available),level:wallet.level,levels:wallet.levels};
     battle.stakes.set(owner,stake);return stake;
   }
   function battleEconomy(battle,owner,viewerId){
     const stakes=[...(battle.stakes?.values()||[])].filter(s=>!s.rejected),mine=stakes.find(s=>s.owner===owner||s.playerId===viewerId);
     const maxLoot=mine?stakes.filter(s=>s.playerId!==mine.playerId).reduce((sum,s)=>sum+(s.stake<mine.stake?s.stake:mine.stake),0n):0n;
-    return {lootPercent:RULES.lootPercent,minEntry:RULES.minEntry,productionPerDay:RULES.productionPerDay,cpuReward:battle.cpuRewardAvailable?(battle.cpuReward??RULES.cpuReward):0,
+    return {lootPercent:RULES.lootPercent,minEntry:RULES.minEntry,wholeCoins:true,productionPerDay:RULES.productionPerDay,cpuReward:battle.cpuRewardAvailable&&mine?.balance>0n?(battle.cpuReward??RULES.cpuReward):0,
       atRisk:mine?coins(mine.stake):0,balanceAtEntry:mine?coins(mine.balance):null,maxLoot:coins(maxLoot),
       stakes:stakes.map(s=>({owner:s.owner,playerId:s.playerId,atRisk:coins(s.stake)}))};
   }
@@ -206,7 +205,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       const battle={id:randomUUID(),areaId:area.id,areaName:area.name,areaVersion:area.version,attackerId:player.id,attackerName:player.display_name,
         defenderId:area.owner_id,defenderName:area.owner_name||'Guarnição da CPU',config,
         status:'active',startedAt:new Date(now()).toISOString(),lastClientAt:now(),lastHostAt:now(),revision:0,streams:new Set(),inputs:new Map(),resume:null,retaliationOf,members:new Map(),withdrawn:new Set(),hostId:player.id,hostEpoch:randomUUID(),stakes:new Map(),cpuRewardAvailable:!area.owner_id&&!area.cpu_reward_claimed,cpuReward:areaProfile(area.ordinal).cpuReward};
-      const attacker=await reserveStake(battle,player.id,1),defender=area.owner_id?await reserveStake(battle,area.owner_id,2,false):null;
+      const attacker=await reserveStake(battle,player.id,1),defender=area.owner_id?await reserveStake(battle,area.owner_id,2):null;
       Object.assign(config,{attackerLevel:attacker.level,attackerPower:powerFor(attacker.level),defenderLevel:defender?.level??null,
         defenderPower:defender?powerFor(defender.level):powerFor(attacker.level)*ARMY_RULES.cpuPowerRatio,neutralPower:powerFor(attacker.level),attackerTroops:combatProfile(attacker.levels),defenderTroops:defender?combatProfile(defender.levels):combatProfile(attacker.levels,ARMY_RULES.cpuPowerRatio,true),neutralTroops:combatProfile(attacker.levels)});
       const initial=engineFactory.createBattle(config).snapshot();battle.snapshot=initial;battle.defenseShare=initial.defenderShare;battle.armies=initial.armies;
@@ -232,11 +231,11 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         entries:entries.map(e=>({...e,amount:coins(BigInt(e.amount))}))};
       for(const area of areas){const defenseWallet=wallets.get(area.owner_id),defenseAvailable=defenseWallet?defenseWallet.balance-reservedFor(area.owner_id):0n;
         const risk=stakeFor(available),targetRisk=stakeFor(defenseAvailable>0n?defenseAvailable:0n);
-        area.economy={atRisk:coins(risk),maxLoot:coins(targetRisk<risk?targetRisk:risk),cpuReward:!area.owner_id&&!area.cpu_reward_claimed?area.first_capture_reward:0,productionPerDay:RULES.productionPerDay};
+        area.economy={atRisk:coins(risk),maxLoot:coins(targetRisk<risk?targetRisk:risk),cpuReward:available>0n&&!area.owner_id&&!area.cpu_reward_claimed?area.first_capture_reward:0,productionPerDay:RULES.productionPerDay};
         const active=area.battle_id&&battles.get(area.battle_id);
         if(active){
           const current=battleEconomy(active,ownerFor(active,player.id),player.id);
-          if(current.balanceAtEntry!==null)area.economy={...area.economy,atRisk:current.atRisk,maxLoot:current.maxLoot};
+          if(current.balanceAtEntry!==null)area.economy={...area.economy,atRisk:current.atRisk,maxLoot:current.maxLoot,cpuReward:current.cpuReward};
           else area.economy.maxLoot=current.stakes.reduce((sum,s)=>sum+Math.min(coins(risk),s.atRisk),0);
         }
       }

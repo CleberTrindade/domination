@@ -46,8 +46,8 @@ A publicação e o banco de produção da `main` permanecem independentes.
   Derrota, desistência, interrupção e tempo esgotado preservam o proprietário.
 - Ranking por áreas sob comando e histórico das últimas doze disputas.
 - Carteira de moedas com saldo disponível, reservado, produção diária e extrato.
-  Saldo inicial de 1.000 moedas; mínimo de 100 disponíveis para atacar ou entrar
-  como invasor. Defender não exige saldo mínimo.
+  Saldo inicial de 1.000 moedas; ataques, invasões e defesas permitidos com
+  qualquer saldo, inclusive zero. Valores sempre em moedas inteiras.
 - Uma batalha ativa por área e uma participação ativa por jogador. As demais áreas ficam livres.
 - O combate começa no navegador do atacante, em um Web Worker. O servidor
   repassa ordens, reserva a área em memória e grava a batalha somente no final,
@@ -97,12 +97,20 @@ anterior também são encerradas sem transferir áreas na migração.
 
 ## Moedas, produção e saque
 
+- Ataques, defesas e entradas como invasor são permitidos com **qualquer saldo,
+  inclusive zero**. Sem saldo disponível na entrada, o participante não ganha nem
+  perde moedas da batalha, incluindo o bônus da primeira conquista da CPU. Pode
+  conquistar a área e receber sua produção diária a partir da conquista.
+- Saldos, reservas, saques e novos lançamentos usam **moedas inteiras**.
+  A reserva é `floor(40% × saldo disponível)`: com 80 moedas, reserva 32;
+  com 1 ou 2 moedas, reserva zero. Saldo positivo mantém a mesma regra de saque.
+
 - Cada área produz **1.000 moedas a cada 24 horas**, proporcionalmente ao tempo de
   posse, inclusive offline. A produção começa na conquista. Para contas e áreas
   anteriores à economia, começa na aplicação da migração 005, sem retroatividade.
 - A primeira conquista da CPU rende **300 moedas** no Litoral Sul/Agreste,
   **450** no Alto Sertão e **600** no São Francisco/Capital. A renda diária
-  continua em 1.000 para todos. O bônus é único por área; conquistas anteriores
+  continua em 1.000 para todos. O bônus exige saldo positivo na entrada e é único por área; conquistas anteriores
   não recebem novamente. O saque de jogadores é independente desse bônus.
 - Na entrada, **40% do saldo disponível** de cada participante ficam reservados
   em RAM. O defensor recebe uma reserva automática no início do ataque, mesmo
@@ -111,7 +119,7 @@ anterior também são encerradas sem transferir áreas na migração.
 - O saldo de referência fica fixo para aquela entrada. Produção ou saques de
   outras disputas posteriores não aumentam o valor em risco nessa batalha.
 - O vencedor recebe de **cada perdedor** o menor valor entre as duas reservas:
-  `40% × min(saldo disponível do vencedor na entrada, saldo disponível do perdedor na entrada)`.
+  `floor(40% × min(saldo disponível do vencedor na entrada, saldo disponível do perdedor na entrada))`.
   Com 1.000 contra 5.000, o saque é de 400 em qualquer direção. Vencendo outros
   três exércitos com pelo menos 1.000 cada, o jogador recebe 1.200 no total.
 - O vencedor também conquista a área. Perdedores não pagam uns aos outros. O
@@ -127,8 +135,11 @@ anterior também são encerradas sem transferir áreas na migração.
   como abandono, preservando a área e aplicando a derrota.
 
 Os valores ficam em `server/economy.js` (`RULES`); a migração 005 concede o saldo
-inicial às contas existentes. Moedas são persistidas em centésimos inteiros;
-frações menores da produção são carregadas para o próximo cálculo. Consultar a
+inicial às contas existentes. A escala de armazenamento de centésimos é mantida por compatibilidade, com
+saldos e lançamentos novos sempre em múltiplos de 100. A migração 009 converte
+frações de saldo existentes em crédito pendente de produção e preserva o histórico
+original de lançamentos. A renda só libera uma moeda quando ela fica completa;
+o restante é carregado para o próximo cálculo, inclusive após trocar de dono. Consultar a
 carteira apenas projeta a produção, sem gravar nem exigir cron. Antes de trocar
 o proprietário, a transação final credita a produção acumulada ao dono anterior
 e inicia o período do novo dono, preservando a divisão correta do rendimento.
@@ -186,8 +197,8 @@ tipos presentes ao escolher ataques.
 | 10 | 190% | 2.580 |
 
 Cada custo individual corresponde a um quinto do antigo treinamento geral.
-O custo acumulado é 6.810 moedas **por tipo** (34.050 para os cinco). A compra usa saldo disponível e mantém 100
-moedas para o próximo ataque quando o jogador não tem áreas produtoras. O nível,
+O custo acumulado é 6.810 moedas **por tipo** (34.050 para os cinco). A compra usa somente saldo disponível, preserva reservas de disputas e pode
+consumir o último saldo livre, pois ataques não exigem orçamento mínimo. O nível,
 saldo, produção acumulada, registro da compra e extrato são gravados numa única
 transação. `requestId` é idempotente e vinculado ao tipo; `expectedLevel` impede compras simultâneas
 acidentais de níveis consecutivos. Preço, novo nível e força são calculados no

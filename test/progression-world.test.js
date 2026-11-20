@@ -36,14 +36,15 @@ test('persistent army progression protects money, freezes battle levels and reco
       const responses=await Promise.all([upgrade(bob,1),upgrade(bob,1)]);assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);assert.equal((await world(bob)).wallet.balance,940);
       assert.equal((await world(bob)).army.level,2);assert.equal((await upgrade(bob,99)).status,409);
     });
-    await t.test('accounts without territory keep the minimum attack budget, while owners may spend their available income',async()=>{
-      await funds(dana,1,110);assert.equal((await world(dana)).army.troops.tanque.canUpgrade,false);assert.equal((await upgrade(dana,1)).status,409);
-      await pool.query("UPDATE world_areas SET owner_id=$1 WHERE id='se-agreste'",[dana.id]);assert.equal((await upgrade(dana,1)).status,200);assert.equal((await world(dana)).wallet.balance,50);
+    await t.test('training may spend the last available coin without an attack budget, with or without territory',async()=>{
+      await funds(dana,1,60);assert.equal((await world(dana)).army.troops.tanque.canUpgrade,true);assert.equal((await upgrade(dana,1)).status,200);assert.equal((await world(dana)).wallet.balance,0);
+      record=await start('se-agreste',dana);assert.equal(record.economy.atRisk,0);assert.equal(record.economy.cpuReward,0);await surrender(record,dana);
+      await funds(dana,1,60);await pool.query("UPDATE world_areas SET owner_id=$1 WHERE id='se-agreste'",[dana.id]);assert.equal((await upgrade(dana,1,randomUUID(),{troopKind:'heli'})).status,200);assert.equal((await world(dana)).wallet.balance,0);
       await pool.query("UPDATE world_areas SET owner_id=NULL WHERE id='se-agreste'");
     });
     await t.test('reserved stakes cannot be spent; purchases do not change the army already fighting',async()=>{
-      await funds(charlie,1,400);record=await start('se-litoral-sul',charlie);assert.equal(record.config.attackerLevel,1);
-      assert.equal((await upgrade(charlie,1)).status,200);const data=await world(charlie);assert.equal(data.wallet.balance,340);assert.equal(data.wallet.reserved,160);assert.equal(data.wallet.available,180);
+      await funds(charlie,1,250);record=await start('se-litoral-sul',charlie);assert.equal(record.config.attackerLevel,1);
+      assert.equal((await upgrade(charlie,1)).status,200);const data=await world(charlie);assert.equal(data.wallet.balance,190);assert.equal(data.wallet.reserved,100);assert.equal(data.wallet.available,90);
       assert.equal((await upgrade(charlie,2)).status,409);const current=(await api('/api/world/battles/'+record.id,charlie)).data;assert.equal(current.config.attackerLevel,1);assert.equal(current.players[0].level,1);
       await surrender(record,charlie);assert.equal((await world(charlie)).army.level,2);
       await funds(charlie,2,5000);

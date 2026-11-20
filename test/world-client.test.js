@@ -10,7 +10,7 @@ test('individual troop screen purchases only the selected type and recovers lost
   const root=element(),dialog=element(),body=element(),calls=[];let loseConfirmation=false;
   const {armyView,ARMY_RULES}=require('../server/progression'),{troopCatalog}=require('../server/troops');
   const wallet={level:1,levels:{tanque:1,desliz:1,heli:1,canhao:1,central:1},owned:0};let balance=1000;
-  const world={player:{id:'hero',name:'Hero',username:'hero'},progression:structuredClone(ARMY_RULES),wallet:{balance:1000,available:1000,reserved:0,productionPerDay:0,entries:[]},economy:{initialCoins:1000,minEntry:100,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32,defense_share:19/81,defense_bases:3,resistance:'Baixa',first_capture_reward:300}],ranking:[],history:[]};
+  const world={player:{id:'hero',name:'Hero',username:'hero'},progression:structuredClone(ARMY_RULES),wallet:{balance:1000,available:1000,reserved:0,productionPerDay:0,entries:[]},economy:{initialCoins:1000,minEntry:0,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32,defense_share:19/81,defense_bases:3,resistance:'Baixa',first_capture_reward:300}],ranking:[],history:[]};
   function update(){world.army=armyView(wallet,BigInt(balance*100),100);world.troops=troopCatalog(world.army);world.wallet.balance=world.wallet.available=balance;}update();
   const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
   const context={crypto:require('node:crypto').webcrypto,document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{
@@ -27,22 +27,23 @@ test('individual troop screen purchases only the selected type and recovers lost
 });
 test('wallet shows available and reserved funds, entry risk, production, and the completed coin statement',async()=>{
   const root=element(),dialog=element(),body=element(),listeners={};
-  const world={player:{id:'third',name:'Terceiro'},wallet:{balance:1000,available:600,reserved:400,productionPerDay:1000,entries:[{kind:'battle_loot',amount:-400,area_name:'Agreste',created_at:'2026-11-20T15:00:00Z'}]},economy:{initialCoins:1000,minEntry:100,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'rival',owner_name:'Rival',economy:{atRisk:240,maxLoot:240,cpuReward:0}}],ranking:[],history:[]};
+  const world={player:{id:'third',name:'Terceiro'},wallet:{balance:1000,available:600,reserved:400,productionPerDay:1000,entries:[{kind:'battle_loot',amount:-400,area_name:'Agreste',created_at:'2026-11-20T15:00:00Z'}]},economy:{initialCoins:1000,minEntry:0,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'rival',owner_name:'Rival',economy:{atRisk:240,maxLoot:240,cpuReward:0}}],ranking:[],history:[]};
   const document={body,hidden:false,createElement:element,addEventListener(type,fn){listeners[type]=fn;},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
   const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async()=>({ok:true,json:async()=>structuredClone(world)})};
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(root.innerHTML.includes('600</strong>'));assert(root.innerHTML.includes('400 reservadas'));
   assert(root.innerHTML.includes('1.000 moedas por dia'));assert(root.innerHTML.includes('Saque possível: até 240'));assert(root.innerHTML.includes('Reserva para entrar: 240'));
   await root.listeners.click({target:{closest:()=>({dataset:{action:'wallet'}})}});
-  assert(dialog.innerHTML.includes('Sua carteira'));assert(dialog.innerHTML.includes('300 moedas'));assert(dialog.innerHTML.includes('Defender é permitido sem moedas'));assert(dialog.innerHTML.includes('-400'));
-  world.wallet.available=99;listeners.visibilitychange();await flush();
-  assert(root.innerHTML.includes('data-action="attack" disabled'),'insufficient funds disable initiating attacks without hiding the map');
+  assert(dialog.innerHTML.includes('Sua carteira'));assert(dialog.innerHTML.includes('300 moedas'));assert(dialog.innerHTML.includes('inclusive zero'));assert(dialog.innerHTML.includes('-400'));
+  for(const balance of [99,1,0]){world.wallet.available=balance;listeners.visibilitychange();await flush();assert(!root.innerHTML.includes('data-action="attack" disabled'));}
+  assert(root.innerHTML.includes('Sem moedas: você pode conquistar a área'));
+  world.wallet.available=80.09;listeners.visibilitychange();await flush();assert(root.innerHTML.includes('80</strong>'));assert(!root.innerHTML.includes('80,09'));
 });
 test('a third player sees the public attack alert, watches read-only, then selects a neutral base to join',async()=>{
   const root=element(),dialog=element(),body=element(),game=element(),back=element(),calls=[],started=[],sources=[],select={id:'worldJoinSite',value:'12'};
   const engine=createBattle({centralOwner:2,share:.5}),snapshot=engine.snapshot();
   const watch={id:'live',areaId:'se-agreste',areaName:'Agreste',status:'active',mode:'browser',isHost:false,playerOwner:0,epoch:'live',revision:0,maxOwners:4,snapshot,canJoin:true,joinableSites:[{id:12,kind:'H'}],players:[{owner:1,name:'Atacante'},{owner:2,name:'Defensor'}]};
-  const world={player:{id:'third',name:'Terceiro'},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'defender',owner_name:'Defensor',battle_id:'live',attacker_id:'host'}],ranking:[],history:[]};
+  const world={player:{id:'third',name:'Terceiro'},wallet:{balance:0,available:0,reserved:0},economy:{minEntry:0,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'defender',owner_name:'Defensor',battle_id:'live',attacker_id:'host'}],ranking:[],history:[]};
   const bridge={start(record,command){started.push({record,command});},apply(){},control(){},commandStatus(){},stop(){},show(){}};
   class Events{constructor(){this.handlers={};sources.push(this);}addEventListener(type,fn){this.handlers[type]=fn;}close(){}}
   const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog,'#game':game,'#backToWorld':back,'#worldJoinSite':select}[selector]||element();}};
@@ -52,7 +53,7 @@ test('a third player sees the public attack alert, watches read-only, then selec
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(body.children[0].innerHTML.includes('Agreste sob ataque'));assert(root.innerHTML.includes('ASSISTIR BATALHA'));
   await root.listeners.click({target:{closest:()=>({dataset:{action:'attack'}})}});await flush();
-  assert.equal(started[0].record.playerOwner,0);const panel=game.children[0];assert(panel.innerHTML.includes('ESPECTADOR'));assert(panel.innerHTML.includes('Base 13 · Heliporto'));
+  assert.equal(started[0].record.playerOwner,0);const panel=game.children[0];assert(panel.innerHTML.includes('ESPECTADOR'));assert(panel.innerHTML.includes('Base 13 · Heliporto'));assert(!panel.innerHTML.includes('data-battle-action="join" disabled'));assert(panel.innerHTML.includes('Sem saldo: sem ganhos nem perdas'));
   const before=calls.length;await started[0].command({type:'send',sources:[4],target:0});assert.equal(calls.length,before);
   await panel.listeners.click({target:{closest:()=>({dataset:{battleAction:'join'}})}});await flush();
   assert.equal(calls.find(call=>call.path.endsWith('/join')).body.site,12);assert(panel.innerHTML.includes('Aguardando a confirmação'));
@@ -143,7 +144,7 @@ test('profile navigation paginates personal matches, shows per-match coins and c
   const root=element(),dialog=element(),body=element(),listeners={},calls=[];
   const {armyView,ARMY_RULES}=require('../server/progression'),{troopCatalog}=require('../server/troops');
   const army=armyView({level:1,owned:0},100000n,100);
-  const world={player:{id:'me',name:'Meu <Perfil>',username:'myprofile'},army,troops:troopCatalog(army),progression:ARMY_RULES,wallet:{balance:1000,available:1000,reserved:0,productionPerDay:0,entries:[]},economy:{minEntry:100,productionPerDay:1000},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32}],ranking:[],history:[]};
+  const world={player:{id:'me',name:'Meu <Perfil>',username:'myprofile'},army,troops:troopCatalog(army),progression:ARMY_RULES,wallet:{balance:1000,available:1000,reserved:0,productionPerDay:0,entries:[]},economy:{minEntry:0,productionPerDay:1000},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32}],ranking:[],history:[]};
   const profile={player:{...world.player,createdAt:'2026-11-20T14:00:00Z'},stats:{total:21,wins:10,losses:9,withdrawals:1,cancelled:1,winRate:50},pagination:{page:1,pages:2,total:21},matches:[{id:'own',role:'invader',outcome:'lost',area_name:'Agreste',attacker_name:'Rival',defender_name:'Dono',coin_change:-400,started_at:'2026-11-20T14:00:00Z',finished_at:'2026-11-20T14:03:00Z',army_level:1}]};
   const document={body,hidden:false,createElement:element,addEventListener(type,fn){listeners[type]=fn;},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
   const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{stop(){}}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path)=>{

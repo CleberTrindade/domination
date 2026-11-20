@@ -44,20 +44,39 @@ test('wallet reservations, offline income and battle settlements are authoritati
       assert.equal(BigInt((await pool.query('SELECT coin_balance FROM world_players WHERE id=$1',[bob.id])).rows[0].coin_balance),100000n);
       assert.equal((await world(alice)).wallet.balance,1000);
     });
-    await t.test('minimum applies to attackers and invaders, never to watching or zero-balance defense',async()=>{
+    await t.test('zero balance permits attacks, watching, invasion and defense without coin transfers',async()=>{
       await reset();await owned('se-agreste',bob);await pool.query('UPDATE world_players SET coin_balance=0 WHERE id=ANY($1::uuid[])',[[bob.id,charlie.id]]);
-      assert.equal((await api('/api/world/areas/se-agreste/attack',charlie,{})).status,409);
+      const free=await start('se-agreste',charlie);assert.equal(free.economy.atRisk,0);assert.equal(free.economy.maxLoot,0);await surrender(free,charlie);
       const record=await start('se-agreste',alice),watch=await api('/api/world/battles/'+record.id,charlie);assert.equal(watch.status,200);
-      assert.equal((await api('/api/world/battles/'+record.id+'/join',charlie,{site:watch.data.joinableSites[0].id,coins:999999})).status,409);
+      assert.equal((await api('/api/world/battles/'+record.id+'/join',charlie,{site:watch.data.joinableSites[0].id,coins:999999})).status,200);
+      const battle=app.world.battles.get(record.id),input=[...battle.inputs.values()].find(i=>i.kind==='join'),runner=createBrowserBattle(factory,record);assert(runner.input(input));
+      assert.equal((await api('/api/world/battles/'+record.id+'/relay',alice,{snapshot:runner.snapshot(),resume:runner.checkpoint(),receipts:[{nonce:input.nonce,accepted:true}]})).status,200);
+      assert.equal((await api('/api/world/battles/'+record.id,charlie)).data.playerOwner,3);
       assert.equal((await api('/api/world/battles/'+record.id+'/defend',bob,{})).status,200);
+      await api('/api/world/battles/'+record.id+'/leave',charlie,{});
       const result=await surrender(record,alice);assert.equal(result.status,200);assert.equal(result.data.economy.transfers.length,0);
-      assert.equal((await world(alice)).wallet.balance,1000);assert.equal((await world(bob)).wallet.balance,0);
+      assert.equal((await world(alice)).wallet.balance,1000);assert.equal((await world(bob)).wallet.balance,0);assert.equal((await world(charlie)).wallet.balance,0);
+    });
+    await t.test('positive balances below 100 use 40 percent rounded down to whole coins',async()=>{
+      await reset();await owned('se-agreste',bob);await pool.query('UPDATE world_players SET coin_balance=8000 WHERE id=$1',[alice.id]);
+      const record=await start('se-agreste',alice);assert.equal(record.economy.atRisk,32);assert.equal(record.economy.maxLoot,32);
+      const final=await surrender(record,alice);assert.equal(final.data.economy.participants.find(p=>p.playerId===alice.id).change,-32);
+      assert.equal((await world(alice)).wallet.balance,48);assert.equal((await world(bob)).wallet.balance,1032);
+    });
+    await t.test('zero-balance CPU capture grants ownership and future income without a battle prize',async()=>{
+      await reset();await pool.query('UPDATE world_players SET coin_balance=0 WHERE id=$1',[alice.id]);
+      const preview=(await world(alice)).areas.find(a=>a.id==='se-litoral-sul');assert.equal(preview.economy.cpuReward,0);
+      const record=await start('se-litoral-sul',alice);assert.equal(record.economy.cpuReward,0);const final=await win(record,alice);
+      assert.equal(final.economy.cpuReward,0);assert.equal(final.economy.participants[0].change,0);
+      const data=await world(alice);assert.equal(data.wallet.balance,0);assert.equal(data.areas.find(a=>a.id==='se-litoral-sul').owner_id,alice.id);
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_coin_ledger WHERE battle_id=$1',[record.id])).rows[0].n,0);
+      clock+=86400000;assert.equal((await world(alice)).wallet.balance,1000);
     });
     await t.test('several incoming attacks reserve different available funds and repeated completion cannot charge twice',async()=>{
       await reset();await owned('se-agreste',bob);await owned('se-aracaju',bob);
       const a=await start('se-agreste',alice),c=await start('se-aracaju',charlie);
       const before=await world(bob);assert.equal(before.wallet.reserved,640);assert.equal(before.wallet.available,360);
-      assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_coin_ledger')).rows[0].n,0);
+      assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_coin_ledger WHERE battle_id=ANY($1::uuid[])',[[a.id,c.id]])).rows[0].n,0);
       const results=await Promise.all([surrender(a,alice),surrender(c,charlie)]);assert(results.every(r=>r.status===200));
       assert.equal((await world(bob)).wallet.balance,1640);assert.equal((await world(alice)).wallet.balance,600);assert.equal((await world(charlie)).wallet.balance,760);
       assert.equal((await world(bob)).wallet.reserved,0);
@@ -93,7 +112,7 @@ test('wallet reservations, offline income and battle settlements are authoritati
       const startTime=clock,record=await start('se-agreste',alice),final=await win(record,alice,bob);
       assert.equal(final.economy.participants.find(p=>p.playerId===alice.id).change,400);assert.equal(final.economy.cpuReward,0);
       assert.equal((await world(alice)).wallet.balance,1400);
-      const expected=5000+Math.floor((Math.floor(clock)-startTime)*100000/86400000)/100-400;
+      const expected=5000+Math.floor((Math.floor(clock)-startTime)*1000/86400000)-400;
       assert.equal((await world(bob)).wallet.balance,expected);
       clock+=86400000;assert.equal((await world(alice)).wallet.balance,2400);assert.equal((await world(bob)).wallet.balance,expected);
     });

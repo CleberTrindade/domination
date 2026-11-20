@@ -1,16 +1,19 @@
 'use strict';
 const {randomUUID}=require('node:crypto');
 const {levelsFor}=require('./progression');
-const RULES=Object.freeze({initialCoins:1000,minEntry:100,productionPerDay:1000,cpuReward:300,lootPercent:40});
+const RULES=Object.freeze({initialCoins:1000,minEntry:0,productionPerDay:1000,cpuReward:300,lootPercent:40,wholeCoins:true});
 const DAY=86400000n,CENTS=100n;
-const coins=value=>Number(value)/100;
-const stakeFor=balance=>balance*BigInt(RULES.lootPercent)/100n;
+// Database amounts retain their existing hundredths scale; spendable amounts
+// and new ledger entries are always multiples of 100 (one whole coin).
+const coins=value=>Number(BigInt(value)/CENTS);
+const stakeFor=balance=>(balance/CENTS)*BigInt(RULES.lootPercent)/100n*CENTS;
 function projectWallet(row,at){
   const since=new Date(row.coin_income_at).getTime(),until=Math.max(since,at);
-  const numerator=BigInt(Math.floor(until-since))*BigInt(row.owned||0)*BigInt(RULES.productionPerDay)*CENTS+BigInt(row.coin_income_remainder);
-  const produced=numerator/DAY;
+  const stored=BigInt(row.coin_balance),unit=DAY*CENTS;
+  const numerator=BigInt(Math.floor(until-since))*BigInt(row.owned||0)*BigInt(RULES.productionPerDay)*CENTS+BigInt(row.coin_income_remainder)+(stored%CENTS)*DAY;
+  const produced=numerator/unit*CENTS;
   const levels=levelsFor(row);
-  return {playerId:row.id,balance:BigInt(row.coin_balance)+produced,produced,remainder:numerator%DAY,at:until,owned:Number(row.owned||0),level:Math.max(...Object.values(levels)),levels};
+  return {playerId:row.id,balance:stored/CENTS*CENTS+produced,produced,remainder:numerator%unit,at:until,owned:Number(row.owned||0),level:Math.max(...Object.values(levels)),levels};
 }
 async function readWallets(db,ids,at,lock=false){
   const unique=[...new Set(ids.filter(Boolean))].sort();if(!unique.length)return new Map();
@@ -35,7 +38,7 @@ function settleAmounts(stakes,winnerOwner,status,cpuRewardAvailable,cpuRewardCoi
     if(winner)changes.set(winner.playerId,changes.get(winner.playerId)+amount);
     transfers.push({fromId:loser.playerId,fromOwner:loser.owner,toId:winner?.playerId||null,toOwner:winnerOwner,amount:coins(amount)});
   }
-  const reward=finished&&status==='won'&&winner&&cpuRewardAvailable?BigInt(cpuRewardCoins)*CENTS:0n;
+  const reward=finished&&status==='won'&&winner&&winner.balance>0n&&cpuRewardAvailable?BigInt(cpuRewardCoins)*CENTS:0n;
   return {changes,transfers,reward,winner};
 }
 async function settleEconomy(db,battle,roster,{winnerOwner,status,area,at}){
