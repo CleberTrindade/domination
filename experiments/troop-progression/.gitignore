@@ -1,0 +1,4 @@
+# Per-battle runs are reproducible with the saved seeds and script.
+*.json
+*.csv
+!summary.csv
