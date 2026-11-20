@@ -1,7 +1,7 @@
 'use strict';
 const TROOP_KINDS=Object.freeze(['tanque','desliz','heli','canhao','central']);
 const ARMY_RULES=Object.freeze({maxLevel:10,powerStep:10,cpuPowerRatio:.8,defenderBaseCount:3,balanceVersion:'troops-v2',individual:true,
-  upgradeCosts:Object.freeze([0,0,300,500,800,1250,2000,3150,5050,8100,12900])});
+  upgradeCosts:Object.freeze([0,0,60,100,160,250,400,630,1010,1620,2580])});
 const powerFor=level=>Math.round((1+(level-1)*ARMY_RULES.powerStep/100)*100)/100;
 function areaProfile(ordinal){
   return ordinal<=2?{resistance:'Baixa',cpuReward:300}:ordinal===3?{resistance:'Média',cpuReward:450}:{resistance:'Alta',cpuReward:600};

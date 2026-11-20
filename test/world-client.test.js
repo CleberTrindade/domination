@@ -20,10 +20,10 @@ test('individual troop screen purchases only the selected type and recovers lost
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(root.innerHTML.includes('5 tipos · níveis individuais'));assert(root.innerHTML.includes('3 bases + bombardeiro'));
   await root.listeners.click({target:{closest:()=>({dataset:{tab:'troops'}})}});assert(root.innerHTML.includes('EVOLUÇÃO INDIVIDUAL'));assert(root.innerHTML.includes('Bombardeiro central'));
-  await root.listeners.click({target:{closest:()=>({dataset:{troop:'heli'}})}});assert(dialog.innerHTML.includes('EVOLUIR POR 300 MOEDAS'));assert(dialog.innerHTML.includes('apenas <strong>Helicóptero'));
+  await root.listeners.click({target:{closest:()=>({dataset:{troop:'heli'}})}});assert(dialog.innerHTML.includes('EVOLUIR POR 60 MOEDAS'));assert(dialog.innerHTML.includes('apenas <strong>Helicóptero'));
   const event={target:{closest:()=>({dataset:{dialog:'upgrade-army'}})}};
-  await Promise.all([dialog.listeners.click(event),dialog.listeners.click(event)]);await flush();assert.equal(calls.length,1);assert.equal(balance,700);assert(dialog.innerHTML.includes('Nível 2'));assert.equal(wallet.levels.tanque,1);
-  loseConfirmation=true;await dialog.listeners.click(event);await flush();assert.equal(calls.length,2);assert.equal(balance,200);assert(dialog.innerHTML.includes('novo nível já foi confirmado'));assert(dialog.innerHTML.includes('Nível 3'));assert.equal(wallet.levels.canhao,1);
+  await Promise.all([dialog.listeners.click(event),dialog.listeners.click(event)]);await flush();assert.equal(calls.length,1);assert.equal(balance,940);assert(dialog.innerHTML.includes('Nível 2'));assert.equal(wallet.levels.tanque,1);
+  loseConfirmation=true;await dialog.listeners.click(event);await flush();assert.equal(calls.length,2);assert.equal(balance,840);assert(dialog.innerHTML.includes('novo nível já foi confirmado'));assert(dialog.innerHTML.includes('Nível 3'));assert.equal(wallet.levels.canhao,1);
 });
 test('wallet shows available and reserved funds, entry risk, production, and the completed coin statement',async()=>{
   const root=element(),dialog=element(),body=element(),listeners={};

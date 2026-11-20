@@ -19,10 +19,10 @@ test('personal profile and individual training use authoritative persisted data'
     await t.test('legacy general levels are inherited; new purchases affect exactly one type and audit its cost',async()=>{
       await pool.query('UPDATE world_players SET army_level=5,coin_balance=1000000 WHERE id=$1',[hero.id]);
       const before=await world(hero);assert(Object.values(before.army.troops).every(t=>t.level===5));
-      const id=randomUUID(),response=await upgrade(hero,'heli',5,id);assert.equal(response.status,200);assert.equal(response.data.cost,2000);
+      const id=randomUUID(),response=await upgrade(hero,'heli',5,id);assert.equal(response.status,200);assert.equal(response.data.cost,400);
       const after=await world(hero);for(const kind of TROOP_KINDS)assert.equal(after.army.troops[kind].level,kind==='heli'?6:5);
-      assert.equal(after.wallet.balance,8000);assert.equal(after.wallet.entries[0].troop_kind,'heli');assert.equal((await upgrade(hero,'heli',5,id)).status,200);
-      assert.equal((await upgrade(hero,'tanque',5,id)).status,403);assert.equal((await world(hero)).wallet.balance,8000);
+      assert.equal(after.wallet.balance,9600);assert.equal(after.wallet.entries[0].troop_kind,'heli');assert.equal((await upgrade(hero,'heli',5,id)).status,200);
+      assert.equal((await upgrade(hero,'tanque',5,id)).status,403);assert.equal((await world(hero)).wallet.balance,9600);
       assert.equal((await api('/api/world/army/upgrade',hero,{expectedLevel:6,requestId:randomUUID()})).status,400);
       assert.equal((await upgrade(hero,'invalid',1)).status,400);
     });

@@ -175,17 +175,18 @@ tipos presentes ao escolher ataques.
 | Nível alcançado | Força | Custo deste upgrade |
 | --- | ---: | ---: |
 | 1 | 100% | Inicial |
-| 2 | 110% | 300 |
-| 3 | 120% | 500 |
-| 4 | 130% | 800 |
-| 5 | 140% | 1.250 |
-| 6 | 150% | 2.000 |
-| 7 | 160% | 3.150 |
-| 8 | 170% | 5.050 |
-| 9 | 180% | 8.100 |
-| 10 | 190% | 12.900 |
+| 2 | 110% | 60 |
+| 3 | 120% | 100 |
+| 4 | 130% | 160 |
+| 5 | 140% | 250 |
+| 6 | 150% | 400 |
+| 7 | 160% | 630 |
+| 8 | 170% | 1.010 |
+| 9 | 180% | 1.620 |
+| 10 | 190% | 2.580 |
 
-O custo acumulado é 34.050 moedas **por tipo** (170.250 para os cinco). A compra usa saldo disponível e mantém 100
+Cada custo individual corresponde a um quinto do antigo treinamento geral.
+O custo acumulado é 6.810 moedas **por tipo** (34.050 para os cinco). A compra usa saldo disponível e mantém 100
 moedas para o próximo ataque quando o jogador não tem áreas produtoras. O nível,
 saldo, produção acumulada, registro da compra e extrato são gravados numa única
 transação. `requestId` é idempotente e vinculado ao tipo; `expectedLevel` impede compras simultâneas
