@@ -34,6 +34,12 @@ recarregar a página, use **Retomar batalha**. A simulação continua durante um
 queda breve. Mais de 30 segundos sem um cliente conectado encerra o ataque.
 O limite de cada combate é de seis minutos, além da contagem inicial.
 
+As posições chegam do servidor a cada 200 ms. O navegador suaviza o movimento
+entre atualizações, seguindo a rota de cada tropa em cada quadro da animação.
+Essa camada visual não simula combate, não avança além da última posição recebida
+e não altera as unidades oficiais. Após uma desconexão longa, sincroniza a posição
+imediatamente ao receber o estado da batalha.
+
 O servidor salva o andamento das batalhas no banco a cada dois segundos e também
 ao desligar normalmente. Após uma publicação ou reinício, o próximo acesso retoma
 a partida do último estado salvo. Em uma falha abrupta, a retomada usa o último
@@ -49,6 +55,7 @@ A propriedade conquistada, as contas e o histórico ficam no banco.
 ```
 public/index.html       arte e renderização clássicos, ponte para o modo mundo
 public/world.js         mapa de campanha, conta, ranking e cliente de batalha
+public/world-motion.js  interpolação visual das tropas, separada do combate
 public/world.css        interface responsiva do mundo aberto
 shared/map.json         definição do mapa usada pelo simulador do servidor
 server/index.js         HTTP, arquivos estáticos, saúde e salas WebSocket clássicas

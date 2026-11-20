@@ -27,6 +27,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/', ['index.html', 'text/html; charset=utf-8']],
     ['/index.html', ['index.html', 'text/html; charset=utf-8']],
     ['/world.js', ['world.js', 'application/javascript; charset=utf-8']],
+    ['/world-motion.js', ['world-motion.js', 'application/javascript; charset=utf-8']],
     ['/world.css', ['world.css', 'text/css; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
   async function databaseStatus() {

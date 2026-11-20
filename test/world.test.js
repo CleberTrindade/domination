@@ -30,6 +30,10 @@ test('shared world API, real Postgres persistence and authoritative battle lifec
       assert(result.json.areas.every(a => a.owner_id === null)); assert.equal(result.json.player, null);
       await migrate(pool); assert.equal((await call('/api/world')).json.areas.length, 5);
       assert.equal((await call('/api/health')).json.worldReady, true);
+      const motion=await fetch(base+'/world-motion.js');
+      assert.equal(motion.status,200);
+      assert(motion.headers.get('content-type').includes('application/javascript'));
+      assert((await motion.text()).includes('createWorldMotion'));
     });
     await t.test('registration, login and HttpOnly sessions persist without exposing secrets', async () => {
       const register = name => post('/api/auth/register', null, { username: name, name, password: 'integration-password-123' });

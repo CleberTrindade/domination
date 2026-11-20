@@ -166,6 +166,7 @@ button{font:inherit}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 </style>
 <link rel="stylesheet" href="/world.css">
+<script src="/world-motion.js"></script>
 </head>
 <body class="world-mode">
 <div id="app">
@@ -1417,6 +1418,7 @@ const ang=(dx,dy)=>Math.atan2(dy,dx);
 function turnTo(h,t,k){if(h==null)return t;let d=t-h;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return h+d*Math.min(1,k)}
 function render(){
   const g=game,c=ctx,P=g.pal,now=performance.now(),rdt=Math.min(0.1,lastR?(now-lastR)/1000:0);lastR=now;
+  const motion=g.mode==='world'?g.worldMotion.sample(g.units,now):null,units=motion?motion.units:g.units;
   c.setTransform(DPR,0,0,DPR,0,0);
   if(!g.bg||g.bgH!==CH){g.bg=c.createLinearGradient(0,0,0,CH);g.bg.addColorStop(0,'#8fdcf7');g.bg.addColorStop(.55,'#4f9fe0');g.bg.addColorStop(1,'#2f6fc0');g.bgH=CH}
   c.fillStyle=g.bg;c.fillRect(0,0,CW,CH);
@@ -1433,7 +1435,7 @@ function render(){
     c.lineWidth=main?1.8:1.2;c.strokeStyle=main?'rgba(255,255,255,.7)':'rgba(255,255,255,.4)';if(!main)c.setLineDash([5*SC,5*SC]);c.stroke();c.setLineDash([])}
   // rotas das tropas
   c.lineCap='round';c.lineJoin='round';
-  for(const u of g.units){c.beginPath();c.moveTo(X(u.x),Y(u.y));for(let i=u.si+1;i<u.P.length;i++)c.lineTo(X(u.P[i][0]),Y(u.P[i][1]));
+  for(const u of units){c.beginPath();c.moveTo(X(u.x),Y(u.y));for(let i=u.si+1;i<u.P.length;i++)c.lineTo(X(u.P[i][0]),Y(u.P[i][1]));
     c.strokeStyle=TEAMC[P[u.owner]].dark;c.globalAlpha=.7;c.lineWidth=2.4*SC;c.setLineDash([6*SC,6*SC]);c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // seleção e arrasto
   const selected=new Set();if(g.tapSel)selected.add(g.tapSel);
@@ -1459,7 +1461,7 @@ function render(){
   for(const s of bs){const col=P[s.owner]||0,cap=s.owner?g.par[s.owner].cap:0,tr=Math.floor(s.troops);
     badge(c,X(s.x+18),Y(s.y+13),tr,col,s.owner?tr/cap:0.35,SC,s.owner&&s.troops>=cap-0.01)}
   // tropas
-  const us=g.units.slice().sort((a,b)=>a.y-b.y);
+  const us=units.slice().sort((a,b)=>a.y-b.y);
   for(const u of us){
     const p=u.P,j=Math.min(p.length-1,u.si+1),tx=p[j][0]-u.x,ty=p[j][1]-u.y;
     if(u.fight){const o=u.fight.a===u?u.fight.b:u.fight.a;u.vh=turnTo(u.vh,ang(o.x-u.x,o.y-u.y),rdt*10)}
@@ -1489,7 +1491,9 @@ function render(){
     else if(f.type==='cap'){const e=f.t/1.2;c.globalAlpha=Math.max(0,1-e*e);c.font=`${15*SC}px "Lilita One", sans-serif`;c.lineWidth=4;c.strokeStyle='#fff';c.strokeText('CAPTURADO!',X(f.x),Y(f.y-44-14*e));c.fillStyle=TEAMC[P[f.o]].dark;c.fillText('CAPTURADO!',X(f.x),Y(f.y-44-14*e));c.globalAlpha=1}
     else if(f.type==='hit'){c.globalAlpha=Math.max(0,1-f.t/0.6);c.strokeStyle='#e8433a';c.lineWidth=4*(1-f.t/0.6)+0.5;hexPath(c,X(f.x),Y(f.y),HR*(1+0.3*f.t)*SC);c.stroke();c.globalAlpha=1}
     else if(f.type==='ushot'){
-      const a=f.from,b=f.to,vh=a.vh!=null?a.vh:ang(b.x-a.x,b.y-a.y),kk=1.4*SC;
+      const a=motion?motion.byId.get(f.from.id):f.from,b=motion?motion.byId.get(f.to.id):f.to;
+      if(!a||!b)continue;
+      const vh=a.vh!=null?a.vh:ang(b.x-a.x,b.y-a.y),kk=1.4*SC;
       const up=a.k==='heli'?(9.5+12)*kk:a.k==='desliz'?9*kk:12*kk,fw=a.k==='tanque'?20:a.k==='heli'?11:9;
       const mx=X(a.x)+Math.cos(vh)*fw*kk,my=Y(a.y)+Math.sin(vh)*fw*kk*0.6-up;
       const ex=X(b.x),ey=Y(b.y)-(b.k==='heli'?26:8)*SC,q=Math.min(1,f.t/0.15);
@@ -1526,7 +1530,7 @@ window.DOMINATION_WORLD_BRIDGE={
     closeModal();
     const L=buildLevel(1,MW,MAPH,{nAI:1});
     newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n:2,elim:[],worldCommand:onCommand,
-      worldOrdinal:record.ordinal||1,lastServerAt:performance.now(),names:{1:'Você',2:record.defenderName},cd:record.snapshot.cd});
+      worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,lastServerAt:performance.now(),names:{1:'Você',2:record.defenderName},cd:record.snapshot.cd});
     document.body.classList.add('world-battle');
     $('#legend').innerHTML='<span><i style="background:#2457c0"></i>Você</span><span><i style="background:#c22d27"></i>Defesa CPU</span>';
     $('#hint').textContent='Elimine o inimigo · o bombardeiro é uma vantagem';$('#hint').style.opacity=1;
@@ -1535,6 +1539,7 @@ window.DOMINATION_WORLD_BRIDGE={
   apply(snapshot){
     const g=game;if(!g||g.mode!=='world')return;
     g.lastServerAt=performance.now();g.time=snapshot.time;g.cd=snapshot.cd;g.par=snapshot.par;g.dropM=snapshot.dropM;g.over=snapshot.over;
+    g.worldMotion.receive(snapshot.units,snapshot.time,g.lastServerAt,snapshot.over);
     for(const data of snapshot.sites){const site=g.sites[data.id];if(site.owner!==data.owner)g.dirty=true;Object.assign(site,data);}
     const previous=new Map(g.units.map(u=>[u.id,u]));
     g.units=snapshot.units.map(data=>Object.assign(previous.get(data.id)||{},data,{fight:null}));
