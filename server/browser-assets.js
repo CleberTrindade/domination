@@ -4,6 +4,6 @@ function mapModule(){return "(function(){const module={exports:{}};const require
 function browserMaps(){return 'self.DOMINATION_MAPS='+mapModule()+';';}
 function browserEngine(){
   const source=fs.readFileSync(path.join(__dirname,'battle-engine.js'),'utf8');
-  return '(function(){const catalog='+mapModule()+';const module={exports:{}};const require=()=>catalog;\n'+source+'\nself.DOMINATION_ENGINE=module.exports;})();';
+  return '(function(){const catalog='+mapModule()+';const bundledTroopRules=(function(){const module={exports:{}};'+fs.readFileSync(path.join(__dirname,'../shared/troop-rules.js'),'utf8')+';return module.exports;})();const module={exports:{}};const require=p=>p.includes("troop-rules")?bundledTroopRules:catalog;\n'+source+'\nself.DOMINATION_ENGINE=module.exports;})();';
 }
 module.exports={browserEngine,browserMaps};

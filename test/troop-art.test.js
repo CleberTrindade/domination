@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const art=require('../public/troop-art');
 test('concept artwork rotates and recolors all cached battle directions without clipping or changing simulation data',()=>{
-  for(const kind of ['tanque','desliz','heli'])for(let owner=0;owner<5;owner++)for(let direction=0;direction<32;direction++){
+  for(const kind of ['tanque','desliz','heli','batedor','foguetes','blindado','antiaereo','engenheiro','artilharia'])for(let owner=0;owner<5;owner++)for(let direction=0;direction<32;direction++){
     const h=direction*Math.PI/16,options={noShadow:true,noRotor:true,lift:kind==='heli'?12:1};
     const svg=art.unit3d(kind,owner,h,0,1,options);
     assert(svg.includes('<path'));assert(!/NaN|Infinity|undefined/.test(svg));
@@ -24,16 +24,16 @@ test('fixed weapons attach projectiles to the new rotating barrel and all six ce
   assert(!art.building('canhao',1,1,{part:'base'}).includes('aturret'));
   assert(art.building('canhao',1,1,{part:'turret',h:0}).includes('aturret'));
 });
-test('install preserves production buildings and exposes the approved portraits without adding troops',()=>{
+test('install upgrades production buildings and exposes every approved troop and base portrait',()=>{
   const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8'),start=html.indexOf('window.DSPR='),ctx={window:{}};
   vm.runInNewContext(html.slice(start,html.indexOf('</script>',start)),ctx);
   const D=ctx.window.DSPR,before=D.S.building('garagem',1);
-  art.install(D);assert.equal(D.artVersion,'concept-3d');assert.equal(D.S.building('garagem',1),before);assert.equal(D.S.CGUN,art.centralGuns);
+  art.install(D);assert.equal(D.artVersion,'concept-3d');assert.notEqual(D.S.building('garagem',1),before);assert.equal(D.S.CGUN,art.centralGuns);
   const once=D.S.building;art.install(D);assert.equal(D.S.building,once);
-  for(const kind of ['tanque','desliz','heli','canhao','central']){
+  for(const kind of ['tanque','desliz','heli','canhao','central','batedor','foguetes','blindado','antiaereo','engenheiro','artilharia']){
     assert(art.card(kind).includes('data-art="concept-3d"'));assert(!art.card(kind).includes('<text'));
   }
-  assert.equal(art.card('batedor'),'');assert.equal(art.unit3d('batedor',1),'');
+  assert.equal(art.card('unknown'),'');assert.equal(art.unit3d('unknown',1),'');
   assert(html.indexOf('src="/troop-art.js"')>start);assert(html.indexOf('src="/troop-art.js"')<html.indexOf('const SPR='));
   const source=fs.readFileSync(require.resolve('../server/index'),'utf8');assert(source.includes("['/troop-art.js'"));
   for(const name of ['troops-initial-v1.png','central-v1.png']){

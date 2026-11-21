@@ -20,11 +20,11 @@ test('late entrants use personal power and host restoration preserves every army
   const config={share:.5,centralOwner:2,defenderBaseCount:3,attackerLevel:2,attackerPower:1.1,defenderLevel:5,defenderPower:1.4,neutralPower:1.1,balanceVersion:ARMY_RULES.balanceVersion};
   const battle=factory.createBattle(config);assert(battle.join(3,12,{level:10,power:1.9}));assert(battle.join(4,3,{level:3,power:1.2}));
   assert.equal(battle.join(5,13,{level:99,power:999}),false);
-  assert.deepEqual(battle.snapshot().armies,{1:{level:2,power:1.1},2:{level:5,power:1.4},3:{level:10,power:1.9},4:{level:3,power:1.2}});
+  assert.deepEqual(battle.snapshot().armies,{1:{level:2,power:1.1,loadout:['tanque']},2:{level:5,power:1.4,loadout:['tanque']},3:{level:10,power:1.9,loadout:['tanque']},4:{level:3,power:1.2,loadout:['tanque']}});
   for(let i=0;i<100;i++)battle.step(1/30);
   const saved=battle.checkpoint(),restored=factory.restoreBattle(saved);assert.deepEqual(restored.snapshot(),battle.snapshot());assert.deepEqual(saved.config,configWithDefaults(config));
   for(let i=0;i<200;i++){battle.step(1/30);restored.step(1/30);}assert.deepEqual(restored.snapshot(),battle.snapshot());
-  function configWithDefaults(c){return {share:.5,difficulty:1,seed:1,maxSeconds:360,centralOwner:2,defenderBaseCount:3,attackerPower:1.1,defenderPower:1.4,neutralPower:1.1,attackerLevel:2,defenderLevel:5,balanceVersion:c.balanceVersion};}
+  function configWithDefaults(c){return {share:.5,difficulty:1,seed:1,maxSeconds:360,centralOwner:2,defenderBaseCount:3,attackerPower:1.1,defenderPower:1.4,neutralPower:1.1,attackerLevel:2,defenderLevel:5,balanceVersion:c.balanceVersion,attackerLoadout:['tanque'],defenderLoadout:['tanque']};}
 });
 test('replay binds the entrant army to the server ticket and keeps strength after reconnection',()=>{
   const config={share:.5,centralOwner:2,defenderBaseCount:3,attackerPower:1,defenderPower:.8,neutralPower:1,maxSeconds:1},input={nonce:'join-army',kind:'join',owner:3,site:12,armyLevel:10,armyPower:1.9,playerId:'third',playerName:'Third',joinedAt:new Date().toISOString()};

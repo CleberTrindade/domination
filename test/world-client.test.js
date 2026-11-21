@@ -18,10 +18,10 @@ test('individual troop screen purchases only the selected type and recovers lost
     return {ok:true,json:async()=>structuredClone(world)};
   }};
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
-  assert(root.innerHTML.includes('5 tipos · níveis individuais'));assert(root.innerHTML.includes('3 bases + bombardeiro'));
+  assert(root.innerHTML.includes('11 tipos · níveis individuais'));assert(root.innerHTML.includes('3 bases + bombardeiro'));
   await root.listeners.click({target:{closest:()=>({dataset:{tab:'troops'}})}});assert(root.innerHTML.includes('EVOLUÇÃO INDIVIDUAL'));assert(root.innerHTML.includes('Bombardeiro central'));
   const rootClick=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dialogClick=action=>dialog.listeners.click({target:{closest:()=>({dataset:{dialog:action}})}});
-  assert.equal((root.innerHTML.match(/data-select-troop=/g)||[]).length,5);assert(!root.innerHTML.includes('data-troop='));
+  assert.equal((root.innerHTML.match(/data-select-troop=/g)||[]).length,11);assert(!root.innerHTML.includes('data-troop='));
   await rootClick({selectTroop:'heli'});assert(root.innerHTML.includes('data-troop="heli"'));assert(!root.innerHTML.includes('data-troop="tanque"'));assert.equal(dialog.open,false);
   await rootClick({troop:'heli'});assert(dialog.innerHTML.includes('MELHORAR · 60'));assert(dialog.innerHTML.includes('apenas <strong>Helicóptero'));assert(dialog.innerHTML.includes('INTERVALO DE TIROS'));
   assert.equal(calls.length,0);await dialogClick('confirm-upgrade');assert.equal(calls.length,0,'details alone never authorize a purchase');
@@ -186,4 +186,21 @@ test('territory previews expose different battlefield terrain and the matching i
   assert(root.innerHTML.includes('Arquipélago costeiro'));await click({action:'preview-map'});assert(dialog.innerHTML.includes('ILHAS')||dialog.innerHTML.includes('Ilhas'));
   assert.equal((dialog.innerHTML.match(/<polygon /g)||[]).length,65);assert.equal((dialog.innerHTML.match(/fill="#ae554f"/g)||[]).length,4);
   dialog.close();await click({area:'se-agreste'});assert(root.innerHTML.includes('Encruzilhadas do Agreste'));await click({action:'preview-map'});assert.equal((dialog.innerHTML.match(/<polygon /g)||[]).length,101);assert(dialog.innerHTML.includes('Q: quartel'));
+});
+test('expanded collection previews origin bases and saves at most three unlocked ground choices in order',async()=>{
+ const root=element(),dialog=element(),body=element(),calls=[];
+ const rules=require('../shared/troop-rules'),{armyView,ARMY_RULES}=require('../server/progression'),{troopCatalog}=require('../server/troops');
+ const levels=Object.fromEntries(rules.KINDS.map(k=>[k,7])),army=armyView({level:7,levels,battles:250,owned:0,loadout:['tanque']},100000n,0);
+ const world={player:{id:'hero',name:'Hero',username:'hero'},army,troops:troopCatalog(army),progression:ARMY_RULES,wallet:{balance:1000,available:1000,reserved:0,entries:[]},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32}],ranking:[],history:[]};
+ const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
+ const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{},DOMINATION_TROOP_RULES:rules,DOMINATION_TROOP_ART:require('../public/troop-art')},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,opts)=>{
+  if(path.endsWith('/loadout')){const input=JSON.parse(opts.body);calls.push(input);world.army.loadout=input.troops;return{ok:true,json:async()=>({army:structuredClone(world.army)})};}
+  return{ok:true,json:async()=>structuredClone(world)};
+ }};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
+ await click({tab:'troops'});assert(root.innerHTML.includes('NÍVEL 7'));assert(root.innerHTML.includes('250 batalhas válidas'));
+ await click({troop:'engenheiro'});await dc({dialog:'troop-base'});assert(dialog.innerHTML.includes('/art/bases-expanded-v1.png'));assert(dialog.innerHTML.includes('Oficina de engenharia'));await dc({dialog:'close'});
+ await click({action:'loadout'});assert(dialog.innerHTML.includes('Selecionadas: 1/3'));await dc({loadoutKind:'batedor'});await dc({loadoutKind:'engenheiro'});await dc({loadoutKind:'artilharia'});assert(dialog.innerHTML.includes('no máximo três'));assert.equal(calls.length,0);
+ await dc({dialog:'save-loadout'});await flush();assert.equal(calls.length,1);assert.deepEqual(calls[0].troops,['tanque','batedor','engenheiro']);assert.equal(dialog.open,false);assert(root.innerHTML.includes('Tanque · Batedor · Engenheiro'));
 });

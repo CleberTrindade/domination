@@ -223,13 +223,68 @@ exige novo nome. As imagens de apresentação não são carregadas pelo combate.
 Os sprites do combate são rasterizados uma vez por tipo, cor e direção; o
 pré-carregamento ocorre em lotes de quatro e a geometria é compartilhada
 entre as cores. Não há geração de modelos a cada quadro nem consulta ao banco.
-As seis tropas propostas e a progressão por cartas ainda são propostas de
-expansão; esta atualização implementa a arte das cinco unidades existentes.
+A expansão inclui seis tropas terrestres com bases próprias: batedor,
+lança-foguetes, blindado pesado, antiaéreo, engenheiro e artilharia móvel.
+Quartel, garagem, heliporto e base de botes também receberam modelos novos.
+A coleção permite alternar a visualização entre a tropa e sua base de origem.
+As novas pranchas ficam em `public/art/*-expanded-v1.png` e
+`public/art/bases-initial-v1.png`. O sistema de acumular cartas segue como
+proposta separada; as compras desta versão continuam usando moedas.
+
+### Comandante e formação terrestre
+
+O comandante usa os níveis de tipos diferentes (sem contar a central) e um
+contador de batalhas válidas. Os requisitos são cumulativos:
+
+| Comandante | Desbloqueio | Treinamento mínimo | Batalhas |
+|---|---|---|---:|
+| 2 | Batedor | 2 tipos no nível 2 | 10 |
+| 3 | Lança-foguetes | 3 tipos no nível 3 | 30 |
+| 4 | Blindado pesado | 4 tipos no nível 4 | 60 |
+| 5 | Antiaéreo | 5 tipos no nível 5 | 100 |
+| 6 | Engenheiro | 6 tipos no nível 6 | 160 |
+| 7 | Artilharia móvel | 7 tipos no nível 7 | 250 |
+
+A migração 010 acrescenta `battles_completed` e `ground_loadout`. Resultados
+verificados contam uma vez, na transação de encerramento, quando o participante
+permanece pelo menos 30 segundos no combate sem desistir. A defesa precisa
+estar sob controle humano por esse período. Partidas canceladas e defesas
+inteiramente automáticas não contam. O histórico anterior compatível é
+contabilizado pela migração, sem alterar resultados ou saldos.
+
+`POST /api/world/army/loadout` salva de um a três tipos terrestres distintos,
+validados pelo servidor. O primeiro equipa o quartel inicial. Os demais são
+distribuídos deterministicamente pelos quartéis e garagens conquistados;
+heliportos, botes, canhões e central mantêm suas especialidades. Capturar uma
+base aplica a formação do novo dono, sem liberar tipos bloqueados. A formação
+e os níveis ficam congelados no início ou na entrada como invasor, incluindo
+a defesa offline. A CPU de área livre usa a formação do atacante com a força
+individual reduzida já configurada. Os mapas continuam com 17 posições.
+
+A configuração `troops-v3` habilita velocidade, resistência, cadência,
+produção e vantagens contra alvos por tipo. Batedores são rápidos e frágeis;
+foguetes enfrentam tanques/blindados; antiaéreos enfrentam helicópteros;
+blindados resistem mais e são lentos. Engenheiros que chegam a bases aliadas
+criam até 20 pontos de fortificação, consumidos antes da guarnição e desgastados
+a 0,3 por segundo. Artilharia para a três hexágonos do alvo e atira a cada
+1,3 segundo; o cerco não conquista à distância, exigindo chegada das tropas.
+
+As regras são compartilhadas por `shared/troop-rules.js`, pelo worker do
+navegador e pelo replay de validação. Checkpoints guardam formação, fortalezas,
+cadência do cerco e tempo de participação; entradas tardias usam dados do
+ticket autorizado. Configurações antigas continuam no comportamento anterior.
+Nenhuma ordem de movimento consulta o banco. Os coeficientes iniciais precisam
+de acompanhamento durante testes de jogadores, sem promessa de taxa de vitória.
 
 ## Evolução individual e parâmetros de teste
 
-Contas novas começam com cinco níveis independentes: tanque (`tanque`), bote
-(`desliz`), helicóptero (`heli`), canhão (`canhao`) e bombardeiro (`central`).
+Contas novas possuem onze níveis independentes: tanque (`tanque`), bote
+(`desliz`), helicóptero (`heli`), canhão (`canhao`), bombardeiro (`central`),
+batedor (`batedor`), lança-foguetes (`foguetes`), blindado (`blindado`),
+antiaéreo (`antiaereo`), engenheiro (`engenheiro`) e artilharia (`artilharia`).
+Os cinco tipos originais ficam disponíveis no início; os seis novos são
+liberados pelo comandante e sempre começam no nível 1, inclusive em contas
+com treinamento anterior. Níveis e moedas já comprados são preservados.
 A migração 008 preserva o treinamento geral já comprado como nível inicial de
 **cada** tipo. A primeira compra individual materializa os cinco níveis em
 `world_players.troop_levels`; `army_level` passa a representar o maior nível,
@@ -263,7 +318,7 @@ transação. `requestId` é idempotente e vinculado ao tipo; `expectedLevel` imp
 acidentais de níveis consecutivos. Preço, novo nível e força são calculados no
 servidor. O cliente não escolhe esses valores.
 
-A melhoria vale nas próximas disputas. Os cinco níveis do atacante e do dono
+A melhoria vale nas próximas disputas. Os níveis individuais do atacante e do dono
 são fixados no início; invasores usam seus próprios níveis no momento de pedir
 entrada. Nas áreas livres a CPU usa 80% do poder **de cada tipo** do atacante;
 áreas ocupadas preservam os níveis individuais reais do dono. Uma

@@ -77,7 +77,7 @@ test('persistent army progression protects money, freezes battle levels and reco
       const joined=(await api('/api/world/battles/'+record.id,charlie)).data;assert.equal(joined.players.find(p=>p.owner===3).level,10);assert.equal(joined.snapshot.armies[3].power,1.9);
       assert.equal(factory.restoreBattle(runner.checkpoint().checkpoint).snapshot().armies[2].level,5);
       await api('/api/world/battles/'+record.id+'/release',bob,{});await surrender(record,charlie);await surrender(record,alice);
-      const final=(await api('/api/world/battles/'+record.id,alice)).data.final;assert.equal(final.balance.version,'troops-v2');assert.equal(final.balance.defenderParticipated,true);
+      const final=(await api('/api/world/battles/'+record.id,alice)).data.final;assert.equal(final.balance.version,'troops-v3');assert.equal(final.balance.defenderParticipated,true);
       const row=(await pool.query('SELECT army_level FROM world_battle_participants WHERE battle_id=$1 AND side=2',[record.id])).rows[0];assert.equal(row.army_level,5);
       const next=await start('se-agreste',alice);assert.equal(next.config.defenderLevel,6);await surrender(next,alice);
     });
