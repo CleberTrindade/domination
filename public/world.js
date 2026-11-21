@@ -85,6 +85,25 @@
     });
   }
   function areaClass(area) { return area.owner_id ? (area.owner_id === data?.player?.id ? 'mine' : 'rival') : ''; }
+  const menuIcon=key=>`<svg viewBox="0 0 24 24" aria-hidden="true">${({
+    profile:'<circle cx="12" cy="7" r="4" fill="#8fb8f2"/><path d="M4 22v-3a8 8 0 0 1 16 0v3z" fill="#6d7bb8"/>',
+    troops:'<path d="M12 2 20 5v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="#6d7bb8"/><path d="m12 6 5 5h-3v5h-4v-5H7z" fill="#fff"/>',
+    territories:'<path d="m4 3 10 10M20 3 10 13" stroke="#8fb8f2" stroke-width="3.2" stroke-linecap="round"/><path d="m6 14 4 4m8-4-4 4M4 20l3-3m13 3-3-3" stroke="#6d7bb8" stroke-width="3" stroke-linecap="round"/>',
+    received:'<path d="M5 17h14l-2-4V9A5 5 0 0 0 7 9v4z" fill="#8fb8f2" stroke="#6d7bb8" stroke-width="1.8"/><path d="M10 21h4" stroke="#6d7bb8" stroke-width="2.5" stroke-linecap="round"/>',
+    more:'<path d="M4 6h16M4 12h16M4 18h16" stroke="#6d7bb8" stroke-width="3" stroke-linecap="round"/>',
+    ranking:'<path d="M7 3h10v5c0 8-10 8-10 0z" fill="#edc45a"/><path d="M7 5H3v3q0 5 6 5m8-8h4v3q0 5-6 5M12 15v5m-4 1h8" fill="none" stroke="#a88b48" stroke-width="2"/>',
+    history:'<circle cx="12" cy="12" r="9" fill="#e1e8f5" stroke="#6d7bb8" stroke-width="2"/><path d="M12 6v6l4 3" fill="none" stroke="#6d7bb8" stroke-width="2" stroke-linecap="round"/>',
+    wallet:'<rect x="3" y="5" width="18" height="15" rx="3" fill="#8fb8f2"/><path d="M3 7V5l14-3v3" fill="none" stroke="#6d7bb8" stroke-width="2"/><path d="M16 10h6v6h-6z" fill="#6d7bb8"/><circle cx="18" cy="13" r="1" fill="white"/>',
+    classic:'<path d="m3 5 6-2 6 3 6-2v15l-6 2-6-3-6 2z" fill="#8fb8f2"/><path d="M9 3v15m6-12v15" stroke="#fff" stroke-width="1.5"/>'
+  })[key]||''}</svg>`;
+  function mainNavigation(){
+    const active=['ranking','history','more'].includes(tab)?'more':tab;
+    return `<nav id="worldNav" class="w-world-nav" aria-label="Navegação principal do mundo" role="tablist">${[['profile','PERFIL'],['troops','TROPAS'],['territories','BATALHA'],['received','ATAQUES'],['more','MENU']].map(([key,label])=>`<button role="tab" data-tab="${key}" aria-selected="${active===key}" class="${active===key?'on':''}">${menuIcon(key)}<span>${label}</span>${key==='received'&&data.receivedAttacks?.length?'<b class="w-nav-count" aria-label="'+data.receivedAttacks.length+' ataques recentes">'+data.receivedAttacks.length+'</b>':''}</button>`).join('')}</nav>`;
+  }
+  function mainMenu(){
+    const items=[['ranking','Ranking','Comandantes e áreas conquistadas','tab','ranking'],['history','Histórico do mundo','As últimas disputas de Sergipe','tab','history'],...(data.wallet?[['wallet','Carteira','Saldo, produção e movimentações','action','wallet']]:[]),['profile',data.player?'Minha conta':'Entrar na conta',data.player?'Perfil e histórico das suas partidas':'Acesse suas conquistas em qualquer aparelho','action','account'],['classic','Modo clássico','Campanha, duelos e melhorias do clássico','action','classic']];
+    return `<div class="w-heading"><div><h1>Menu</h1><p>Todos os caminhos do seu comandante.</p></div></div><nav class="w-menu-list" aria-label="Outras opções do jogo">${items.map(([icon,title,description,attribute,value])=>`<button class="w-menu-item" data-${attribute}="${value}"><i>${menuIcon(icon)}</i><span><strong>${title}</strong><small>${description}</small></span><b aria-hidden="true">›</b></button>`).join('')}</nav>`;
+  }
   function tacticalMap(area){
     const catalog=window.DOMINATION_MAPS;if(!catalog||!area.map_id)return '';
     const map=catalog.geometry(area.map_id),defense=new Set(area.map_defender_sites||[]),attacker=area.map_attacker_site;
@@ -225,11 +244,10 @@
       ${data.wallet?'<button class="w-wallet" data-action="wallet" aria-label="Carteira e regras de moedas"><span>🪙 <strong>'+money(data.wallet.available)+'</strong><small> DISPONÍVEIS</small></span><span>'+money(data.wallet.reserved)+' reservadas · +'+money(data.wallet.productionPerDay)+'/dia ›</span></button>':''}
       ${data.army?'<button class="w-army-card" data-action="troops" aria-label="Tropas e evolução individual"><span><strong>SEU EXÉRCITO</strong><small>5 tipos · níveis individuais</small></span><b>VER TROPAS ›</b></button>':''}
       <div class="w-breadcrumb">BRASIL <span>›</span> NORDESTE <span>›</span> <span>SERGIPE</span></div>
-      <nav class="w-tabs" aria-label="Navegação do mundo" role="tablist">${[['territories', 'TERRITÓRIOS'], ['troops','TROPAS'], ['profile','PERFIL'], ['received','ATAQUES'], ['ranking', 'RANKING'], ['history', 'HISTÓRICO']].map(([key, label]) => `<button role="tab" data-tab="${key}" aria-selected="${tab === key}">${label}${key==='received'&&data.receivedAttacks?.length?'<span class="w-tab-count">'+data.receivedAttacks.length+'</span>':''}</button>`).join('')}</nav>
       ${error ? '<div class="w-error" role="alert">' + esc(error) + '</div>' : ''}
       ${tab==='territories'&&data.receivedAttacks?.length?'<button class="w-banner w-received-banner" data-action="received">⚔ '+data.receivedAttacks.length+' ataques sofridos · Ver lista e responder ›</button>':''}
-      ${tab === 'territories' ? map() : tab==='troops'?troopsScreen():tab==='profile'?playerProfile():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : history()}
-      <footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p><button class="w-textbtn" data-action="classic">MODO CLÁSSICO ›</button></footer>`;
+      ${tab === 'territories' ? map() : tab==='troops'?troopsScreen():tab==='profile'?playerProfile():tab==='more'?mainMenu():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : history()}
+      <footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p></footer>${mainNavigation()}`;
   }
   async function refresh(force = false) {
     try {

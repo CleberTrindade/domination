@@ -186,8 +186,11 @@ O balanceamento será ajustado com as partidas reais.
 
 ## Perfil e tropas
 
-A navegação inclui **Perfil** e **Tropas**. O nome no cabeçalho também abre o
-próprio perfil. O perfil mostra nome, usuário, data de criação, áreas atuais,
+A tela principal tem menu inferior fixo no estilo clássico: **Perfil, Tropas,
+Batalha, Ataques e Menu**, com indicador de ataques e destaque da opção ativa.
+**Menu** reúne ranking, histórico do mundo, carteira, conta e acesso ao modo
+clássico. A barra fica oculta durante batalhas e a área rolável reserva espaço
+para não cobrir o conteúdo. O nome no cabeçalho também abre o próprio perfil. O perfil mostra nome, usuário, data de criação, áreas atuais,
 níveis individuais, vitórias, derrotas, desistências e histórico pessoal em
 páginas de 20 partidas. Inclui ataques, defesas automáticas/online e invasores,
 com resultado individual, participantes originais, vencedor, datas e moedas
