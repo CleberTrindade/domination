@@ -13,7 +13,7 @@
   let socket=null,socketPlayer=null,socketReady=false,retryTimer=null,retryDelay=1000,requestId=0,refreshTimer=null,switchingDefense=false;
   const pending=new Map(),threats=new Map(),watchedThreats=new Map();let alertDigest='';
   let reviewOnReturn=true;
-  let upgrading=false,upgradeRequest=null,selectedTroop='tanque';
+  let upgrading=false,upgradeRequest=null,selectedTroop='tanque',selectedTroopCard=null,upgradeConfirmation=null;
   let profile=null,profileOwner=null,profileLoading=false,profileError='',profileRequest=0;
   const troopNames={tanque:'Tanque',desliz:'Bote',heli:'Helicóptero',canhao:'Canhão',central:'Bombardeiro central'};
   const dateTime=value=>new Date(value).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -188,10 +188,15 @@
       ${profile&&!profileLoading&&profile.pagination.pages>1?'<div class="w-pagination"><button data-profile-page="'+(profile.pagination.page-1)+'" '+(profile.pagination.page===1?'disabled':'')+'>ANTERIOR</button><span>'+profile.pagination.page+' / '+profile.pagination.pages+'</span><button data-profile-page="'+(profile.pagination.page+1)+'" '+(profile.pagination.page===profile.pagination.pages?'disabled':'')+'>PRÓXIMA</button></div>':''}
       <button class="w-textbtn w-logout" data-action="logout-confirm">SAIR DA CONTA</button>`;
   }
+  function troopMetrics(t){
+    return `<div class="w-troop-metrics"><div><small>FORÇA</small><b>${Math.round(t.power*100)}%</b></div><div><small>DANO POR DISPARO</small><b>${stat(t.damage)}</b></div><div><small>${t.speed?'VELOCIDADE RELATIVA':'ALCANCE EM HEXÁGONOS'}</small><b>${t.speed?Math.round(t.speed/42*100)+'%':stat(t.range)}</b></div><div><small>INTERVALO DE TIROS</small><b>${stat(t.interval)} s</b></div></div>`;
+  }
   function troopsScreen(){
-    return `<div class="w-heading"><div><h1>Suas tropas</h1><p>Conheça seu exército. Escolha o que evoluir.</p></div></div><div class="w-training-note"><strong>EVOLUÇÃO INDIVIDUAL</strong><p>Cada tipo possui seu próprio nível, de 1 a 10. Cada evolução acrescenta ${data.progression?.powerStep||10} pontos de força apenas ao tipo escolhido.</p><small>As melhorias valem nas próximas batalhas. As disputas em andamento mantêm os níveis de entrada.</small></div>
+    return `<div class="w-heading"><div><h1>Suas tropas</h1><p>Selecione uma carta para ver os detalhes e melhorar.</p></div></div>
       ${!data.player?'<button class="w-banner" data-action="account">ENTRE PARA SALVAR E EVOLUIR SUAS TROPAS ›</button>':''}
-      <div class="w-troop-list">${(data.troops||[]).map(t=>`<article class="w-troop-card"><div class="w-troop-heading"><div class="w-troop-illustration ${t.id}">${troopIcon(t.id)}</div><div><span class="w-kicker">${esc(t.category)}</span><h2>${esc(t.name)}</h2><span class="w-troop-level">NÍVEL ${t.level} / 10</span></div></div><p>${esc(t.description)}</p><div class="w-troop-metrics"><div><small>FORÇA</small><b>${Math.round(t.power*100)}%</b></div><div><small>DANO POR DISPARO</small><b>${stat(t.damage)}</b></div><div><small>${t.speed?'VELOCIDADE RELATIVA':'ALCANCE EM HEXÁGONOS'}</small><b>${t.speed?Math.round(t.speed/42*100)+'%':stat(t.range)}</b></div><div><small>INTERVALO DE TIROS</small><b>${stat(t.interval)} s</b></div></div><p class="w-troop-tip"><strong>Origem:</strong> ${esc(t.base)}<br>${esc(t.tip)}</p><button class="w-cta" data-troop="${t.id}">${!data.player?'VER EVOLUÇÃO':t.nextCost?'EVOLUIR · '+money(t.nextCost)+' 🪙':'NÍVEL MÁXIMO'}</button></article>`).join('')}</div><p class="w-detail">Velocidade relativa ao tanque. O dano representa tropas retiradas por disparo; capturas também consideram a força da guarnição. Canhões e bombardeiro evoluem seus disparos fixos. As tropas enviadas dessas posições usam o nível dos tanques.</p>`;
+      <div class="w-collection-heading"><span class="w-kicker">COLEÇÃO DE TROPAS</span><b>${(data.troops||[]).length} TIPOS</b></div>
+      <div class="w-troop-collection">${(data.troops||[]).map(t=>`<article class="w-collection-slot ${selectedTroopCard===t.id?'selected':''}"><button class="w-collection-card ${t.id}" data-select-troop="${t.id}" aria-pressed="${selectedTroopCard===t.id}" aria-label="Selecionar ${esc(t.name)}, nível ${t.level}"><span class="w-card-level">NÍVEL ${t.level}</span><span class="w-card-art">${troopIcon(t.id)}</span><strong>${esc(t.name)}</strong><span class="w-card-progress"><i style="width:${t.level*10}%"></i></span><small>${t.nextCost?'PRÓXIMO: '+money(t.nextCost)+' 🪙':'NÍVEL MÁXIMO'}</small></button>${selectedTroopCard===t.id?'<button class="w-card-details" data-troop="'+t.id+'" aria-label="Ver detalhes de '+esc(t.name)+'">DETALHES</button>':''}</article>`).join('')}</div>
+      <div class="w-training-note"><strong>EVOLUÇÃO INDIVIDUAL</strong><p>Cada tipo possui seu próprio nível, de 1 a 10. Cada evolução acrescenta ${data.progression?.powerStep||10} pontos de força apenas ao tipo escolhido.</p><small>As melhorias valem nas próximas batalhas. As disputas em andamento mantêm os níveis de entrada.</small></div>`;
   }
   const receivedLabel={active:'EM ANDAMENTO',won:'ÁREA PERDIDA',lost:'DEFESA BEM-SUCEDIDA',abandoned:'ATAQUE ABANDONADO',interrupted:'BATALHA INTERROMPIDA',expired:'BATALHA ENCERRADA'};
   function receivedList(){
@@ -262,15 +267,23 @@
   }
   function modal(html) { if (dialog.open) dialog.close(); dialog.innerHTML = html; dialog.showModal(); }
   function showArmy(kind=selectedTroop,message='',failed=false){
-    selectedTroop=kind;
+    selectedTroop=kind;upgradeConfirmation=null;
     const troop=(data.troops||[]).find(t=>t.id===kind),army=data.army?.troops?.[kind];
     if(!troop)return;
     const costs=data.progression.upgradeCosts;
-    modal(`<div class="w-troop-modal-art">${troopIcon(kind)}</div><h2>${esc(troop.name)} · Nível ${troop.level}</h2><p>${esc(troop.description)}</p><div class="w-army-next">${troop.nextPower?'<strong>Nível '+troop.level+' → '+(troop.level+1)+'</strong><p>Força: '+Math.round(troop.power*100)+'% → '+Math.round(troop.nextPower*100)+'%<br>Dano: '+stat(troop.damage)+' → '+stat(troop.nextDamage)+' por disparo<br>Custo: '+money(troop.nextCost)+' moedas</p>':'<strong>Este tipo atingiu o nível máximo.</strong>'}</div><p>Esta compra evolui apenas <strong>${esc(troop.name)}</strong>. A melhoria vale nas próximas batalhas. As moedas reservadas para disputas continuam protegidas.</p>${data.wallet?'<p>Disponíveis: '+money(data.wallet.available)+' moedas · Reservadas: '+money(data.wallet.reserved)+'</p>':''}${army?.reason?'<p class="w-form-error">'+esc(army.reason)+'</p>':''}${message?'<p class="'+(failed?'w-form-error':'w-upgrade-success')+'" role="status">'+esc(message)+'</p>':''}${!data.player?'<button class="w-cta" data-dialog="login">ENTRAR PARA EVOLUIR</button>':'<button class="w-cta" data-dialog="upgrade-army" '+(!army?.canUpgrade||upgrading?'disabled':'')+'>'+(upgrading?'EVOLUINDO…':army.nextCost?'EVOLUIR POR '+money(army.nextCost)+' MOEDAS':'NÍVEL MÁXIMO')+'</button>'}<details class="w-upgrade-details"><summary>Ver níveis e custos deste tipo</summary><table><thead><tr><th>Nível</th><th>Força</th><th>Custo</th></tr></thead><tbody>${costs.slice(1).map((cost,i)=>'<tr class="'+(i+1===troop.level?'current':'')+'"><td>'+(i+1)+'</td><td>'+(100+i*data.progression.powerStep)+'%</td><td>'+(cost?money(cost):'Inicial')+'</td></tr>').join('')}</tbody></table></details><button class="w-textbtn" data-dialog="close">VOLTAR ÀS TROPAS</button>`);
+    modal(`<section class="w-troop-detail" aria-labelledby="troopDetailTitle"><button class="w-detail-close" data-dialog="close" aria-label="Fechar detalhes">×</button><div class="w-detail-hero ${kind}">${troopIcon(kind)}<span>${esc(troop.category)}</span></div><div class="w-detail-title"><h2 id="troopDetailTitle">${esc(troop.name)}</h2><b>NÍVEL ${troop.level} / 10</b></div><p>${esc(troop.description)}</p>${troopMetrics(troop)}<p class="w-troop-tip"><strong>Origem:</strong> ${esc(troop.base)}<br>${esc(troop.tip)}</p><div class="w-army-next">${troop.nextPower?'<strong>Próxima melhoria · Nível '+troop.level+' → '+(troop.level+1)+'</strong><p>Força: '+Math.round(troop.power*100)+'% → '+Math.round(troop.nextPower*100)+'%<br>Dano: '+stat(troop.damage)+' → '+stat(troop.nextDamage)+' por disparo</p>':'<strong>Este tipo atingiu o nível máximo.</strong>'}</div><p>Melhora apenas <strong>${esc(troop.name)}</strong>, nas próximas batalhas. Canhões e bombardeiro melhoram os disparos fixos; as tropas que saem dessas posições usam o nível dos tanques.</p>${data.wallet?'<p>Disponíveis: '+money(data.wallet.available)+' moedas · Reservadas: '+money(data.wallet.reserved)+'</p>':''}${army?.reason?'<p class="w-form-error">'+esc(army.reason)+'</p>':''}${message?'<p class="'+(failed?'w-form-error':'w-upgrade-success')+'" role="status">'+esc(message)+'</p>':''}${!data.player?'<button class="w-cta" data-dialog="login">ENTRAR PARA MELHORAR</button>':'<button class="w-cta" data-dialog="review-upgrade" '+(!army?.canUpgrade||upgrading?'disabled':'')+'>'+(upgrading?'MELHORANDO…':army.nextCost?'MELHORAR · '+money(army.nextCost)+' 🪙':'NÍVEL MÁXIMO')+'</button>'}<details class="w-upgrade-details"><summary>Ver níveis e custos deste tipo</summary><table><thead><tr><th>Nível</th><th>Força</th><th>Custo</th></tr></thead><tbody>${costs.slice(1).map((cost,i)=>'<tr class="'+(i+1===troop.level?'current':'')+'"><td>'+(i+1)+'</td><td>'+(100+i*data.progression.powerStep)+'%</td><td>'+(cost?money(cost):'Inicial')+'</td></tr>').join('')}</tbody></table></details><button class="w-textbtn" data-dialog="close">VOLTAR ÀS TROPAS</button></section>`);
+  }
+  function reviewUpgrade(){
+    const kind=selectedTroop,troop=(data?.troops||[]).find(t=>t.id===kind),army=data?.army?.troops?.[kind];
+    if(upgrading||!troop||!army?.canUpgrade)return;
+    upgradeConfirmation={kind,level:army.level,cost:army.nextCost};
+    modal(`<section class="w-upgrade-confirm" aria-labelledby="upgradeConfirmTitle"><div class="w-troop-modal-art">${troopIcon(kind)}</div><span class="w-kicker">CONFIRMAR MELHORIA</span><h2 id="upgradeConfirmTitle">Melhorar ${esc(troop.name)}?</h2><div class="w-army-next"><strong>Nível ${army.level} → ${army.nextLevel}</strong><p>Força: ${Math.round(army.power*100)}% → ${Math.round(army.nextPower*100)}%<br>Dano: ${stat(troop.damage)} → ${stat(troop.nextDamage)} por disparo</p></div><p>Você vai gastar <strong>${money(army.nextCost)} moedas</strong>.<br>Saldo disponível após a melhoria: <strong>${money(data.wallet.available-army.nextCost)} moedas</strong>.</p><p>A melhoria vale apenas para esta tropa, nas próximas batalhas. As moedas reservadas continuam protegidas.</p><div class="w-dialog-buttons"><button class="w-cta" data-dialog="confirm-upgrade">CONFIRMAR · ${money(army.nextCost)} 🪙</button><button class="w-textbtn" data-dialog="troop-details">CANCELAR E VOLTAR AOS DETALHES</button></div></section>`);
   }
   async function upgradeArmy(){
-    const kind=selectedTroop,army=data?.army?.troops?.[kind];
-    if(upgrading||!army?.canUpgrade)return;
+    const confirmation=upgradeConfirmation,kind=confirmation?.kind,army=data?.army?.troops?.[kind];
+    if(upgrading||!confirmation)return;
+    if(!army?.canUpgrade){showArmy(kind);return;}
+    if(army.level!==confirmation.level||army.nextCost!==confirmation.cost){showArmy(kind,'Os dados da melhoria mudaram. Confira o nível e o custo antes de confirmar novamente.',true);return;}
     const level=army.level;
     if(upgradeRequest?.expectedLevel!==level||upgradeRequest?.troopKind!==kind)upgradeRequest={troopKind:kind,expectedLevel:level,requestId:crypto.randomUUID()};
     upgrading=true;showArmy(kind);
@@ -491,6 +504,7 @@
     const button = event.target.closest('button'); if (!button || button.disabled) return;
     if (button.dataset.area) { selected = button.dataset.area; tab = 'territories'; render(); return; }
     if (button.dataset.tab) { navigate(button.dataset.tab); return; }
+    if(button.dataset.selectTroop){selectedTroopCard=button.dataset.selectTroop;render();return;}
     if(button.dataset.troop){showArmy(button.dataset.troop);return;}
     if(button.dataset.profilePage){loadProfile(Number(button.dataset.profilePage));return;}
     if(receivedAction(button))return;
@@ -511,15 +525,18 @@
       else navigate('profile');
     }
   });
+  dialog.addEventListener('cancel',()=>{upgradeConfirmation=null;});
   dialog.addEventListener('click', async event => {
     const button = event.target.closest('button'); if (!button) return;
     if(button.disabled)return;
     if(receivedAction(button))return;
     const action = button.dataset.dialog;
-    if (action === 'close') dialog.close();
+    if (action === 'close') {upgradeConfirmation=null;dialog.close();}
     if (action === 'register') authForm(true);
     if (action === 'login') authForm(false);
-    if(action==='upgrade-army')await upgradeArmy();
+    if(action==='review-upgrade')reviewUpgrade();
+    if(action==='troop-details')showArmy();
+    if(action==='confirm-upgrade')await upgradeArmy();
     if(action==='received')showReceived();
     if(action==='switch-defense')defend(button.dataset.battle,true);
     if(action==='release-defense'&&current?.playerOwner===2){

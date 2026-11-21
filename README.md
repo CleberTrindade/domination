@@ -200,9 +200,13 @@ entram como decisões sem vitória. Histórico legado sem roster usa os IDs do
 atacante/defensor. A consulta exige a sessão do próprio jogador e é feita ao
 abrir/atualizar o perfil, sem acrescentar leitura por comando de combate.
 
-A tela Tropas tem catálogo público com ilustrações, função, origem, força,
-dano por disparo, velocidade relativa/alcance e intervalo de tiros. Cada cartão
-abre sua própria compra e a tabela de preços, com nível atual/próximo e saldo.
+A tela Tropas apresenta uma coleção de cartas com ilustração, nível e custo da
+próxima melhoria. Selecionar uma carta revela **Detalhes**. A janela de detalhes
+mostra função, origem, força, dano, velocidade/alcance, intervalo e tabela de
+preços. **Melhorar** abre uma confirmação com nível atual/próximo, custo e
+saldo restante; somente **Confirmar** envia a compra. Cancelar retorna aos
+detalhes sem gastar moedas. O nível e o custo são conferidos novamente antes
+do envio, preservando a compra individual e a proteção contra duplicidade.
 
 ## Evolução individual e parâmetros de teste
 

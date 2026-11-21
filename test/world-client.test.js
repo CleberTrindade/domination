@@ -7,12 +7,12 @@ function element(){return {innerHTML:'',textContent:'',style:{},dataset:{},liste
   setAttribute(){},append(child){this.children.push(child);},showModal(){this.open=true;},close(){this.open=false;},querySelector(){return element();}};}
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 test('individual troop screen purchases only the selected type and recovers lost confirmations',async()=>{
-  const root=element(),dialog=element(),body=element(),calls=[];let loseConfirmation=false;
+  const root=element(),dialog=element(),body=element(),calls=[],listeners={};let loseConfirmation=false;
   const {armyView,ARMY_RULES}=require('../server/progression'),{troopCatalog}=require('../server/troops');
   const wallet={level:1,levels:{tanque:1,desliz:1,heli:1,canhao:1,central:1},owned:0};let balance=1000;
   const world={player:{id:'hero',name:'Hero',username:'hero'},progression:structuredClone(ARMY_RULES),wallet:{balance:1000,available:1000,reserved:0,productionPerDay:0,entries:[]},economy:{initialCoins:1000,minEntry:0,productionPerDay:1000,cpuReward:300,lootPercent:40},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32,defense_share:19/81,defense_bases:3,resistance:'Baixa',first_capture_reward:300}],ranking:[],history:[]};
   function update(){world.army=armyView(wallet,BigInt(balance*100),100);world.troops=troopCatalog(world.army);world.wallet.balance=world.wallet.available=balance;}update();
-  const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
+  const document={body,hidden:false,createElement:element,addEventListener(type,fn){listeners[type]=fn;},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
   const context={crypto:require('node:crypto').webcrypto,document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{
     if(path.endsWith('/upgrade')){const input=JSON.parse(options.body);calls.push(input);assert.equal(input.troopKind,'heli');assert.equal(input.expectedLevel,wallet.levels.heli);balance-=world.army.troops.heli.nextCost;wallet.levels.heli++;wallet.level=wallet.levels.heli;update();if(loseConfirmation)throw Error('Reply lost');}
     return {ok:true,json:async()=>structuredClone(world)};
@@ -20,10 +20,24 @@ test('individual troop screen purchases only the selected type and recovers lost
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(root.innerHTML.includes('5 tipos · níveis individuais'));assert(root.innerHTML.includes('3 bases + bombardeiro'));
   await root.listeners.click({target:{closest:()=>({dataset:{tab:'troops'}})}});assert(root.innerHTML.includes('EVOLUÇÃO INDIVIDUAL'));assert(root.innerHTML.includes('Bombardeiro central'));
-  await root.listeners.click({target:{closest:()=>({dataset:{troop:'heli'}})}});assert(dialog.innerHTML.includes('EVOLUIR POR 60 MOEDAS'));assert(dialog.innerHTML.includes('apenas <strong>Helicóptero'));
-  const event={target:{closest:()=>({dataset:{dialog:'upgrade-army'}})}};
+  const rootClick=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dialogClick=action=>dialog.listeners.click({target:{closest:()=>({dataset:{dialog:action}})}});
+  assert.equal((root.innerHTML.match(/data-select-troop=/g)||[]).length,5);assert(!root.innerHTML.includes('data-troop='));
+  await rootClick({selectTroop:'heli'});assert(root.innerHTML.includes('data-troop="heli"'));assert(!root.innerHTML.includes('data-troop="tanque"'));assert.equal(dialog.open,false);
+  await rootClick({troop:'heli'});assert(dialog.innerHTML.includes('MELHORAR · 60'));assert(dialog.innerHTML.includes('apenas <strong>Helicóptero'));assert(dialog.innerHTML.includes('INTERVALO DE TIROS'));
+  assert.equal(calls.length,0);await dialogClick('confirm-upgrade');assert.equal(calls.length,0,'details alone never authorize a purchase');
+  await dialogClick('review-upgrade');assert(dialog.innerHTML.includes('CONFIRMAR · 60'));assert(dialog.innerHTML.includes('940 moedas'));assert.equal(calls.length,0);
+  await dialogClick('troop-details');assert(dialog.innerHTML.includes('MELHORAR · 60'));assert.equal(balance,1000);assert.equal(calls.length,0,'cancel must not spend coins');
+  await dialogClick('review-upgrade');
+  const event={target:{closest:()=>({dataset:{dialog:'confirm-upgrade'}})}};
   await Promise.all([dialog.listeners.click(event),dialog.listeners.click(event)]);await flush();assert.equal(calls.length,1);assert.equal(balance,940);assert(dialog.innerHTML.includes('Nível 2'));assert.equal(wallet.levels.tanque,1);
-  loseConfirmation=true;await dialog.listeners.click(event);await flush();assert.equal(calls.length,2);assert.equal(balance,840);assert(dialog.innerHTML.includes('novo nível já foi confirmado'));assert(dialog.innerHTML.includes('Nível 3'));assert.equal(wallet.levels.canhao,1);
+  loseConfirmation=true;await dialogClick('review-upgrade');await dialog.listeners.click(event);await flush();assert.equal(calls.length,2);assert.equal(balance,840);assert(dialog.innerHTML.includes('novo nível já foi confirmado'));assert(dialog.innerHTML.includes('Nível 3'));assert.equal(wallet.levels.canhao,1);
+  await dialogClick('review-upgrade');dialog.listeners.cancel();await dialogClick('confirm-upgrade');assert.equal(calls.length,2,'Escape revokes the pending confirmation');
+  await dialogClick('review-upgrade');wallet.levels.heli=4;update();listeners.visibilitychange();await flush();
+  await dialogClick('confirm-upgrade');assert.equal(calls.length,2,'a stale quote must be reviewed again');assert(dialog.innerHTML.includes('Os dados da melhoria mudaram'));
+  balance=0;update();listeners.visibilitychange();await flush();await rootClick({troop:'heli'});
+  assert(dialog.innerHTML.includes('Moedas disponíveis insuficientes'));assert(dialog.innerHTML.includes('data-dialog="review-upgrade" disabled'));await dialogClick('review-upgrade');assert(!dialog.innerHTML.includes('data-dialog="confirm-upgrade"'));
+  wallet.levels.heli=10;update();listeners.visibilitychange();await flush();await rootClick({troop:'heli'});assert(dialog.innerHTML.includes('NÍVEL MÁXIMO'));assert(!dialog.innerHTML.includes('data-dialog="confirm-upgrade"'));
+  world.player=null;listeners.visibilitychange();await flush();await rootClick({troop:'heli'});assert(dialog.innerHTML.includes('ENTRAR PARA MELHORAR'));assert.equal(calls.length,2);
 });
 test('wallet shows available and reserved funds, entry risk, production, and the completed coin statement',async()=>{
   const root=element(),dialog=element(),body=element(),listeners={};
