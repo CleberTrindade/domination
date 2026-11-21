@@ -105,12 +105,12 @@ anterior também são encerradas sem transferir áreas na migração.
   A reserva é `floor(40% × saldo disponível)`: com 80 moedas, reserva 32;
   com 1 ou 2 moedas, reserva zero. Saldo positivo mantém a mesma regra de saque.
 
-- Cada área produz **1.000 moedas a cada 24 horas**, proporcionalmente ao tempo de
-  posse, inclusive offline. A produção começa na conquista. Para contas e áreas
+- A produção diária por jogador tem faixas: primeiras 5 áreas, **1.000 cada**;
+  áreas 6–10, **500 cada**; demais, **250 cada**, com teto de **10.000/dia**.
+  O crédito é proporcional ao tempo de posse, inclusive offline. A produção começa na conquista. Para contas e áreas
   anteriores à economia, começa na aplicação da migração 005, sem retroatividade.
 - A primeira conquista da CPU rende **300 moedas** no Litoral Sul/Agreste,
-  **450** no Alto Sertão e **600** no São Francisco/Capital. A renda diária
-  continua em 1.000 para todos. O bônus exige saldo positivo na entrada e é único por área; conquistas anteriores
+  **450** no Alto Sertão e **600** no São Francisco/Capital. O bônus fica fora do teto de produção diária. O bônus exige saldo positivo na entrada e é único por área; conquistas anteriores
   não recebem novamente. O saque de jogadores é independente desse bônus.
 - Na entrada, **40% do saldo disponível** de cada participante ficam reservados
   em RAM. O defensor recebe uma reserva automática no início do ataque, mesmo
@@ -228,8 +228,8 @@ lança-foguetes, blindado pesado, antiaéreo, engenheiro e artilharia móvel.
 Quartel, garagem, heliporto e base de botes também receberam modelos novos.
 A coleção permite alternar a visualização entre a tropa e sua base de origem.
 As novas pranchas ficam em `public/art/*-expanded-v1.png` e
-`public/art/bases-initial-v1.png`. O sistema de acumular cartas segue como
-proposta separada; as compras desta versão continuam usando moedas.
+`public/art/bases-initial-v1.png`. As compras exigem cartas individuais e moedas,
+com confirmação antes do gasto.
 
 ### Comandante e formação terrestre
 
@@ -297,26 +297,59 @@ produzido pela posição alvo. Canhão/bombardeiro evoluem os disparos fixos; tr
 enviadas dessas posições usam o nível dos tanques. A IA considera o poder dos
 tipos presentes ao escolher ataques.
 
-| Nível alcançado | Força | Custo deste upgrade |
-| --- | ---: | ---: |
-| 1 | 100% | Inicial |
-| 2 | 110% | 60 |
-| 3 | 120% | 100 |
-| 4 | 130% | 160 |
-| 5 | 140% | 250 |
-| 6 | 150% | 400 |
-| 7 | 160% | 630 |
-| 8 | 170% | 1.010 |
-| 9 | 180% | 1.620 |
-| 10 | 190% | 2.580 |
+| Nível alcançado | Força | Moedas | Cartas da tropa |
+| --- | ---: | ---: | ---: |
+| 1 | 100% | Inicial | 0 |
+| 2 | 110% | 100 | 10 |
+| 3 | 120% | 250 | 20 |
+| 4 | 130% | 500 | 40 |
+| 5 | 140% | 1.000 | 80 |
+| 6 | 150% | 2.000 | 140 |
+| 7 | 160% | 4.000 | 220 |
+| 8 | 170% | 7.000 | 340 |
+| 9 | 180% | 11.000 | 500 |
+| 10 | 190% | 18.000 | 750 |
 
-Cada custo individual corresponde a um quinto do antigo treinamento geral.
-O custo acumulado é 6.810 moedas **por tipo** (34.050 para os cinco). A compra usa somente saldo disponível, preserva reservas de disputas e pode
-consumir o último saldo livre, pois ataques não exigem orçamento mínimo. O nível,
-saldo, produção acumulada, registro da compra e extrato são gravados numa única
-transação. `requestId` é idempotente e vinculado ao tipo; `expectedLevel` impede compras simultâneas
-acidentais de níveis consecutivos. Preço, novo nível e força são calculados no
-servidor. O cliente não escolhe esses valores.
+O custo acumulado por tipo é **43.850 moedas e 2.100 cartas**, partindo do nível 1.
+As cartas são consumidas nas melhorias. Níveis e saldos anteriores são preservados;
+a migração 011 credita primeiro a produção pendente pela taxa antiga. Não há concessão
+retroativa de cartas nem cobrança pelas melhorias antigas.
+A compra usa apenas moedas disponíveis e cartas do tipo selecionado, mantendo as
+reservas de batalha. Ambos os recursos, nível, auditoria e extrato mudam na mesma
+transação. `requestId` impede gastos duplicados; `expectedLevel` impede saltos.
+Preços e saldos de cartas enviados pelo cliente não são aceitos como autoridade.
+
+### Recompensas de cartas e objetivos diários
+
+O menu **Recompensas diárias**, também acessível em Tropas, mostra os contadores,
+objetivos e os cinco últimos pacotes recebidos. As recompensas são automáticas:
+
+- Vitória: 10 cartas; derrota válida: 5; abandono: zero; teto de 60 cartas/dia por batalhas.
+- Concluir 3 batalhas válidas: 20 cartas.
+- Conquistar 5 bases inimigas: 20 cartas. Neutras não contam; a mesma base conta uma vez por batalha.
+- Vencer uma batalha: 20 cartas.
+- Total máximo: **120 cartas por dia**, com reinício à meia-noite de **America/Fortaleza**.
+
+Cada carta é sorteada no servidor, com probabilidades iguais entre tipos elegíveis:
+precisa estar desbloqueado e ainda não ter todas as cartas para alcançar o nível 10.
+Não existe tropa preferida para recompensas. Cartas acumuladas são mantidas ao virar o
+dia e gastar moedas não é necessário para tirar um tipo já completo do sorteio.
+Se todos os tipos desbloqueados estiverem completos, novos pacotes não geram cartas.
+
+Para cartas e objetivos, uma batalha deve terminar com resultado verificado, ter
+pelo menos 30 segundos de participação ativa e uma ordem realmente executada.
+Defesas automáticas, espectadores, deserções e encerramentos sem replay não recebem
+cartas. Ganhar/perder é determinado por participante, incluindo defesa humana e invasores.
+Só as primeiras **3 batalhas válidas/dia contra o mesmo grupo de adversários** contam;
+contra a CPU o limite se aplica à mesma área. Isso não bloqueia novos ataques, saques
+ou conquistas. Objetivos podem se sobrepor e dar cartas na mesma partida.
+
+`world_players.troop_cards` guarda o estoque. `world_daily_rewards` guarda os limites
+e objetivos por dia; `world_card_rewards` audita cada pacote com chave única por
+batalha/jogador. Os dados de ordens e capturas vêm do replay do motor compartilhado,
+nunca dos números declarados pelo navegador. Toda concessão faz parte da transação
+do resultado; repetir o envio ou reiniciar o servidor não repete as cartas. Não há
+consultas extras ao banco por comando durante a batalha.
 
 A melhoria vale nas próximas disputas. Os níveis individuais do atacante e do dono
 são fixados no início; invasores usam seus próprios níveis no momento de pedir

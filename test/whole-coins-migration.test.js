@@ -15,7 +15,7 @@ test('whole-coin migration preserves fractional credit and historical audits and
     await migrate(pool);
     const row=(await pool.query('SELECT * FROM world_players WHERE id=$1',[player])).rows[0];
     assert.equal(BigInt(row.coin_balance),8000n);assert.equal(BigInt(row.coin_income_remainder),9n*86400000n+47n);
-    assert.equal(projectWallet({...row,owned:1},Date.parse(at)+78624).balance,8100n);
+    assert.equal(projectWallet({...row,owned:1},new Date(row.coin_income_at).getTime()+78624).balance,8100n);
     assert.equal(BigInt((await pool.query('SELECT amount FROM world_coin_ledger WHERE battle_id=$1',[battle])).rows[0].amount),-9n,'audit amounts remain unchanged');
     await assert.rejects(pool.query('UPDATE world_players SET coin_balance=8009 WHERE id=$1',[player]),e=>e.code==='23514');
     await assert.rejects(pool.query("INSERT INTO world_coin_ledger(id,player_id,battle_id,kind,amount,created_at) VALUES($1,$2,$3,'production',9,$4)",[randomUUID(),player,battle,at]),e=>e.code==='23514');

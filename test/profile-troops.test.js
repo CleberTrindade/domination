@@ -6,7 +6,7 @@ test('personal profile and individual training use authoritative persisted data'
   const db=await postgres(),pool=db.pool,app=await createApplication({pool,worldOptions:{startClock:false}});
   await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+app.server.address().port;
   async function api(path,player,body){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{...(player?{Cookie:player.cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
-  async function user(name){const r=await api('/api/auth/register',null,{username:name,name,password:'profile-test-password'});assert.equal(r.status,200);return {...r.data.player,cookie:r.cookie};}
+  async function user(name){const r=await api('/api/auth/register',null,{username:name,name,password:'profile-test-password'});assert.equal(r.status,200);await pool.query('UPDATE world_players SET troop_cards=$2::jsonb WHERE id=$1',[r.data.player.id,JSON.stringify(Object.fromEntries(TROOP_KINDS.map(k=>[k,2100])))]);return {...r.data.player,cookie:r.cookie};}
   const world=async p=>(await api('/api/world',p)).data;
   const upgrade=(p,kind,level,id=randomUUID())=>api('/api/world/army/upgrade',p,{troopKind:kind,expectedLevel:level,requestId:id});
   try{
@@ -19,10 +19,10 @@ test('personal profile and individual training use authoritative persisted data'
     await t.test('legacy general levels are inherited; new purchases affect exactly one type and audit its cost',async()=>{
       await pool.query('UPDATE world_players SET army_level=5,coin_balance=1000000 WHERE id=$1',[hero.id]);
       const before=await world(hero);assert(Object.entries(before.army.troops).every(([k,t])=>t.level===(['tanque','desliz','heli','canhao','central'].includes(k)?5:1)));
-      const id=randomUUID(),response=await upgrade(hero,'heli',5,id);assert.equal(response.status,200);assert.equal(response.data.cost,400);
+      const id=randomUUID(),response=await upgrade(hero,'heli',5,id);assert.equal(response.status,200);assert.equal(response.data.cost,2000);
       const after=await world(hero);for(const kind of TROOP_KINDS)assert.equal(after.army.troops[kind].level,kind==='heli'?6:['tanque','desliz','canhao','central'].includes(kind)?5:1);
-      assert.equal(after.wallet.balance,9600);assert.equal(after.wallet.entries[0].troop_kind,'heli');assert.equal((await upgrade(hero,'heli',5,id)).status,200);
-      assert.equal((await upgrade(hero,'tanque',5,id)).status,403);assert.equal((await world(hero)).wallet.balance,9600);
+      assert.equal(after.wallet.balance,8000);assert.equal(after.wallet.entries[0].troop_kind,'heli');assert.equal((await upgrade(hero,'heli',5,id)).status,200);
+      assert.equal((await upgrade(hero,'tanque',5,id)).status,403);assert.equal((await world(hero)).wallet.balance,8000);
       assert.equal((await api('/api/world/army/upgrade',hero,{expectedLevel:6,requestId:randomUUID()})).status,400);
       assert.equal((await upgrade(hero,'invalid',1)).status,400);
     });

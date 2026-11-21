@@ -3,11 +3,12 @@ const {randomUUID,randomInt}=require('node:crypto');
 const engineFactory=require('./battle-engine');
 const {verifyBrowserBattle,MAX_FRAMES}=require('../shared/browser-battle');
 const {HttpError,getPlayer,authenticate,publicPlayer,sessionToken}=require('./auth');
-const {RULES,coins,stakeFor,readWallets,settleEconomy}=require('./economy');
+const {RULES,productionFor,coins,stakeFor,readWallets,settleEconomy}=require('./economy');
 const {ARMY_RULES,powerFor,areaProfile,armyView,troopView,TROOP_KINDS,combatProfile}=require('./progression');
 const {playerProfile}=require('./player-profile');
 const {troopCatalog}=require('./troops');
 const troopRules=require('../shared/troop-rules');
+const {awardBattleCards,readDaily,REWARD_RULES}=require('./card-rewards');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const DISCONNECT_MS=30000;
 function createWorldService(pool,{startClock=true,now=Date.now}={}){
@@ -126,18 +127,18 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       const result=await transaction(async db=>{
         const at=now(),wallet=(await readWallets(db,[player.id],at,true)).get(player.id);
         const available=wallet.balance-reservedFor(player.id),view=troopView(wallet,available,RULES.minEntry,input.troopKind);
-        const summary=(balance=wallet.balance,spendable=available)=>({balance:coins(balance),available:coins(spendable>0n?spendable:0n),reserved:coins(wallet.balance-available),productionPerDay:wallet.owned*RULES.productionPerDay});
-        const previous=(await db.query('SELECT player_id,to_level,cost,troop_kind FROM world_army_upgrades WHERE id=$1',[input.requestId])).rows[0];
-        if(previous){if(previous.player_id!==player.id||previous.troop_kind!==input.troopKind)throw new HttpError(403,'Solicitação de evolução inválida.');return {alreadyApplied:true,requestId:input.requestId,level:previous.to_level,cost:coins(BigInt(previous.cost)),army:armyView(wallet,available,RULES.minEntry),wallet:summary()};}
+        const summary=(balance=wallet.balance,spendable=available)=>({balance:coins(balance),available:coins(spendable>0n?spendable:0n),reserved:coins(wallet.balance-available),productionPerDay:productionFor(wallet.owned)});
+        const previous=(await db.query('SELECT player_id,to_level,cost,troop_kind,cards_spent FROM world_army_upgrades WHERE id=$1',[input.requestId])).rows[0];
+        if(previous){if(previous.player_id!==player.id||previous.troop_kind!==input.troopKind)throw new HttpError(403,'Solicitação de evolução inválida.');return {alreadyApplied:true,requestId:input.requestId,level:previous.to_level,cost:coins(BigInt(previous.cost)),cardsSpent:previous.cards_spent,army:armyView(wallet,available,RULES.minEntry),wallet:summary()};}
         if(view.level!==input.expectedLevel)throw new HttpError(409,'Seu exército já mudou de nível. Atualize para continuar.');
         if(!view.canUpgrade)throw new HttpError(409,view.reason);
         const cost=BigInt(view.nextCost*100),date=new Date(at).toISOString();
-        await db.query('INSERT INTO world_army_upgrades(id,player_id,from_level,to_level,cost,created_at,troop_kind) VALUES($1,$2,$3,$4,$5,$6,$7)',[input.requestId,player.id,view.level,view.nextLevel,cost.toString(),date,input.troopKind]);
-        const levels={...wallet.levels,[input.troopKind]:view.nextLevel},highest=Math.max(...Object.values(levels));
-        await db.query('UPDATE world_players SET army_level=$1,coin_balance=$2,coin_income_at=$3,coin_income_remainder=$4,troop_levels=$6::jsonb WHERE id=$5',[highest,(wallet.balance-cost).toString(),new Date(wallet.at).toISOString(),wallet.remainder.toString(),player.id,JSON.stringify(levels)]);
+        await db.query('INSERT INTO world_army_upgrades(id,player_id,from_level,to_level,cost,created_at,troop_kind,cards_spent) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[input.requestId,player.id,view.level,view.nextLevel,cost.toString(),date,input.troopKind,view.nextCards]);
+        const levels={...wallet.levels,[input.troopKind]:view.nextLevel},highest=Math.max(...Object.values(levels)),cards={...wallet.cards,[input.troopKind]:view.cards-view.nextCards};
+        await db.query('UPDATE world_players SET army_level=$1,coin_balance=$2,coin_income_at=$3,coin_income_remainder=$4,troop_levels=$6::jsonb,troop_cards=$7::jsonb WHERE id=$5',[highest,(wallet.balance-cost).toString(),new Date(wallet.at).toISOString(),wallet.remainder.toString(),player.id,JSON.stringify(levels),JSON.stringify(cards)]);
         async function ledger(kind,amount){if(amount!==0n)await db.query('INSERT INTO world_coin_ledger(id,player_id,upgrade_id,kind,amount,created_at) VALUES($1,$2,$3,$4,$5,$6)',[randomUUID(),player.id,input.requestId,kind,amount.toString(),date]);}
         await ledger('production',wallet.produced);await ledger('army_upgrade',-cost);
-        return {requestId:input.requestId,level:view.nextLevel,cost:view.nextCost,army:armyView({...wallet,level:highest,levels},available-cost,RULES.minEntry),wallet:summary(wallet.balance-cost,available-cost)};
+        return {requestId:input.requestId,level:view.nextLevel,cost:view.nextCost,cardsSpent:view.nextCards,army:armyView({...wallet,level:highest,levels,cards},available-cost,RULES.minEntry),wallet:summary(wallet.balance-cost,available-cost)};
       });notify('world_changed',{});return result;
     });startQueue=task.catch(()=>{});return task;
   }
@@ -170,6 +171,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
           await db.query("INSERT INTO world_battles(id,area_id,attacker_id,defender_id,area_version,status,defense_share,started_at,finished_at,expires_at,result,retaliation_of,winner_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),now(),$9::jsonb,$10,$11)",
             [battle.id,battle.areaId,battle.attackerId,battle.defenderId,battle.areaVersion,finalStatus,battle.defenseShare,battle.startedAt,JSON.stringify(result),battle.retaliationOf||null,winner?.playerId||null]);
           result.economy=await settleEconomy(db,battle,roster,{winnerOwner,status:finalStatus,area,at:now()});
+          result.cardRewards=await awardBattleCards(db,battle,roster,{status:finalStatus,winnerOwner,verified,at:now()});
           if(finalStatus==='won')await db.query('UPDATE world_areas SET owner_id=$1,conquered_at=$4,version=version+1 WHERE id=$2 AND version=$3',[winner.playerId,battle.areaId,battle.areaVersion,new Date(now()).toISOString()]);
           await db.query('UPDATE world_battles SET result=$2::jsonb WHERE id=$1',[battle.id,JSON.stringify(result)]);
           for(const participant of roster)await db.query('INSERT INTO world_battle_participants(battle_id,player_id,side,joined_at,outcome,army_level) VALUES($1,$2,$3,$4,$5,$6)',[battle.id,participant.playerId,participant.owner,participant.joinedAt,participant.owner===winnerOwner?'won':(verified?.forfeited||[...battle.withdrawn]).includes(participant.owner)?'left':'lost',participant.level||1]);
@@ -242,11 +244,11 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       const reserved=reservedFor(player.id),available=ownWallet.balance>reserved?ownWallet.balance-reserved:0n;
       const entries=(await pool.query('SELECT l.kind,l.amount,l.created_at,a.name AS area_name,u.to_level AS upgrade_level,u.troop_kind FROM world_coin_ledger l LEFT JOIN world_battles b ON b.id=l.battle_id LEFT JOIN world_areas a ON a.id=b.area_id LEFT JOIN world_army_upgrades u ON u.id=l.upgrade_id WHERE l.player_id=$1 ORDER BY l.created_at DESC,l.id DESC LIMIT 15',[player.id])).rows;
       army=armyView(ownWallet,available,RULES.minEntry);
-      wallet={balance:coins(ownWallet.balance),available:coins(available),reserved:coins(reserved),productionPerDay:ownWallet.owned*RULES.productionPerDay,
+      wallet={balance:coins(ownWallet.balance),available:coins(available),reserved:coins(reserved),productionPerDay:productionFor(ownWallet.owned),
         entries:entries.map(e=>({...e,amount:coins(BigInt(e.amount))}))};
       for(const area of areas){const defenseWallet=wallets.get(area.owner_id),defenseAvailable=defenseWallet?defenseWallet.balance-reservedFor(area.owner_id):0n;
         const risk=stakeFor(available),targetRisk=stakeFor(defenseAvailable>0n?defenseAvailable:0n);
-        area.economy={atRisk:coins(risk),maxLoot:coins(targetRisk<risk?targetRisk:risk),cpuReward:available>0n&&!area.owner_id&&!area.cpu_reward_claimed?area.first_capture_reward:0,productionPerDay:RULES.productionPerDay};
+        area.economy={atRisk:coins(risk),maxLoot:coins(targetRisk<risk?targetRisk:risk),cpuReward:available>0n&&!area.owner_id&&!area.cpu_reward_claimed?area.first_capture_reward:0,productionPerDay:area.owner_id===player.id?0:productionFor(ownWallet.owned+1)-productionFor(ownWallet.owned)};
         const active=area.battle_id&&battles.get(area.battle_id);
         if(active){
           const current=battleEconomy(active,ownerFor(active,player.id),player.id);
@@ -269,7 +271,8 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         attack.counterAreas=attack.status==='active'?[]:areas.filter(a=>opponents.has(a.owner_id)&&a.id!==attack.revengeArea?.id).map(a=>({id:a.id,name:a.name,ownerName:a.owner_name,busy:!!a.battle_id}));
       }
     }
-    return {player:publicPlayer(player),wallet,army,troops:troopCatalog(army),progression:ARMY_RULES,economy:RULES,country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,receivedAttacks,activeBattle:[...battles.values()].find(b=>b.status==='active'&&player&&participating(b,player.id))?.id||null};
+    const dailyRewards=player?await readDaily(pool,player.id,now()):null;
+    return {player:publicPlayer(player),wallet,army,dailyRewards,rewardRules:REWARD_RULES,troops:troopCatalog(army),progression:ARMY_RULES,economy:RULES,country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,receivedAttacks,activeBattle:[...battles.values()].find(b=>b.status==='active'&&player&&participating(b,player.id))?.id||null};
   }
   function execute(battle,player,command){
     const owner=ownerFor(battle,player.id);if(!owner)throw new HttpError(403,'Essa batalha pertence a outro comandante.');

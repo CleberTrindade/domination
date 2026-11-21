@@ -22,7 +22,7 @@ test('expanded armies enforce unlocks, persist formations and count only verifie
   });
   await t.test('independent unlocks and saved formations cannot rewrite armies already in a battle',async()=>{
    const levels=Object.fromEntries(rules.KINDS.map(k=>[k,7]));
-   await pool.query('UPDATE world_players SET battles_completed=250,troop_levels=$2::jsonb,coin_balance=9990000 WHERE id=$1',[hero.id,JSON.stringify(levels)]);
+   await pool.query('UPDATE world_players SET battles_completed=250,troop_levels=$2::jsonb,coin_balance=9990000,troop_cards=$3::jsonb WHERE id=$1',[hero.id,JSON.stringify(levels),JSON.stringify({batedor:340})]);
    const army=(await view(hero)).army;assert.equal(army.commander.level,7);assert(!Object.values(army.troops).some(t=>t.locked));
    assert.equal((await api('/api/world/army/loadout',hero.cookie,{troops:['batedor','foguetes','artilharia']})).status,200);
    const record=(await api('/api/world/areas/se-agreste/attack',hero.cookie,{})).data;assert.deepEqual(record.config.attackerLoadout,['batedor','foguetes','artilharia']);assert.deepEqual(record.config.defenderLoadout,record.config.attackerLoadout);assert.equal(record.snapshot.sites[4].kind,'batedor');

@@ -60,7 +60,7 @@ function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner
   let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount,mapId);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
-  const game={participation:{1:0,2:0},sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,winnerOwner:null,joinedOwners:[],forfeited:[],cd:3,
+  const game={objectives:{},participation:{1:0,2:0},sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,winnerOwner:null,joinedOwners:[],forfeited:[],cd:3,
     stats:{cap:0,kill:0},dropM:{1:.35,2:.35},par:{1:{prod:1.2,cap:60},2:aip},aip,ais:[{id:2,timer:7,dead:false}],
     armies:{1:{level:attackerLevel,power:attackerPower,...(attackerTroops?{troops:attackerTroops}:{}),...(expanded?{loadout:attackerLoadout}:{})},2:{level:defenderLevel,power:defenderPower,...(defenderTroops?{troops:defenderTroops}:{}),...(expanded?{loadout:defenderLoadout}:{})}}};
   const power=(owner,kind)=>owner===0?(neutralTroops?.[kind]?.power??neutralPower):(game.armies[owner]?.troops?.[kind]?.power??game.armies[owner]?.power??1);
@@ -98,6 +98,7 @@ function arrive(u){
   const attackPower=attack(u.owner,u.k)*(expanded?troopRules.matchup(u.k,unitKind(b)):1),guardPower=power(b.owner,unitKind(b))*armor(unitKind(b));
   hitBase(b,u.n*attackPower/guardPower);
   if(b.troops<0){
+    if(expanded){const progress=g.objectives[u.owner]||(g.objectives[u.owner]={orders:0,captured:[]});if(b.owner!==0&&(u.owner!==2||defenderControlled)&&!progress.captured.includes(b.id))progress.captured.push(b.id);}
     b.troops=-b.troops*guardPower/attackPower;b.owner=u.owner;b.hq=false;b.fortification=0;specialize(b);g.dirty=true;
     g.fx.push({type:'ring',x:b.x,y:b.y,t:0,c:'#ffffff'});g.fx.push({type:'cap',x:b.x,y:b.y,t:0,o:u.owner});
     if(u.owner===g.me)g.stats.cap++;
@@ -206,10 +207,11 @@ function simStep(dt){
       let sent=false;for(const id of new Set(action.sources)){
         if(!Number.isInteger(id))continue;const source=game.sites[id];
         if(source&&source.owner===owner&&canReach(source,target)&&source.troops>=1){send(source,target);sent=true;}
-      }return sent;
+      }if(expanded&&sent)(game.objectives[owner]||(game.objectives[owner]={orders:0,captured:[]})).orders++;return sent;
     }
     if(action.type==='drop'&&Number.isInteger(action.site)){
       const s=game.sites[action.site];if(!s||s.owner!==owner||game.dropM[owner]<1)return false;
+      if(expanded)(game.objectives[owner]||(game.objectives[owner]={orders:0,captured:[]})).orders++;
       s.troops+=12;game.dropM[owner]=0;game.fx.push({type:'txt',x:s.x,y:s.y-22,t:0,text:'+12'});return true;
     }
     return false;
@@ -249,11 +251,11 @@ function simStep(dt){
       units:game.units.map(u=>({id:u.id,k:u.k,owner:u.owner,n:u.n,P:u.P,cum:u.cum,L:u.L,d:u.d,si:u.si,x:u.x,y:u.y,alive:u.alive,
         fighting:u.fight?(u.fight.a===u?u.fight.b.id:u.fight.a.id):null})),
       fx:game.fx.map(f=>({type:f.type,x:f.x,y:f.y,t:f.t,c:f.c,o:f.o,text:f.text,heli:f.heli,site:f.s?.id,from:f.from?.id,to:f.to?.id})),
-      stats:game.stats,...(expanded?{participation:{...game.participation}}:{})};
+      stats:game.stats,...(expanded?{participation:{...game.participation},objectives:JSON.parse(JSON.stringify(game.objectives))}:{})};
   }
   function checkpoint(){
     return {version:1,config:{share,difficulty,seed,maxSeconds,centralOwner,defenderBaseCount,attackerPower,defenderPower,neutralPower,attackerLevel,defenderLevel,balanceVersion,...(expanded?{attackerLoadout,defenderLoadout}:{}),...(mapId?{mapId}:{}),...(attackerTroops?{attackerTroops}:{}),...(defenderTroops?{defenderTroops}:{}),...(neutralTroops?{neutralTroops}:{})},randomState:random.state(),
-      participation:{...game.participation},time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,winnerOwner:game.winnerOwner,joinedOwners:game.joinedOwners.slice(),forfeited:game.forfeited.slice(),par:JSON.parse(JSON.stringify(game.par)),
+      objectives:JSON.parse(JSON.stringify(game.objectives)),participation:{...game.participation},time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,winnerOwner:game.winnerOwner,joinedOwners:game.joinedOwners.slice(),forfeited:game.forfeited.slice(),par:JSON.parse(JSON.stringify(game.par)),
       stats:{...game.stats},dropM:{...game.dropM},ais:game.ais.map(a=>({...a})),armies:JSON.parse(JSON.stringify(game.armies)),
       sites:game.sites.map(s=>({...s})),
       units:game.units.map(({to,fight,...u})=>({...u,toId:to.id})),
@@ -263,6 +265,7 @@ function simStep(dt){
     if(saved.version!==1)throw new Error('Unsupported battle checkpoint');
     for(const key of ['time','uid','cd','over','result','reason','stats','dropM','ais'])game[key]=saved[key];
     game.winnerOwner=saved.winnerOwner??(saved.result==='won'?1:saved.result==='lost'?2:null);game.joinedOwners=saved.joinedOwners||[];game.forfeited=saved.forfeited||[];if(saved.par)game.par=JSON.parse(JSON.stringify(saved.par));
+    if(saved.objectives)game.objectives=JSON.parse(JSON.stringify(saved.objectives));
     if(saved.participation)game.participation={...saved.participation};
     if(saved.armies)game.armies=JSON.parse(JSON.stringify(saved.armies));
     game.sites=saved.sites.map(s=>({...s}));
