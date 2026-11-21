@@ -1,43 +1,30 @@
-// Reuses the original map, movement, combat and CPU rules from the classic game.
+// Shared deterministic combat, with versioned world maps and classic compatibility.
 'use strict';
-const MAPDATA = require('../shared/map.json');
-const MW=390,MAPY=70,MAPH=640,HR=26;
-const KIND={P:'garagem',G:'garagem',H:'heli',B:'botes',A:'canhao',C:'central'};
+const maps=require('../shared/battle-maps');
+const MAPDATA=maps.get('classic').data;
+const HR=26;
 const PCT={garagem:.40,heli:.55,botes:.45,canhao:.55,central:.55};
 const BASE0=25,RANGE={central:HR*3.5,canhao:HR*2.6},FIRE={central:.42,canhao:.95};
 const SPEED={tanque:42,desliz:52,heli:62};
-const HX=(()=>{
-  const cells=MAPDATA.cells.map(([c,r,x,y,t])=>({c,r,x,y:y-MAPY,t}));
-  const key=(c,r)=>c+','+r,idx=new Map();cells.forEach((q,i)=>idx.set(key(q.c,q.r),i));
-  const DIRS=[[2,0],[-2,0],[1,-1],[-1,-1],[1,1],[-1,1]];
-  const nb=cells.map(q=>DIRS.map(([a,b])=>idx.get(key(q.c+a,q.r+b))).filter(v=>v!=null));
-  const seeds=MAPDATA.seeds.map(([cell,n])=>({cell,n,kind:KIND[n]}));
-  // componentes de terra (ilhas dos botes ficam isoladas)
-  const comp=cells.map(()=>-1);let nc=0;
-  for(let i=0;i<cells.length;i++){if(comp[i]>=0)continue;const q=[i];comp[i]=nc;while(q.length){const x=q.shift();for(const n of nb[x])if(comp[n]<0){comp[n]=nc;q.push(n)}}nc++}
-  // cores alternadas das regiões neutras
-  const tcol=seeds.map(()=>-1);
-  seeds.forEach((s,t)=>{const used=new Set();cells.forEach((c,i)=>{if(c.t!==t)return;nb[i].forEach(n=>{const o=cells[n].t;if(o!==t&&tcol[o]>=0)used.add(tcol[o])})});let k=0;while(used.has(k))k++;tcol[t]=k});
-  const pc=new Map();
-  function path(a,b){const k=a+'>'+b;if(pc.has(k))return pc.get(k);
-    const prev=new Map([[a,-1]]),q=[a];while(q.length){const x=q.shift();if(x===b)break;for(const n of nb[x])if(!prev.has(n)){prev.set(n,x);q.push(n)}}
-    const p=[];if(prev.has(b))for(let x=b;x!==-1;x=prev.get(x))p.push([cells[x].x,cells[x].y]);p.reverse();pc.set(k,p);return p}
-  // cantos dos jogadores: azul embaixo-direita, depois cima-esquerda, cima-direita, embaixo-esquerda
-  const P=seeds.map((s,i)=>i).filter(i=>seeds[i].n==='P');
-  const cx=MW/2,cy=392-MAPY;const corner=(sx,sy)=>P.find(i=>Math.sign(cells[seeds[i].cell].x-cx)===sx&&Math.sign(cells[seeds[i].cell].y-cy)===sy);
-  const corners=[corner(1,1),corner(-1,-1),corner(1,-1),corner(-1,1)];
-  return {cells,nb,seeds,comp,tcol,path,corners,center:seeds.findIndex(s=>s.n==='C')};
-})();
-
-const weights=HX.seeds.map((_,id)=>HX.cells.filter(c=>c.t===id).length);
+const HX=maps.geometry('classic'),weights=HX.weights;
 function seeded(seed){const random=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};random.state=()=>seed;random.restore=value=>{seed=value|0;};return random;}
 const initialCache=new Map();
-function initialSites(share,difficulty=1,centralOwner=0,defenderBaseCount=null){
-  const cacheKey=[share,difficulty,centralOwner,defenderBaseCount].join(':');
+function initialSites(share,difficulty=1,centralOwner=0,defenderBaseCount=null,mapId=null){
+  const HX=maps.geometry(mapId),weights=HX.weights;
+  const cacheKey=[mapId,share,difficulty,centralOwner,defenderBaseCount].join(':');
   if(initialCache.has(cacheKey)){const cached=initialCache.get(cacheKey);return {...cached,sites:cached.sites.map(site=>({...site}))};}
   const sites=HX.seeds.map((s,id)=>{const c=HX.cells[s.cell];return{id,x:c.x,y:c.y,cell:s.cell,kind:s.kind,n:s.n,owner:0,troops:Math.round(BASE0*PCT[s.kind]),hq:false,cd:0}});
   const attacker=HX.corners[0],defender=HX.corners[1],target=share*HX.cells.length;
   const candidates=sites.filter(s=>s.id!==attacker&&s.id!==defender&&s.id!==HX.center);
+  if(mapId&&mapId!=='classic'&&defenderBaseCount!==null){
+    if(!Number.isInteger(defenderBaseCount)||defenderBaseCount<1||defenderBaseCount>15)throw Error('Invalid defender base count');
+    const home=sites[defender],nearby=sites.filter(s=>s.id!==attacker&&s.id!==defender&&s.id!==HX.center).sort((a,b)=>Math.hypot(a.x-home.x,a.y-home.y)-Math.hypot(b.x-home.x,b.y-home.y)||a.id-b.id).slice(0,defenderBaseCount-1);
+    for(const site of [home,...nearby,...(centralOwner===2?[sites[HX.center]]:[])]){site.owner=2;site.troops=10+difficulty;}
+    home.hq=true;home.troops=22+difficulty;sites[attacker].owner=1;sites[attacker].hq=true;sites[attacker].troops=38;
+    const setup={sites,defenderShare:sites.filter(s=>s.owner===2).reduce((n,s)=>n+weights[s.id],0)/HX.cells.length};
+    if(initialCache.size>=128)initialCache.delete(initialCache.keys().next().value);
+    initialCache.set(cacheKey,{...setup,sites:sites.map(s=>({...s}))});return setup;
+  }
   let best=null,bestScore=Infinity;
   for(let bits=0;bits<2**candidates.length;bits++){
     const ids=centralOwner===2?[defender,HX.center]:[defender];for(let j=0;j<candidates.length;j++)if(bits&(1<<j))ids.push(candidates[j].id);
@@ -60,13 +47,14 @@ function initialSites(share,difficulty=1,centralOwner=0,defenderBaseCount=null){
   initialCache.set(cacheKey,{...setup,sites:sites.map(site=>({...site}))});return setup;
 }
 function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner=0,defenderBaseCount=null,
-  attackerPower=1,defenderPower=1,neutralPower=1,attackerLevel=1,defenderLevel=1,balanceVersion=null,attackerTroops=null,defenderTroops=null,neutralTroops=null}={}){
+  attackerPower=1,defenderPower=1,neutralPower=1,attackerLevel=1,defenderLevel=1,balanceVersion=null,attackerTroops=null,defenderTroops=null,neutralTroops=null,mapId=null}={}){
+  const HX=maps.geometry(mapId);
   if([attackerPower,defenderPower,neutralPower].some(power=>!Number.isFinite(power)||power<=0||power>10))throw Error('Invalid army power');
   if(!Number.isInteger(attackerLevel)||attackerLevel<1||attackerLevel>10||defenderLevel!==null&&(!Number.isInteger(defenderLevel)||defenderLevel<1||defenderLevel>10))throw Error('Invalid army level');
   const cloneTroops=troops=>{if(!troops)return null;const result={};for(const kind of ['tanque','desliz','heli','canhao','central']){const t=troops[kind];if(!t||!Number.isFinite(t.power)||t.power<=0||t.power>10||t.level!==null&&(!Number.isInteger(t.level)||t.level<1||t.level>10))throw Error('Invalid troop profile');result[kind]={level:t.level,power:t.power};}return result;};
   attackerTroops=cloneTroops(attackerTroops);defenderTroops=cloneTroops(defenderTroops);neutralTroops=cloneTroops(neutralTroops);
   let defenderControlled=false;
-  const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount);
+  const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount,mapId);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
   const game={sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,winnerOwner:null,joinedOwners:[],forfeited:[],cd:3,
     stats:{cap:0,kill:0},dropM:{1:.35,2:.35},par:{1:{prod:1.2,cap:60},2:aip},aip,ais:[{id:2,timer:7,dead:false}],
@@ -247,7 +235,7 @@ function simStep(dt){
       stats:game.stats};
   }
   function checkpoint(){
-    return {version:1,config:{share,difficulty,seed,maxSeconds,centralOwner,defenderBaseCount,attackerPower,defenderPower,neutralPower,attackerLevel,defenderLevel,balanceVersion,...(attackerTroops?{attackerTroops}:{}),...(defenderTroops?{defenderTroops}:{}),...(neutralTroops?{neutralTroops}:{})},randomState:random.state(),
+    return {version:1,config:{share,difficulty,seed,maxSeconds,centralOwner,defenderBaseCount,attackerPower,defenderPower,neutralPower,attackerLevel,defenderLevel,balanceVersion,...(mapId?{mapId}:{}),...(attackerTroops?{attackerTroops}:{}),...(defenderTroops?{defenderTroops}:{}),...(neutralTroops?{neutralTroops}:{})},randomState:random.state(),
       time:game.time,uid:game.uid,cd:game.cd,over:game.over,result:game.result,reason:game.reason,winnerOwner:game.winnerOwner,joinedOwners:game.joinedOwners.slice(),forfeited:game.forfeited.slice(),par:JSON.parse(JSON.stringify(game.par)),
       stats:{...game.stats},dropM:{...game.dropM},ais:game.ais.map(a=>({...a})),armies:JSON.parse(JSON.stringify(game.armies)),
       sites:game.sites.map(s=>({...s})),
@@ -270,4 +258,4 @@ function simStep(dt){
 }
 function restoreBattle(saved){const battle=createBattle(saved.config);battle.restore(saved);return battle;}
 // Read-only catalog metadata uses the same constants as combat.
-module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA,combatRules:{speed:SPEED,range:RANGE,fire:FIRE,hexRadius:HR}};
+module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA,maps,combatRules:{speed:SPEED,range:RANGE,fire:FIRE,hexRadius:HR}};

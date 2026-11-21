@@ -20,7 +20,7 @@ test('persistent army progression protects money, freezes battle levels and reco
     await t.test('new and existing accounts begin at level one; every area remains available and rewards reflect resistance',async()=>{
       const data=await world(alice);assert.equal(data.army.level,1);assert.equal(data.army.troops.tanque.nextCost,60);assert.equal(data.army.troops.tanque.power,1);
       assert.deepEqual(data.progression.upgradeCosts,[0,0,60,100,160,250,400,630,1010,1620,2580]);
-      assert.deepEqual(data.areas.map(a=>a.first_capture_reward),[300,300,450,600,600]);assert(data.areas.every(a=>a.defense_bases===3&&Math.abs(a.defense_share-19/81)<.001));
+      assert.deepEqual(data.areas.map(a=>a.first_capture_reward),[300,300,450,600,600]);assert(data.areas.every(a=>a.defense_bases===3&&a.map_id&&a.defense_share>0&&a.defense_share<.5));
       assert.equal((await api('/api/world/army/upgrade',null,{requestId:randomUUID(),expectedLevel:1})).status,401);
       record=await start('se-aracaju',alice);assert.equal(record.config.defenderBaseCount,3);assert.equal(record.config.defenderPower,.8);assert.equal(record.economy.cpuReward,600);await surrender(record,alice);
       await funds(alice);
@@ -98,7 +98,7 @@ test('persistent army progression protects money, freezes battle levels and reco
       const geometry=factory.createBattle(battleRecord.config).checkpoint().sites;
       for(let frame=0;frame<11000&&!runner.over;frame++){
         if(frame%90===0){const snapshot=runner.snapshot(),mine=snapshot.sites.filter(s=>s.owner===1),enemy=snapshot.sites.filter(s=>s.owner!==1);
-          for(const source of mine){if(source.troops<24)continue;const a=geometry[source.id];for(const target of enemy.slice().sort((b,c)=>Math.hypot(a.x-geometry[b.id].x,a.y-geometry[b.id].y)-Math.hypot(a.x-geometry[c.id].x,a.y-geometry[c.id].y))){const input=await api('/api/world/battles/'+battle.id+'/commands',hero,{nonce:randomUUID(),type:'send',sources:[source.id],target:target.id});assert.equal(input.status,200);if(runner.input(input.data.input))break;}}
+          for(const source of mine){if(source.troops<24)continue;const a=geometry[source.id],hx=factory.maps.geometry(battleRecord.config.mapId);for(const target of enemy.filter(t=>['heli','botes'].includes(a.kind)||hx.comp[a.cell]===hx.comp[geometry[t.id].cell]).sort((b,c)=>Math.hypot(a.x-geometry[b.id].x,a.y-geometry[b.id].y)-Math.hypot(a.x-geometry[c.id].x,a.y-geometry[c.id].y))){const input=await api('/api/world/battles/'+battle.id+'/commands',hero,{nonce:randomUUID(),type:'send',sources:[source.id],target:target.id});assert.equal(input.status,200);if(runner.input(input.data.input))break;}}
         }
         runner.advance(1/30);clock+=1000/30;
       }

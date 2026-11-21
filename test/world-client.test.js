@@ -160,3 +160,16 @@ test('profile navigation paginates personal matches, shows per-match coins and c
   await click({logoutConfirm:'yes',action:'logout-confirm'});await dialog.listeners.click({target:{closest:()=>({dataset:{dialog:'logout'}})}});await flush();
   assert(root.innerHTML.includes('Entre para ver suas conquistas'));assert(!root.innerHTML.includes('Meu &lt;Perfil&gt;'));assert(!root.innerHTML.includes('21 concluídas'));
 });
+
+test('territory previews expose different battlefield terrain and the matching initial formation',async()=>{
+  const root=element(),dialog=element(),body=element(),maps=require('../shared/battle-maps');
+  const areas=maps.list().map((m,i)=>{const setup=require('../server/battle-engine').initialSites(.5,i+1,2,3,m.id);return {id:m.area,name:m.name,ordinal:i+1,cpu_share:.35,map_id:m.id,map_name:m.name,map_tag:m.tag,map_description:m.description,map_defender_sites:setup.sites.filter(s=>s.owner===2).map(s=>s.id),map_attacker_site:4};});
+  const world={areas,ranking:[],history:[],progression:{cpuPowerRatio:.8}};
+  const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
+  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_MAPS:maps,DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async()=>({ok:true,json:async()=>structuredClone(world)})};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}});
+  assert(root.innerHTML.includes('Arquipélago costeiro'));await click({action:'preview-map'});assert(dialog.innerHTML.includes('ILHAS')||dialog.innerHTML.includes('Ilhas'));
+  assert.equal((dialog.innerHTML.match(/<polygon /g)||[]).length,65);assert.equal((dialog.innerHTML.match(/fill="#ae554f"/g)||[]).length,4);
+  dialog.close();await click({area:'se-agreste'});assert(root.innerHTML.includes('Encruzilhadas do Agreste'));await click({action:'preview-map'});assert.equal((dialog.innerHTML.match(/<polygon /g)||[]).length,101);assert(dialog.innerHTML.includes('Q: quartel'));
+});

@@ -167,6 +167,7 @@ button{font:inherit}
 </style>
 <link rel="stylesheet" href="/world.css">
 <script src="/world-motion.js"></script>
+<script src="/battle-maps.js"></script>
 <script src="/sergipe-map.js"></script>
 </head>
 <body class="world-mode">
@@ -583,19 +584,21 @@ const HX=(()=>{
   const corners=[corner(1,1),corner(-1,-1),corner(1,-1),corner(-1,1)];
   return {cells,nb,seeds,comp,tcol,path,corners,center:seeds.findIndex(s=>s.n==='C')};
 })();
+const classicGeometry=()=>HX;
 const LC={};
 function getLevel(lv,H){return LC[lv]||(LC[lv]=buildLevel(lv,MW,MAPH))}
 function buildLevel(lv,W,H,o={}){
+  const HX=o.mapId?window.DOMINATION_MAPS.geometry(o.mapId):classicGeometry();
   const nAI=o.nAI||(lv<=2?1:lv<=5?2:3);
   const sites=HX.seeds.map((s,k)=>{const c=HX.cells[s.cell];return{id:k,x:c.x,y:c.y,cell:s.cell,n:s.n,kind:s.kind,owner:0,troops:Math.round(BASE0*PCT[s.kind]),hq:false,cd:0}});
   for(let i=0;i<=nAI;i++){const s=sites[HX.corners[i]];s.owner=1+i;s.hq=true;s.troops=BASE0}
-  return {lv,W:MW,H:MAPH,reg:REGIONS[0],sites,reach:1e9,nAI};
+  return {lv,W:MW,H:MAPH,reg:REGIONS[0],sites,reach:1e9,nAI,geometry:HX};
 }
 const hexPts=(x,y,r)=>{const p=[];for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-90);p.push([x+r*Math.cos(a),y+r*Math.sin(a)])}return p};
 function hexPath(c,x,y,r){const p=hexPts(x,y,r);c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let i=1;i<6;i++)c.lineTo(p[i][0],p[i][1]);c.closePath()}
 const EDGE=[[2,0,1,2],[1,1,2,3],[-1,1,3,4],[-2,0,4,5],[-1,-1,5,0],[1,-1,0,1]];
-const CELLKEY=new Map(HX.cells.map((q,i)=>[q.c+','+q.r,i]));
 function drawMap(c,L,sites,pal=[0,1,2,3,4]){
+  const HX=L.geometry||classicGeometry(),CELLKEY=HX.cellKey||new Map(HX.cells.map((q,i)=>[q.c+','+q.r,i]));
   const cells=HX.cells,depth=HR*0.5,rr=HR*0.99;
   const ord=cells.map((q,i)=>i).sort((a,b)=>cells[a].y-cells[b].y||cells[a].x-cells[b].x);
   c.save();c.lineJoin='round';
@@ -923,7 +926,7 @@ function dropOwner(o){
 }
 /* ---- tropas: um grupo por envio (tanque por terra, deslizador pela água, helicóptero pelo ar) ---- */
 const unitKind=s=>s.kind==='heli'?'heli':s.kind==='botes'?'desliz':'tanque';
-const canReach=(a,b)=>!!a&&!!b&&a!==b&&(unitKind(a)!=='tanque'||HX.comp[a.cell]===HX.comp[b.cell]);
+const canReach=(a,b)=>{const map=game?.L?.geometry||HX;return !!a&&!!b&&a!==b&&(unitKind(a)!=='tanque'||map.comp[a.cell]===map.comp[b.cell]);};
 function mkPath(a,b,k){
   const P=k==='tanque'?HX.path(a.cell,b.cell):[[a.x,a.y],[b.x,b.y]];
   const cum=[0];for(let i=1;i<P.length;i++){const dx=P[i][0]-P[i-1][0],dy=P[i][1]-P[i-1][1];cum.push(cum[i-1]+Math.sqrt(dx*dx+dy*dy))}
@@ -1462,7 +1465,7 @@ function render(){
   for(const s of selected){c.strokeStyle='#fff';c.lineWidth=3.2;hexPath(c,X(s.x),Y(s.y),HR*(1.1+pulse*0.04)*SC);c.stroke()}
   if(g.dropMode)for(const s of g.sites)if(s.owner===g.me){c.strokeStyle='#f2b632';c.lineWidth=3;hexPath(c,X(s.x),Y(s.y),HR*(1.1+pulse*0.08)*SC);c.stroke()}
   // torres miram o último alvo
-  const C=g.sites[HX.center];
+  const C=g.sites[(g.L.geometry||HX).center];
   for(const s of g.sites){if(s.kind!=='canhao')continue;const tx=s.tx!=null?s.tx:C.x,ty=s.ty!=null?s.ty:C.y;s.vh=turnTo(s.vh,ang(tx-s.x,ty-s.y),rdt*12);if(s.kick!=null)s.kick+=rdt}
   // prédios e marcadores (de trás para frente)
   const bs=g.sites.slice().sort((a,b)=>a.y-b.y);
@@ -1544,15 +1547,15 @@ function hud(){
 window.DOMINATION_WORLD_BRIDGE={
   start(record,onCommand){
     closeModal();
-    const L=buildLevel(1,MW,MAPH,{nAI:1});
+    const L=buildLevel(1,MW,MAPH,{nAI:1,mapId:record.config?.mapId});
     const me=record.playerOwner??1,n=record.maxOwners||2;
     newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n,elim:[],worldCommand:onCommand,
-      me,mine:me?[me]:[],pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
+      me,mine:me?[me]:[],pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,worldMapName:record.config?.mapId?window.DOMINATION_MAPS.get(record.config.mapId).name:null,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
     document.body.classList.add('world-battle');
     this.control(record.defenderControlled,record);
     $('#btnDrop').style.display=me?'':'none';
     this.commandStatus('');
-    $('#hint').textContent=me?'Elimine os outros exércitos · o bombardeiro é uma vantagem':'Você está acompanhando esta batalha';$('#hint').style.opacity=me?1:0;
+    $('#hint').textContent=me?(game.worldMapName?game.worldMapName+' · ':'')+'Elimine os outros exércitos':'Você está acompanhando esta batalha';$('#hint').style.opacity=me?1:0;
     this.apply(record.snapshot);
   },
   apply(snapshot){

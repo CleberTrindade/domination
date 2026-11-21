@@ -78,7 +78,7 @@ test('third-party spectators can claim free bases and a late entrant can win the
       const geometry=factory.createBattle(record.config).checkpoint().sites;
       for(let frame=0;frame<11000&&!runner.over;frame++){
         if(frame%90===0){const snapshot=runner.snapshot(),mine=snapshot.sites.filter(s=>s.owner===3),enemy=snapshot.sites.filter(s=>s.owner!==3);
-          for(const source of mine){if(source.troops<24)continue;const a=geometry[source.id];for(const target of enemy.slice().sort((b,c)=>Math.hypot(a.x-geometry[b.id].x,a.y-geometry[b.id].y)-Math.hypot(a.x-geometry[c.id].x,a.y-geometry[c.id].y))){
+          for(const source of mine){if(source.troops<24)continue;const a=geometry[source.id],hx=factory.maps.geometry(record.config.mapId);for(const target of enemy.filter(t=>['heli','botes'].includes(a.kind)||hx.comp[a.cell]===hx.comp[geometry[t.id].cell]).sort((b,c)=>Math.hypot(a.x-geometry[b.id].x,a.y-geometry[b.id].y)-Math.hypot(a.x-geometry[c.id].x,a.y-geometry[c.id].y))){
             const input=await api('/api/world/battles/'+record.id+'/commands',joiner,{nonce:randomUUID(),type:'send',sources:[source.id],target:target.id});assert.equal(input.status,200);if(runner.input(input.data.input))break;
           }}
         }

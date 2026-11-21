@@ -150,6 +150,40 @@ duplica moedas. Comandos, posições e checkpoints continuam sem consultas ou
 gravações adicionais por causa da economia. Reservas ativas não sobrevivem a um
 reinício, que também interrompe a disputa sem cobrança.
 
+## Campos de batalha por área
+
+Cada área usa um mapa fixo e versionado, definido em `shared/battle-maps.js`.
+A tela de território mostra uma miniatura e **Ver campo de batalha** com a
+formação inicial e a legenda das bases.
+
+| Área | Mapa | Mudança estratégica |
+| --- | --- | --- |
+| Litoral Sul | Arquipélago costeiro (`coast-v1`) | Sete ilhas; expansão entre ilhas exige botes ou helicópteros. |
+| Agreste | Encruzilhadas (`crossroads-v1`) | Rede terrestre com corredores externos e caminho central. |
+| Alto Sertão | Passagens (`passes-v1`) | Gargalo terrestre entre as duas metades; transporte permite flanquear. |
+| São Francisco | Travessias (`river-v1`) | Rio com duas travessias e central em uma ilha. |
+| Aracaju | Cerco à Capital (`citadel-v1`) | Anel terrestre e fortaleza central isolada. |
+
+Os cinco mapas possuem 17 posições, quatro quartéis para permitir até quatro
+exércitos, e defesa inicial de três bases mais o bombardeiro. A ocupação em
+hexágonos varia com o terreno. A CPU continua em 80% do poder individual do
+atacante nas áreas livres; áreas ocupadas usam os níveis do proprietário.
+Nenhuma área exige conquistar outra antes.
+
+`config.mapId` é fixado na entrada e preservado na recuperação, migração de host
+e reprodução final. Servidor, worker, prévia, seleção de alvos e renderização
+compartilham a mesma geometria. A configuração sem `mapId` continua usando o
+mapa clássico original, preservando a leitura dos resultados anteriores.
+Os identificadores são versionados: alterações futuras na geometria devem
+criar outro ID para manter partidas antigas reproduzíveis.
+
+Validação: conectividade terrestre, gargalos, formação, entradas, checkpoint,
+reprodução e equivalência dos assets de navegador/servidor estão nos testes.
+`node experiments/battle-maps/smoke.js 12` executa 60 partidas com CPU ativa e
+um bot coordenado. No ensaio inicial o bot conquistou os cinco mapas em todos
+os casos; isto verifica viabilidade, não estima a taxa de vitória de humanos.
+O balanceamento será ajustado com as partidas reais.
+
 ## Perfil e tropas
 
 A navegação inclui **Perfil** e **Tropas**. O nome no cabeçalho também abre o
@@ -213,7 +247,7 @@ responsável preservam todos os perfis; a reprodução final usa a configuraçã
 as entradas autorizadas, incluindo o treinamento dos invasores.
 
 As cinco áreas estão acessíveis sem sequência obrigatória. A formação usa o
-mesmo grupo `[0, 1, 5, 7]`; a configuração antiga `cpu_share` é mantida como dado
+quartel, duas bases próximas e a central, conforme o mapa; a configuração antiga `cpu_share` é mantida como dado
 legado. `defense_share` na API informa a ocupação efetiva. As bases neutras seguem
 a referência de força do atacante. O perfil do setor ainda define tropas por
 posição, produção e intervalo de decisões da CPU. A entrada de um invasor mais

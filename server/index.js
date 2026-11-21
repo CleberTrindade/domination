@@ -7,7 +7,7 @@ const { Pool } = require('pg');
 const { WebSocketServer } = require('ws');
 const { migrate } = require('./database');
 const { createWorldService } = require('./world-service');
-const { browserEngine } = require('./browser-assets');
+const { browserEngine,browserMaps } = require('./browser-assets');
 
 function databasePool() {
   if (!process.env.DATABASE_URL) return null;
@@ -35,6 +35,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/world.css', ['world.css', 'text/css; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
   assets.set('/battle-engine.js',{body:browserEngine(),mime:'application/javascript; charset=utf-8'});
+  assets.set('/battle-maps.js',{body:browserMaps(),mime:'application/javascript; charset=utf-8'});
   assets.set('/browser-battle.js',{body:fs.readFileSync(path.join(__dirname,'../shared/browser-battle.js')),mime:'application/javascript; charset=utf-8'});
   async function databaseStatus() {
     if (!pool) return 'not_configured';

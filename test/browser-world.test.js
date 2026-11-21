@@ -60,7 +60,7 @@ test('browser combat persists only completed battles and preserves world, sessio
     });
     await t.test('commands are relayed without database queries and never execute combat on the server',async()=>{
       const before=sql.length;
-      const command={nonce:randomUUID(),type:'send',sources:[4],target:0,owner:2};
+      const command={nonce:randomUUID(),type:'send',sources:[4],target:10,owner:2};
       attackerSocket.ws.send(JSON.stringify({type:'command',battleId:record.id,requestId:1,command}));
       const ack=await attackerSocket.next(m=>m.type==='ack'&&m.requestId===1);assert.equal(ack.accepted,true);assert.equal(ack.input.owner,1);assert.equal(sql.length,before);
       assert.equal(app.world.battles.get(record.id).snapshot.units.length,0,'relay must not simulate the order');

@@ -85,6 +85,18 @@
     });
   }
   function areaClass(area) { return area.owner_id ? (area.owner_id === data?.player?.id ? 'mine' : 'rival') : ''; }
+  function tacticalMap(area){
+    const catalog=window.DOMINATION_MAPS;if(!catalog||!area.map_id)return '';
+    const map=catalog.geometry(area.map_id),defense=new Set(area.map_defender_sites||[]),attacker=area.map_attacker_site;
+    const points=(x,y)=>Array.from({length:6},(_,i)=>{const a=(60*i-90)*Math.PI/180;return (x+25*Math.cos(a)).toFixed(1)+','+(y+25*Math.sin(a)).toFixed(1);}).join(' ');
+    const color=id=>defense.has(id)?'#ed9d90':id===attacker?'#77adf0':'#ddd9ee';
+    const labels={C:'✦',P:'Q',G:'G',B:'B',H:'H',A:'A'};
+    return `<svg class="w-tactical-map" viewBox="0 0 390 640" role="img" aria-label="Prévia do campo ${esc(area.map_name)}">${map.cells.map(cell=>'<polygon points="'+points(cell.x,cell.y)+'" fill="'+color(cell.t)+'" stroke="#ffffff" stroke-width="2"/>').join('')}${map.seeds.map((seed,id)=>{const cell=map.cells[seed.cell];return '<g><circle cx="'+cell.x+'" cy="'+cell.y+'" r="14" fill="'+(defense.has(id)?'#ae554f':id===attacker?'#387fe2':'#697a9c')+'" stroke="white" stroke-width="2"/><text x="'+cell.x+'" y="'+(cell.y+4)+'" text-anchor="middle" fill="white" font-size="13" font-weight="900">'+labels[seed.n]+'</text></g>';}).join('')}</svg>`;
+  }
+  function showMapPreview(){
+    const area=data.areas.find(a=>a.id===selected);if(!area?.map_id)return;
+    modal(`<h2>${esc(area.map_name)}</h2><p>${esc(area.map_description)}</p>${tacticalMap(area)}<div class="w-legend"><span><i style="background:#77adf0"></i>Atacante</span><span><i style="background:#ed9d90"></i>Defensor / CPU</span><span><i style="background:#ddd9ee"></i>Neutras</span></div><p class="w-map-key">Q: quartel · G: garagem · B: botes<br>H: heliporto · A: canhão · ✦: bombardeiro</p><p>Formação inicial: 3 bases e bombardeiro para a defesa. Tanques seguem a terra; botes e helicópteros alcançam outras ilhas.</p><button class="w-cta" data-dialog="close">VOLTAR À ÁREA</button>`);
+  }
   function map() {
     const owned = data.areas.filter(a => a.owner_id && a.owner_id === data.player?.id).length;
     const area = data.areas.find(a => a.id === selected) || data.areas[0];
@@ -112,6 +124,7 @@
       <div class="w-legend"><span><i style="background:#b4afce"></i>CPU</span><span><i style="background:#78aef0"></i>Suas áreas</span><span><i style="background:#ee9a8e"></i>Rivais</span></div>
       <section class="w-area" aria-label="Área selecionada"><div class="w-area-top"><div><div class="w-kicker">ÁREA ${String(area.ordinal).padStart(2, '0')}</div><h2>${esc(area.name)}</h2></div><span class="w-status ${mine ? 'mine' : ''}">${area.battle_id ? 'EM DISPUTA' : mine ? 'CONQUISTADA' : area.owner_id ? 'OCUPADA' : 'NÃO CONQUISTADA'}</span></div>
         <p class="w-owner">${area.owner_id ? 'Comandante: <strong>' + esc(area.owner_name) + '</strong>'+(area.owner_level?' · Maior nível: '+area.owner_level:'') : 'Sob controle da <strong>guarnição da CPU</strong>'}</p>
+        ${area.map_id?'<button class="w-map-teaser" data-action="preview-map">'+tacticalMap(area)+'<span><small>'+esc(area.map_tag)+'</small><strong>'+esc(area.map_name)+'</strong><b>VER CAMPO DE BATALHA ›</b></span></button>':''}
         <div class="w-def"><span>Ocupação inicial da defesa</span><b>≈ ${Math.round((area.defense_share??(area.owner_id ? .5 : area.cpu_share)) * 100)}% do mapa</b></div>
         ${area.defense_bases?'<p class="w-defense-summary">'+area.defense_bases+' bases + bombardeiro central · Resistência '+esc(area.resistance)+(area.owner_id?' · Níveis individuais do proprietário':' · CPU com '+Math.round((data.progression?.cpuPowerRatio||.8)*100)+'% da força do atacante')+'</p>':''}
         <div class="w-area-coins"><strong>🪙 ${money(data.economy?.productionPerDay||1000)} moedas por dia</strong><small>${mine?'Produz enquanto a área estiver sob seu comando, inclusive offline.':area.economy?(data.wallet?.available===0?'Sem saldo na entrada: sem saque nem bônus em moedas.':area.owner_id?'Saque possível: até '+money(area.economy.maxLoot)+' moedas.':'Primeira conquista: +'+money(area.economy.cpuReward)+' moedas.')+' Reserva para entrar: '+money(area.economy.atRisk)+' moedas.':!area.owner_id&&!area.cpu_reward_claimed&&area.first_capture_reward?'Primeira conquista: +'+money(area.first_capture_reward)+' moedas.':'Conquiste para começar a produzir moedas.'}</small></div>
@@ -465,6 +478,7 @@
     if(receivedAction(button))return;
     const action = button.dataset.action;
     if (action === 'refresh') refresh(true);
+    if(action==='preview-map')showMapPreview();
     if(action==='wallet')showWallet();
     if(action==='army'||action==='troops')navigate('troops');
     if(action==='profile-refresh')loadProfile(profile?.pagination.page||1);
