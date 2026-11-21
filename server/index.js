@@ -30,6 +30,9 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/index.html', ['index.html', 'text/html; charset=utf-8']],
     ['/world.js', ['world.js', 'application/javascript; charset=utf-8']],
     ['/world-motion.js', ['world-motion.js', 'application/javascript; charset=utf-8']],
+    ['/troop-art.js', ['troop-art.js', 'application/javascript; charset=utf-8']],
+    ['/art/troops-initial-v1.png', ['art/troops-initial-v1.png', 'image/png']],
+    ['/art/central-v1.png', ['art/central-v1.png', 'image/png']],
     ['/battle-worker.js', ['battle-worker.js', 'application/javascript; charset=utf-8']],
     ['/sergipe-map.js', ['sergipe-map.js', 'application/javascript; charset=utf-8']],
     ['/world.css', ['world.css', 'text/css; charset=utf-8']]
@@ -57,7 +60,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
         res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end();
       }
       const asset = assets.get(pathname);
-      if (asset) { res.writeHead(200, { 'Content-Type': asset.mime }); return res.end(req.method === 'HEAD' ? undefined : asset.body); }
+      if (asset) { if(asset.mime==='image/png')res.setHeader('Cache-Control','public, max-age=31536000, immutable'); res.writeHead(200, { 'Content-Type': asset.mime }); return res.end(req.method === 'HEAD' ? undefined : asset.body); }
       if (pathname === '/health' || pathname === '/api/health') {
         const database = await databaseStatus(), ok = database === 'connected';
         res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json; charset=utf-8' });

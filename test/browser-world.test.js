@@ -28,7 +28,8 @@ test('browser combat persists only completed battles and preserves world, sessio
       assert.equal((await api('/api/world/areas/se-agreste/attack',alice.cookie,{}, {Origin:'https://other.invalid'})).status,403);
     });
     await t.test('simulation worker, shared engine and geographical assets are served as scripts',async()=>{
-      for(const path of ['/battle-worker.js','/battle-engine.js','/browser-battle.js','/sergipe-map.js']){const response=await fetch(base+path);assert.equal(response.status,200);assert(response.headers.get('content-type').includes('application/javascript'));}
+      for(const path of ['/battle-worker.js','/battle-engine.js','/browser-battle.js','/sergipe-map.js','/troop-art.js']){const response=await fetch(base+path);assert.equal(response.status,200);assert(response.headers.get('content-type').includes('application/javascript'));}
+      for(const path of ['/art/troops-initial-v1.png','/art/central-v1.png']){const response=await fetch(base+path,{method:'HEAD'});assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png');assert(response.headers.get('cache-control').includes('immutable'));}
     });
     await t.test('anonymous and cross-origin sockets are rejected',async()=>{
       for(const [cookie,origin]of [[null,null],[bob.cookie,'https://other.invalid']]){const client=realtime(cookie,origin);assert((await client.next(m=>m.type==='error')).message);client.ws.terminate();}

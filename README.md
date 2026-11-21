@@ -208,6 +208,24 @@ saldo restante; somente **Confirmar** envia a compra. Cancelar retorna aos
 detalhes sem gastar moedas. O nível e o custo são conferidos novamente antes
 do envio, preservando a compra individual e a proteção contra duplicidade.
 
+### Arte das unidades
+
+Tanque, bote, helicóptero, canhão e bombardeiro central usam o conceito visual
+3D na branch `mundo-aberto`. `public/troop-art.js` fornece modelos com cores de
+exército, 32 direções de movimento, canhão giratório e seis bocas de disparo
+na central. O helicóptero mantém o rotor e a oscilação animados. As casas de
+produção e as regras de combate continuam com o comportamento existente.
+
+A coleção e os detalhes usam recortes por viewport SVG das duas pranchas
+aprovadas em `public/art/`, sem repetir seus textos de apresentação. Os PNGs
+possuem nomes versionados e cache HTTP de um ano; uma alteração de imagem
+exige novo nome. As imagens de apresentação não são carregadas pelo combate.
+Os sprites do combate são rasterizados uma vez por tipo, cor e direção; o
+pré-carregamento ocorre em lotes de quatro e a geometria é compartilhada
+entre as cores. Não há geração de modelos a cada quadro nem consulta ao banco.
+As seis tropas propostas e a progressão por cartas ainda são propostas de
+expansão; esta atualização implementa a arte das cinco unidades existentes.
+
 ## Evolução individual e parâmetros de teste
 
 Contas novas começam com cinco níveis independentes: tanque (`tanque`), bote

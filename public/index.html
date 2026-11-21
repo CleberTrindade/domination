@@ -505,6 +505,7 @@ module.exports={unit3d,K,turret,turretMuzzle};
 __m["units3d"]=module.exports;})();
 return {S:__m.sprites2,U3:__m.units3d};})();
 </script>
+<script src="/troop-art.js"></script>
 <script>
 (()=>{
 'use strict';
@@ -636,7 +637,7 @@ const SPR=(()=>{
       const m=D.U3.turretMuzzle(h);return[s.x+m[0]*1.32,s.y-2+(m[1]-1)*1.32]},
     preload(cols){if(!D)return;for(const col of cols)for(const k of ['garagem','heli','botes','canhao','central'])this.building(k,col)},
     preloadUnits(cols){if(!D)return;const q=[];for(const col of cols){for(let i=0;i<N;i++){const h=i*2*Math.PI/N;for(const k of ['tanque','desliz','heli'])q.push(()=>this.unit(k,col,h));q.push(()=>this.turret(col,h))}}
-      const step=()=>{for(let n=0;n<16&&q.length;n++)q.shift()();if(q.length)setTimeout(step,16)};step()}
+      const step=()=>{for(let n=0;n<4&&q.length;n++)q.shift()();if(q.length)setTimeout(step,16)};step()}
   };
 })();
 function drawBase(c,s,col,X,Y,sc){
