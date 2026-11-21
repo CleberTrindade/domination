@@ -303,8 +303,9 @@
   const detailArt=kind=>kind==='tanque'?'<img class="w-detail-art" data-art="transparent-hero" src="/art/tank-detail-v2.webp" alt="" width="900" height="600">':window.DOMINATION_TROOP_ART?.detail(kind)||troopIcon(kind);
   const fixedTroop=kind=>['canhao','central'].includes(kind);
   function detailGlyph(kind){
-    const emoji={damage:'💥',power:'💪',interval:'⏱️',speed:'🏎️'};
+    const emoji={damage:'💥',power:'💪',interval:'⏱️'};
     if(emoji[kind])return '<span class="w-stat-emoji" aria-hidden="true">'+emoji[kind]+'</span>';
+    if(kind==='speed')return '<svg viewBox="0 0 28 28" aria-hidden="true"><path d="M4 23a12 12 0 1 1 20 0" fill="none" stroke="#46c9ff" stroke-width="4"/><path d="M23 7a12 12 0 0 1 1 16" fill="none" stroke="#fa6451" stroke-width="4"/><path d="m13 15 9-10-5 13Z" fill="#ffda54" stroke="#8d6112" stroke-width=".7"/><circle cx="14" cy="17" r="3" fill="#fff2ac"/></svg>';
     const paths={range:'M3 12h18M12 3v18m-9-9 4-4m-4 4 4 4m14-4-4-4m4 4-4 4',targets:'M12 2v4m0 12v4M2 12h4m12 0h4M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z',movement:'M5 8h14a4 4 0 0 1 0 8H5a4 4 0 0 1 0-8Zm1 4h.01M12 12h.01M18 12h.01'};
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+paths[kind]+'" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
