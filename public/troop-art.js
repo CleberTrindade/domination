@@ -158,7 +158,7 @@
     if(cardCache.has(kind))return cardCache.get(kind);
     const crops={tanque:[155,215,515,265],desliz:[862,215,515,265],heli:[140,617,495,280],canhao:[915,625,480,275],central:[55,355,1150,650]},crop=crops[kind];
     if(!crop)return'';
-    const central=kind==='central',cutouts={tanque:[600,355],desliz:[1365,355],heli:[600,750],canhao:[1365,760]},cut=cutouts[kind];
+    const central=kind==='central',cutouts={tanque:[600,355],desliz:[1340,355],heli:[600,750],canhao:[1340,760]},cut=cutouts[kind];
     const [x,y,w,h]=crop,clip=cut?'<defs><clipPath id="portrait-'+kind+'"><path d="M'+x+' '+y+'H'+cut[0]+'V'+cut[1]+'H'+(x+w)+'V'+(y+h)+'H'+x+'Z"/></clipPath></defs>':'';
     const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+crop.join(' ')+'" aria-hidden="true" class="w-troop-art" data-art="concept-3d" overflow="hidden">'+clip+'<image '+(cut?'clip-path="url(#portrait-'+kind+')" ':'')+'href="/art/'+(central?'central-v1.png':'troops-initial-v1.png')+'" width="'+(central?1254:1536)+'" height="'+(central?1254:1024)+'"/></svg>';
     cardCache.set(kind,svg);return svg;
