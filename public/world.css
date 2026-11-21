@@ -77,3 +77,58 @@
 .w-daily-missions article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-top:1px solid #d1deee}.w-daily-missions strong{font-size:13px}.w-daily-missions article>b{white-space:nowrap;color:#536aa1}.w-daily-missions .complete>b{color:#208a65}
 .w-card-balance{display:grid;gap:6px;padding:14px}.w-card-balance span{font-size:12px;color:#657993}.w-card-drops{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.w-card-drops span{background:white;border:1px solid #d7e3f3;border-radius:9px;padding:7px 9px;font-size:12px}.w-card-drops b{color:#6453ad}
 .w-reward-history article{padding:14px 0;border-top:1px solid #d1deee}.w-reward-history time{font-size:11px;color:#657993}.w-reward-history p{font-size:12px;margin:7px 0}.w-result-cards{text-align:left}
+/* Troop details: two focused tabs, persistent card progress and upgrade action. */
+#worldDialog.w-dialog-troop{width:calc(100% - 24px);max-width:440px;max-height:none;padding:0;overflow:visible;border-radius:0;background:transparent;box-shadow:none;color:#fff}
+#worldDialog.w-dialog-troop::backdrop{background:#071225df;backdrop-filter:blur(4px)}
+#worldDialog .w-troop-detail{height:min(720px,calc(100dvh - 20px));display:flex;flex-direction:column;position:relative;isolation:isolate}
+.w-troop-showcase{height:115px;flex:0 0 115px;position:relative;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 85%,#42ddff55,transparent 64%)}
+.w-troop-showcase .w-detail-art,.w-troop-showcase>.w-troop-art{position:absolute;width:70%;height:160px;max-width:300px;left:50%;bottom:-20px;transform:translateX(-50%);filter:drop-shadow(0 9px 6px #00102599) drop-shadow(0 0 12px #4cddff66)}
+.w-troop-sheet{position:relative;display:flex;flex-direction:column;gap:10px;min-height:0;flex:1;padding:18px 14px 12px;border:2px solid #55cfff;border-radius:21px;background:linear-gradient(135deg,#255c9a 0%,#143566 42%,#102a54 100%);box-shadow:inset 0 2px 2px #b5f1ff77,inset 0 -3px 7px #001d3d,0 12px 35px #0008}
+#worldDialog .w-troop-detail .w-detail-close{right:10px;top:10px;z-index:4;width:31px;height:31px;border:2px solid #ffc5ba;border-radius:8px;background:linear-gradient(#ff716d,#d32930);box-shadow:0 3px 0 #710f22;color:#fff;font:28px/24px 'Lilita One'}
+.w-troop-identity{display:grid;grid-template-columns:76px 1fr;gap:13px;align-items:center;flex:none;padding-right:30px;min-height:83px}
+.w-detail-portrait{height:85px;display:grid;place-items:center;overflow:hidden;border:3px solid #ffd564;border-radius:13px;background:radial-gradient(ellipse at 40% 30%,#91edff,#2b88b8 65%,#19517a);box-shadow:inset 0 0 0 2px #fff5,0 3px 0 #7f5b1e}
+.w-detail-portrait .w-troop-art,.w-detail-portrait .w-detail-art{width:110%;max-width:none;height:100%;border-radius:0;filter:drop-shadow(0 4px 3px #0b274477)}
+#worldDialog .w-troop-identity h2{font:clamp(22px,6vw,28px)/1.03 'Lilita One';margin:0 0 5px;color:#fff;text-shadow:0 2px 0 #06152e;overflow-wrap:anywhere}
+.w-troop-identity strong{display:block;font:18px/1.1 'Lilita One';color:#cbebff;text-shadow:0 1px #04182f}
+.w-troop-identity>div>span{display:inline-block;font-size:10px;line-height:1.2;font-weight:900;margin-top:6px;padding:4px 8px;background:#0b2449;border:1px solid #7198c2;border-radius:8px;color:#eff9ff}
+.w-detail-tabs{display:grid;grid-template-columns:1fr 1fr;flex:none;padding:2px;border:1px solid #709ccb;border-radius:13px;background:#0a2449;box-shadow:inset 0 2px 3px #001c3b}
+.w-detail-tabs button{border:2px solid transparent;border-radius:11px;background:transparent;color:#e9f6ff;font:22px/1 'Lilita One';padding:8px 4px;text-shadow:0 2px #12304f;min-height:40px}
+.w-detail-tabs button[aria-selected=true]{background:linear-gradient(#40e6f4,#00a4de);border-color:#ffda5d;color:#fff;box-shadow:inset 0 1px #e5ffff,0 2px 1px #001731}
+.w-troop-content{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#809ab9 #d2e4f3;background:linear-gradient(145deg,#d8eafa,#aecae5);border:2px solid #eef8ff;border-radius:14px;padding:10px;color:#173253;box-shadow:inset 0 0 0 1px #84add1}
+#worldDialog .w-card-description{font:15px/1.3 'Lilita One';text-align:center;margin:0 0 9px;color:#14304f}
+.w-origin-preview{position:relative;margin:0;overflow:hidden;border-radius:11px;background:#cde4f4}
+.w-origin-preview>.w-troop-art{width:100%;height:clamp(125px,22dvh,186px);display:block;object-fit:contain}
+.w-origin-preview figcaption{position:relative;text-align:center;font-size:10px;font-weight:800;padding:4px 6px 6px;background:#e8f5ffe6;color:#183355}
+#worldDialog .w-card-strategy{display:flex;align-items:center;gap:9px;margin:8px 0 0;font-size:11px;line-height:1.35;font-weight:900;color:#24415f}
+.w-card-strategy>span{color:#dca92a;font-size:25px;text-shadow:0 1px #fff}
+.w-attack-stats{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.w-attack-stat{display:flex;align-items:center;gap:6px;min-width:0;min-height:49px;border:1px solid #e9f4ff;border-bottom-color:#7895b1;border-radius:8px;padding:5px;background:linear-gradient(#e0edf7,#b6cce0)}
+.w-attack-stat>i{display:grid;place-items:center;flex:0 0 29px;width:29px;height:33px;border:1px solid #8ba3bd;border-radius:6px;background:linear-gradient(145deg,#1c4a7b,#10213e);color:#ffdb72}
+.w-attack-stat svg{width:23px;height:23px}.w-attack-stat>span{min-width:0}
+.w-attack-stat small{display:block;font-size:10px;font-weight:900;line-height:1.15;color:#354f6b}
+.w-attack-stat b{display:block;font:clamp(16px,4.4vw,20px)/1.1 'Lilita One';color:#122a48;overflow-wrap:anywhere}
+.w-attack-preview{position:relative;height:104px;overflow:hidden;margin-top:8px;border:1px solid #e8f7ff;border-radius:10px;background:#82bcea}
+.w-preview-terrain{position:absolute;inset:0;width:100%;height:100%}.w-preview-unit{position:absolute;left:4%;bottom:4%;width:43%;height:80%;z-index:2;filter:drop-shadow(0 4px 2px #263b5766)}
+.w-preview-unit>.w-detail-art,.w-preview-unit>.w-troop-art{width:100%;height:100%}
+.w-preview-base{position:absolute;right:4%;bottom:6%;width:34%;height:90%;z-index:1}.w-base-preview{width:100%;height:100%}
+.w-preview-beam{position:absolute;left:54%;top:38%;font-size:27px;color:#ffdc65;line-height:1;text-shadow:0 0 5px #ff8b22,0 0 10px #fff;z-index:3}.w-preview-beam:before{content:'';position:absolute;right:90%;top:46%;height:3px;width:35px;background:#ffdc65;box-shadow:0 0 5px #fff}.repair .w-preview-beam{color:#3cae79;text-shadow:0 0 3px #fff}.repair .w-preview-beam:before{background:#50c68f}
+#worldDialog .w-troop-content .w-upgrade-details{margin-top:8px;color:#26476a}
+#worldDialog .w-troop-content .w-upgrade-details summary{font-size:10px;font-weight:900;cursor:pointer;padding:4px 0}
+.w-troop-content .w-upgrade-details th,.w-troop-content .w-upgrade-details td{font-size:10px;padding:5px 3px}
+.w-troop-upgrade{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,40%);column-gap:12px;row-gap:4px;align-items:center;flex:none;padding:1px 1px 0}
+.w-detail-card-progress{display:grid;grid-template-columns:26px minmax(0,1fr);gap:7px;align-items:center}
+.w-card-stack{position:relative;display:block;transform:rotate(-12deg);width:24px;height:33px;border:2px solid #ffd564;border-radius:5px;background:linear-gradient(135deg,#54dbff,#2378bd);box-shadow:2px 3px 0 #102149,inset 0 0 0 2px #a4edff;color:transparent}
+.w-card-stack:before{content:'';position:absolute;inset:-4px -5px 1px 3px;border:2px solid #d5a83d;border-radius:5px;background:#2f78b8;z-index:-1;transform:rotate(14deg)}
+.w-card-meter{position:relative;display:grid;place-items:center;height:25px;border:1px solid #93b5dc;border-radius:6px;background:#0b2448;overflow:hidden;isolation:isolate}
+.w-card-meter>i{position:absolute;inset:0 auto 0 0;z-index:-1;background:linear-gradient(#7ae55f,#21aa39);border-radius:4px}
+.w-card-meter b{font:12px 'Lilita One';white-space:nowrap;color:white;text-shadow:0 1px 2px #042516,1px 0 #124430}
+.w-detail-card-progress small{display:block;text-align:center;font:13px 'Lilita One';margin-top:5px;color:#eaf6ff;text-shadow:0 1px #091831}.w-detail-card-progress small span{color:#ffd25b}
+.w-upgrade-action{min-height:62px;border:2px solid #bdff74;border-radius:11px;color:#fff;background:linear-gradient(#a0ef44,#4aca1a 43%,#20ab13);box-shadow:inset 0 2px #e6ffc9,0 3px 0 #0d611b;text-shadow:0 2px 1px #154a0e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:6px}
+.w-upgrade-action>span{font:21px/1 'Lilita One'}.w-upgrade-action>b{font:22px/1.1 'Lilita One'}.w-upgrade-action i{font-style:normal;font-size:20px}
+.w-upgrade-action:disabled{background:linear-gradient(#9baab9,#64768d);border-color:#c0d0e2;box-shadow:inset 0 2px #eef5ff77,0 3px 0 #203752;text-shadow:0 2px 1px #26364c;cursor:default}.w-upgrade-action:disabled>span{font-size:15px}
+.w-upgrade-action.w-upgrade-login{background:linear-gradient(#ffd466,#eca61a);border-color:#ffe99e;box-shadow:inset 0 2px #fff5b7,0 3px 0 #845d1b;text-shadow:0 2px #856020;font:13px/1.15 'Lilita One'}
+#worldDialog p.w-troop-upgrade-hint{grid-column:1/-1;margin:2px 0 0;text-align:center;color:#d1e4f5;font-size:10px;line-height:1.25;max-height:38px;overflow:auto}
+#worldDialog p.w-troop-upgrade-hint:empty{display:none}#worldDialog p.w-troop-upgrade-hint.failed{color:#ffb3a7}#worldDialog p.w-troop-upgrade-hint.success{color:#b8f993}
+#worldDialog.w-dialog-troop button:focus-visible{outline:3px solid #fff1a4;outline-offset:2px}
+@media(max-height:700px){.w-troop-showcase{height:84px;flex-basis:84px}.w-troop-showcase .w-detail-art,.w-troop-showcase>.w-troop-art{height:120px;bottom:-18px}.w-troop-sheet{padding:13px 12px 10px;gap:8px}.w-troop-identity{grid-template-columns:62px 1fr;min-height:68px;gap:10px}.w-detail-portrait{height:68px}.w-troop-identity strong{font-size:15px}.w-troop-identity>div>span{font-size:9px;margin-top:4px;padding:3px 6px}.w-detail-tabs button{font-size:20px;min-height:36px;padding:6px}.w-origin-preview>.w-troop-art{height:125px}.w-attack-stat{min-height:44px}.w-attack-preview{height:85px}.w-upgrade-action{min-height:54px}.w-upgrade-action>span{font-size:19px}.w-upgrade-action>b{font-size:20px}}
+@media(max-width:350px){.w-troop-sheet{padding-left:10px;padding-right:10px}.w-troop-identity{grid-template-columns:60px 1fr;gap:9px}.w-detail-portrait{height:72px}.w-troop-upgrade{gap:7px}.w-detail-card-progress{grid-template-columns:20px minmax(0,1fr);gap:5px}.w-card-stack{width:19px;height:28px}.w-card-meter b{font-size:10px}.w-attack-stat{gap:4px;padding:4px}.w-attack-stat>i{flex-basis:24px;width:24px;height:29px}.w-attack-stat small{font-size:9px}.w-attack-stat b{font-size:15px}.w-upgrade-action.w-upgrade-login{font-size:11px}}

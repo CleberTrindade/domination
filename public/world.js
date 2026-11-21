@@ -13,7 +13,7 @@
   let socket=null,socketPlayer=null,socketReady=false,retryTimer=null,retryDelay=1000,requestId=0,refreshTimer=null,switchingDefense=false;
   const pending=new Map(),threats=new Map(),watchedThreats=new Map();let alertDigest='';
   let reviewOnReturn=true;
-  let upgrading=false,upgradeRequest=null,selectedTroop='tanque',selectedTroopCard=null,upgradeConfirmation=null,loadoutDraft=[],savingLoadout=false;
+  let upgrading=false,upgradeRequest=null,selectedTroop='tanque',troopDetailTab='carta',selectedTroopCard=null,upgradeConfirmation=null,loadoutDraft=[],savingLoadout=false;
   let profile=null,profileOwner=null,profileLoading=false,profileError='',profileRequest=0;
   const troopNames={tanque:'Tanque',desliz:'Bote',heli:'Helicóptero',canhao:'Canhão',central:'Bombardeiro central',batedor:'Batedor',foguetes:'Lança-foguetes',blindado:'Blindado pesado',antiaereo:'Antiaéreo',engenheiro:'Engenheiro',artilharia:'Artilharia móvel'};
   const dateTime=value=>new Date(value).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -294,13 +294,45 @@
       if(tab==='profile'&&data.player&&!profile&&!profileLoading&&!profileError)loadProfile();
     } catch (e) { error = e.message; render(); }
   }
-  function modal(html) { if (dialog.open) dialog.close(); dialog.innerHTML = html; dialog.showModal(); }
-  function showArmy(kind=selectedTroop,message='',failed=false,base=false){
-    selectedTroop=kind;upgradeConfirmation=null;
-    const troop=(data.troops||[]).find(t=>t.id===kind),army=data.army?.troops?.[kind];
-    if(!troop)return;
-    const costs=data.progression.upgradeCosts,cardCosts=data.progression.upgradeCards||[];
-    modal(`<section class="w-troop-detail" aria-labelledby="troopDetailTitle"><button class="w-detail-close" data-dialog="close" aria-label="Fechar detalhes">×</button><div class="w-detail-hero ${kind}">${base?window.DOMINATION_TROOP_ART.baseCard(kind):troopIcon(kind)}<span>${base?esc(troop.base):esc(troop.category)}</span></div><div class="w-detail-title"><h2 id="troopDetailTitle">${esc(troop.name)}</h2><b>NÍVEL ${troop.level} / 10</b></div><button class="w-textbtn" data-dialog="${base?'troop-unit':'troop-base'}">${base?'VER TROPA':'VER BASE DE ORIGEM'}</button><p>${esc(troop.description)}</p>${troop.locked?'<div class="w-error">Requer comandante nível '+troop.unlockLevel+'. Evolua tipos diferentes e conclua batalhas para desbloquear.</div>':''}${troopMetrics(troop)}<div class="w-card-balance"><strong>${money(troop.cards||0)} cartas de ${esc(troop.name)}</strong><span>${troop.nextCards?'Próxima melhoria: '+money(troop.nextCards)+' cartas + '+money(troop.nextCost)+' moedas':'Nível máximo alcançado'}</span></div><p class="w-troop-tip"><strong>Origem:</strong> ${esc(troop.base)}<br>${esc(troop.tip)}</p><div class="w-army-next">${troop.nextPower?'<strong>Próxima melhoria · Nível '+troop.level+' → '+(troop.level+1)+'</strong><p>Força: '+Math.round(troop.power*100)+'% → '+Math.round(troop.nextPower*100)+'%<br>Dano: '+stat(troop.damage)+' → '+stat(troop.nextDamage)+' por disparo</p>':'<strong>Este tipo atingiu o nível máximo.</strong>'}</div><p>Melhora apenas <strong>${esc(troop.name)}</strong>, nas próximas batalhas. Canhões e bombardeiro melhoram os disparos fixos; as tropas que saem dessas posições usam o nível dos tanques.</p>${data.wallet?'<p>Disponíveis: '+money(data.wallet.available)+' moedas · Reservadas: '+money(data.wallet.reserved)+'</p>':''}${army?.reason?'<p class="w-form-error">'+esc(army.reason)+'</p>':''}${message?'<p class="'+(failed?'w-form-error':'w-upgrade-success')+'" role="status">'+esc(message)+'</p>':''}${!data.player?'<button class="w-cta" data-dialog="login">ENTRAR PARA MELHORAR</button>':'<button class="w-cta" data-dialog="review-upgrade" '+(!army?.canUpgrade||upgrading?'disabled':'')+'>'+(upgrading?'MELHORANDO…':army.nextCost?'MELHORAR · '+money(army.nextCost)+' 🪙':'NÍVEL MÁXIMO')+'</button>'}<details class="w-upgrade-details"><summary>Ver níveis e custos deste tipo</summary><table><thead><tr><th>Nível</th><th>Força</th><th>Moedas</th><th>Cartas</th></tr></thead><tbody>${costs.slice(1).map((cost,i)=>'<tr class="'+(i+1===troop.level?'current':'')+'"><td>'+(i+1)+'</td><td>'+(100+i*data.progression.powerStep)+'%</td><td>'+(cost?money(cost):'Inicial')+'</td><td>'+money(cardCosts[i+1]||0)+'</td></tr>').join('')}</tbody></table></details><button class="w-textbtn" data-dialog="close">VOLTAR ÀS TROPAS</button></section>`);
+  function modal(html,view='') {
+    const replace=dialog.open&&view==='troop'&&dialog.dataset.view==='troop';
+    if(dialog.open&&!replace)dialog.close();
+    dialog.dataset.view=view;dialog.classList.toggle('w-dialog-troop',view==='troop');dialog.innerHTML=html;
+    if(!replace)dialog.showModal();
+  }
+  const detailArt=kind=>window.DOMINATION_TROOP_ART?.detail(kind)||troopIcon(kind);
+  const fixedTroop=kind=>['canhao','central'].includes(kind);
+  function detailGlyph(kind){
+    const paths={damage:'m13 2-2 7 7-3-4 7 7 1-8 5-1-6-6 4 3-7-6-1z',power:'M12 3 4 7v5c0 5 8 9 8 9s8-4 8-9V7z',interval:'M9 2h6m-3 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 3v5l3 2',speed:'M4 18a9 9 0 1 1 16 0M12 14l5-6M6 18h12',range:'M3 12h18M12 3v18m-9-9 4-4m-4 4 4 4m14-4-4-4m4 4-4 4',targets:'M12 2v4m0 12v4M2 12h4m12 0h4M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z',movement:'M5 8h14a4 4 0 0 1 0 8H5a4 4 0 0 1 0-8Zm1 4h.01M12 12h.01M18 12h.01'};
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+paths[kind]+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  function attackPreview(troop){
+    const repair=troop.id==='engenheiro',base=window.DOMINATION_TROOP_ART?.basePreview?.('quartel',repair?1:2)||'';
+    const hexes=Array.from({length:24},(_,i)=>{const col=i%6,row=Math.floor(i/6),x=col*58+5,y=row*46+(col%2?23:0);return '<path d="M'+x+' '+(y-25)+'l25 13v25l-25 13-25-13V'+(y-12)+'z" fill="'+(col<3?'#82bcea':'#ea9292')+'" stroke="#e8f4ff" stroke-opacity=".45"/>';}).join('');
+    return '<div class="w-attack-preview '+(repair?'repair':'')+'" role="img" aria-label="Ilustração de '+esc(troop.name)+(repair?' reforçando uma base aliada':' enfrentando uma base inimiga')+'"><svg class="w-preview-terrain" viewBox="0 0 300 150" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+hexes+'</svg><div class="w-preview-unit">'+detailArt(troop.id)+'</div><div class="w-preview-beam" aria-hidden="true">'+(repair?'✚':'✦')+'</div><div class="w-preview-base">'+base+'</div></div>';
+  }
+  function detailAttack(troop){
+    const fixed=fixedTroop(troop.id),movement=fixed?'Fixo':troop.id==='heli'?'Aéreo':troop.id==='desliz'?'Travessia':'Terrestre';
+    const metrics=[['damage','Dano por disparo',stat(troop.damage)],['power','Força',Math.round(troop.power*100)+'%'],['interval','Intervalo de tiros',stat(troop.interval)+' s'],[fixed?'range':'speed',fixed?'Alcance (hex.)':'Velocidade',fixed?stat(troop.range):Math.round(troop.speed/42*100)+'%'],['targets','Alvos',fixed?'Tropas':'Bases e tropas'],['movement','Movimento',movement]];
+    const costs=data.progression.upgradeCosts,cards=data.progression.upgradeCards||[];
+    return '<div class="w-attack-stats">'+metrics.map(([icon,label,value])=>'<div class="w-attack-stat"><i>'+detailGlyph(icon)+'</i><span><small>'+label+'</small><b>'+value+'</b></span></div>').join('')+'</div>'+attackPreview(troop)+'<details class="w-upgrade-details"><summary>Ver níveis e custos deste tipo</summary><table><thead><tr><th>Nível</th><th>Força</th><th>Moedas</th><th>Cartas</th></tr></thead><tbody>'+costs.slice(1).map((cost,i)=>'<tr class="'+(i+1===troop.level?'current':'')+'"><td>'+(i+1)+'</td><td>'+(100+i*data.progression.powerStep)+'%</td><td>'+(cost?money(cost):'Inicial')+'</td><td>'+money(cards[i+1]||0)+'</td></tr>').join('')+'</tbody></table></details>';
+  }
+  function detailCard(troop){
+    return '<p class="w-card-description">'+esc(troop.description)+'</p><figure class="w-origin-preview">'+(window.DOMINATION_TROOP_ART?.baseCard(troop.id)||troopIcon(troop.id))+'<figcaption>Base de origem: <strong>'+esc(troop.base)+'</strong></figcaption></figure><p class="w-card-strategy"><span aria-hidden="true">✦</span>'+esc(troop.tip)+'</p>';
+  }
+  function showArmy(kind=selectedTroop,message='',failed=false){
+    if(kind!==selectedTroop)troopDetailTab='carta';selectedTroop=kind;upgradeConfirmation=null;
+    const troop=(data.troops||[]).find(t=>t.id===kind),army=data.army?.troops?.[kind];if(!troop)return;
+    const maximum=!troop.nextLevel,cards=troop.cards||0,needed=troop.nextCards||0,progress=maximum?100:Math.min(100,cards/Math.max(1,needed)*100);
+    const reason=troop.locked?'Requer comandante nível '+troop.unlockLevel+'.':army?.reason;
+    const notice=message||(!maximum&&reason)||'',label=troop.locked?'COMANDANTE '+troop.unlockLevel:maximum?'NÍVEL MÁXIMO':'Melhorar';
+    const button=!data.player?'<button class="w-upgrade-action w-upgrade-login" data-dialog="login">ENTRAR PARA MELHORAR</button>':'<button class="w-upgrade-action" data-dialog="review-upgrade" '+(!army?.canUpgrade||upgrading?'disabled':'')+' aria-describedby="troopUpgradeHint" aria-label="'+esc(maximum?'Nível máximo':troop.locked?label:'Melhorar '+troop.name+' por '+needed+' cartas e '+troop.nextCost+' moedas')+'"><span>'+(upgrading?'MELHORANDO…':label)+'</span>'+(!maximum&&!troop.locked?'<b><i aria-hidden="true">🪙</i> '+money(troop.nextCost)+'</b>':'')+'</button>';
+    const active=troopDetailTab==='ataque'?'ataque':'carta';
+    modal(`<section class="w-troop-detail" aria-labelledby="troopDetailTitle"><div class="w-troop-showcase" aria-hidden="true">${detailArt(kind)}</div><div class="w-troop-sheet"><button class="w-detail-close" data-dialog="close" aria-label="Fechar detalhes">×</button><header class="w-troop-identity"><div class="w-detail-portrait">${detailArt(kind)}</div><div><h2 id="troopDetailTitle">${esc(troop.name)}</h2><strong>Nível ${troop.level}</strong><span>${esc(troop.category)}</span></div></header><div class="w-detail-tabs" role="tablist" aria-label="Informações da tropa"><button id="troopTabCarta" role="tab" data-troop-tab="carta" aria-selected="${active==='carta'}" aria-controls="troopDetailsPanel" tabindex="${active==='carta'?0:-1}">Carta</button><button id="troopTabAtaque" role="tab" data-troop-tab="ataque" aria-selected="${active==='ataque'}" aria-controls="troopDetailsPanel" tabindex="${active==='ataque'?0:-1}">Ataque</button></div><div id="troopDetailsPanel" class="w-troop-content" role="tabpanel" aria-labelledby="troopTab${active==='carta'?'Carta':'Ataque'}" tabindex="0">${active==='carta'?detailCard(troop):detailAttack(troop)}</div><footer class="w-troop-upgrade"><div class="w-detail-card-progress"><span class="w-card-stack" aria-hidden="true">▱</span><div><div class="w-card-meter" role="progressbar" aria-label="Cartas de ${esc(troop.name)} para a próxima melhoria" aria-valuemin="0" aria-valuemax="${maximum?1:needed}" aria-valuenow="${maximum?1:Math.min(cards,needed)}"><i style="width:${progress}%"></i><b>${maximum?'COLEÇÃO COMPLETA':money(cards)+' / '+money(needed)+' cartas'}</b></div><small>${maximum?'Nível máximo':`Nível ${troop.level} <span aria-hidden="true">➜</span> ${troop.nextLevel}`}</small></div></div>${button}<p id="troopUpgradeHint" class="w-troop-upgrade-hint ${message?(failed?'failed':'success'):''}" role="status">${esc(notice)}</p></footer></div></section>`,'troop');
+  }
+  function selectTroopTab(value){
+    if(!['carta','ataque'].includes(value)||!dialog.open||dialog.dataset.view!=='troop')return;
+    troopDetailTab=value;showArmy();dialog.querySelector('[data-troop-tab="'+value+'"]').focus?.();
   }
   function reviewUpgrade(){
     const kind=selectedTroop,troop=(data?.troops||[]).find(t=>t.id===kind),army=data?.army?.troops?.[kind];
@@ -535,7 +567,7 @@
     if (button.dataset.area) { selected = button.dataset.area; tab = 'territories'; render(); return; }
     if (button.dataset.tab) { navigate(button.dataset.tab); return; }
     if(button.dataset.selectTroop){selectedTroopCard=button.dataset.selectTroop;render();return;}
-    if(button.dataset.troop){showArmy(button.dataset.troop);return;}
+    if(button.dataset.troop){troopDetailTab='carta';showArmy(button.dataset.troop);return;}
     if(button.dataset.profilePage){loadProfile(Number(button.dataset.profilePage));return;}
     if(receivedAction(button))return;
     const action = button.dataset.action;
@@ -557,6 +589,11 @@
     }
   });
   dialog.addEventListener('cancel',()=>{upgradeConfirmation=null;});
+  dialog.addEventListener('keydown',event=>{
+    if(!event.target.closest?.('[data-troop-tab]'))return;
+    const next={ArrowLeft:'carta',ArrowRight:'ataque',Home:'carta',End:'ataque'}[event.key];
+    if(next){event.preventDefault();selectTroopTab(next);}
+  });
   dialog.addEventListener('click', async event => {
     const button = event.target.closest('button'); if (!button) return;
     if(button.disabled)return;
@@ -564,8 +601,7 @@
     if(button.dataset.loadoutKind){const kind=button.dataset.loadoutKind;if(savingLoadout)return;if(loadoutDraft.includes(kind))loadoutDraft=loadoutDraft.filter(k=>k!==kind);else if(loadoutDraft.length<3)loadoutDraft.push(kind);else{showLoadout('Escolha no máximo três tipos.');return;}showLoadout();return;}
     const action = button.dataset.dialog;
     if(action==='save-loadout')await saveLoadout();
-    if(action==='troop-base')showArmy(selectedTroop,'',false,true);
-    if(action==='troop-unit')showArmy();
+    if(button.dataset.troopTab){selectTroopTab(button.dataset.troopTab);return;}
     if (action === 'close') {upgradeConfirmation=null;dialog.close();}
     if (action === 'register') authForm(true);
     if (action === 'login') authForm(false);

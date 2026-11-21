@@ -200,13 +200,29 @@ entram como decisões sem vitória. Histórico legado sem roster usa os IDs do
 atacante/defensor. A consulta exige a sessão do próprio jogador e é feita ao
 abrir/atualizar o perfil, sem acrescentar leitura por comando de combate.
 
-A tela Tropas apresenta uma coleção de cartas com ilustração, nível e custo da
-próxima melhoria. Selecionar uma carta revela **Detalhes**. A janela de detalhes
-mostra função, origem, força, dano, velocidade/alcance, intervalo e tabela de
-preços. **Melhorar** abre uma confirmação com nível atual/próximo, custo e
-saldo restante; somente **Confirmar** envia a compra. Cancelar retorna aos
-detalhes sem gastar moedas. O nível e o custo são conferidos novamente antes
-do envio, preservando a compra individual e a proteção contra duplicidade.
+A tela Tropas apresenta uma coleção de cartas com ilustração, nível e progresso.
+Selecionar uma carta revela **Detalhes**, no visual azul aprovado, com a ilustração
+sem fundo acima da janela e duas abas acessíveis:
+
+- **Carta**: descrição, base de origem e dica de estratégia.
+- **Ataque**: dano por disparo, força, intervalo, velocidade/alcance, alvos e movimento.
+  A tabela completa de preços fica recolhida nesta aba.
+
+O rodapé permanece visível ao alternar as abas e ao rolar o conteúdo: mostra cartas
+acumuladas/exigidas, nível atual/próximo e o botão **Melhorar** com custo em moedas.
+Tipos bloqueados, nível máximo, falta de recursos e contas visitantes têm estados
+próprios. As setas esquerda/direita e Home/End também alternam as abas.
+**Melhorar** abre a confirmação; somente **Confirmar** envia a compra. Cancelar
+retorna à aba anterior. Nível e custos são conferidos novamente antes do envio,
+preservando a compra individual e a proteção contra duplicidade. A troca de abas
+não chama a API nem toca o combate.
+
+As ilustrações transparentes usadas apenas nos detalhes ficam nos WebPs versionados
+`public/art/troop-heroes-initial-v1.webp`, `troop-heroes-expanded-v1.webp` e
+`troop-hero-central-v1.webp`. Foram extraídas das pranchas aprovadas, sem legendas,
+fundos ou plataformas, preservando o estilo e a transparência. Cada arquivo é um
+atlas recortado por viewport SVG; é carregado ao abrir detalhes e servido com cache
+imutável. Os sprites da batalha permanecem vetoriais e não carregam esses arquivos.
 
 ### Arte das unidades
 

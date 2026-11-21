@@ -23,10 +23,11 @@ test('individual troop screen purchases only the selected type and recovers lost
   const rootClick=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dialogClick=action=>dialog.listeners.click({target:{closest:()=>({dataset:{dialog:action}})}});
   assert.equal((root.innerHTML.match(/data-select-troop=/g)||[]).length,11);assert(!root.innerHTML.includes('data-troop='));
   await rootClick({selectTroop:'heli'});assert(root.innerHTML.includes('data-troop="heli"'));assert(!root.innerHTML.includes('data-troop="tanque"'));assert.equal(dialog.open,false);
-  await rootClick({troop:'heli'});assert(dialog.innerHTML.includes('MELHORAR · 100'));assert(dialog.innerHTML.includes('apenas <strong>Helicóptero'));assert(dialog.innerHTML.includes('INTERVALO DE TIROS'));
+  await rootClick({troop:'heli'});assert(dialog.innerHTML.includes('Melhorar Helicóptero por 10 cartas e 100 moedas'));assert(dialog.innerHTML.includes('Base de origem:'));assert(!dialog.innerHTML.includes('w-attack-stats'));assert(dialog.innerHTML.includes('data-troop-tab="carta" aria-selected="true"'));
+  await dialog.listeners.click({target:{closest:()=>({dataset:{troopTab:'ataque'}})}});assert(dialog.innerHTML.includes('Intervalo de tiros'));assert(!dialog.innerHTML.includes('Base de origem:'));assert(dialog.innerHTML.includes('data-troop-tab="ataque" aria-selected="true"'));
   assert.equal(calls.length,0);await dialogClick('confirm-upgrade');assert.equal(calls.length,0,'details alone never authorize a purchase');
   await dialogClick('review-upgrade');assert(dialog.innerHTML.includes('CONFIRMAR · 100'));assert(dialog.innerHTML.includes('900 moedas'));assert.equal(calls.length,0);
-  await dialogClick('troop-details');assert(dialog.innerHTML.includes('MELHORAR · 100'));assert.equal(balance,1000);assert.equal(calls.length,0,'cancel must not spend coins');
+  await dialogClick('troop-details');assert(dialog.innerHTML.includes('Melhorar Helicóptero por 10 cartas e 100 moedas'));assert.equal(balance,1000);assert.equal(calls.length,0,'cancel must not spend coins');
   await dialogClick('review-upgrade');
   const event={target:{closest:()=>({dataset:{dialog:'confirm-upgrade'}})}};
   await Promise.all([dialog.listeners.click(event),dialog.listeners.click(event)]);await flush();assert.equal(calls.length,1);assert.equal(balance,900);assert(dialog.innerHTML.includes('Nível 2'));assert.equal(wallet.levels.tanque,1);
@@ -200,7 +201,7 @@ test('expanded collection previews origin bases and saves at most three unlocked
  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
  await click({tab:'troops'});assert(root.innerHTML.includes('NÍVEL 7'));assert(root.innerHTML.includes('250 batalhas válidas'));
- await click({troop:'engenheiro'});await dc({dialog:'troop-base'});assert(dialog.innerHTML.includes('/art/bases-expanded-v1.png'));assert(dialog.innerHTML.includes('Oficina de engenharia'));await dc({dialog:'close'});
+ await click({troop:'engenheiro'});assert(dialog.innerHTML.includes('/art/bases-expanded-v1.png'));assert(dialog.innerHTML.includes('Oficina de engenharia'));await dc({dialog:'close'});
  await click({action:'loadout'});assert(dialog.innerHTML.includes('Selecionadas: 1/3'));await dc({loadoutKind:'batedor'});await dc({loadoutKind:'engenheiro'});await dc({loadoutKind:'artilharia'});assert(dialog.innerHTML.includes('no máximo três'));assert.equal(calls.length,0);
  await dc({dialog:'save-loadout'});await flush();assert.equal(calls.length,1);assert.deepEqual(calls[0].troops,['tanque','batedor','engenheiro']);assert.equal(dialog.open,false);assert(root.innerHTML.includes('Tanque · Batedor · Engenheiro'));
 });
@@ -214,4 +215,24 @@ test('daily reward screen exposes automatic missions and random drops without a 
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}});
  await click({tab:'more'});assert(root.innerHTML.includes('Recompensas diárias'));
  await click({tab:'rewards'});assert(root.innerHTML.includes('90 / 120 cartas'));assert(root.innerHTML.includes('Conquistar 5 bases inimigas'));assert(root.innerHTML.includes('RECOMPENSA PROCESSADA'));assert(root.innerHTML.includes('meia-noite de Fortaleza'));assert(root.innerHTML.includes('+8'));assert(root.innerHTML.includes('Helicóptero'));assert(!root.innerHTML.includes('data-select-troop'));
+});
+test('card and attack tabs keep the action visible, expose real per-type stats, support keyboard and never spend on tab changes',async()=>{
+ const root=element(),dialog=element(),body=element(),calls=[];
+ const {armyView,ARMY_RULES}=require('../server/progression'),{troopCatalog}=require('../server/troops'),rules=require('../shared/troop-rules');
+ const levels=Object.fromEntries(rules.KINDS.map(k=>[k,3])),cards=Object.fromEntries(rules.KINDS.map(k=>[k,52]));
+ const army=armyView({level:3,levels,cards,battles:250,owned:0},100000n,0);
+ const world={player:{id:'cardtabs',name:'Card Tabs'},army,troops:troopCatalog(army),progression:ARMY_RULES,wallet:{balance:1000,available:1000,reserved:0,entries:[]},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34}],ranking:[],history:[]};
+ const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
+ const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{},DOMINATION_TROOP_ART:require('../public/troop-art')},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{calls.push({path,options});return{ok:true,json:async()=>structuredClone(world)};}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
+ await click({troop:'tanque'});const before=calls.length;
+ const footer=()=>dialog.innerHTML.match(/<footer[\s\S]*?<\/footer>/)[0],firstFooter=footer();
+ assert(dialog.innerHTML.includes('data-art="transparent-hero"'));assert(dialog.innerHTML.includes('52 / 40 cartas'));assert(dialog.innerHTML.includes('500 moedas'));assert(dialog.innerHTML.includes('Base de origem:'));assert(!dialog.innerHTML.includes('w-attack-stats'));
+ await dc({troopTab:'ataque'});assert.equal(footer(),firstFooter);assert(dialog.innerHTML.includes('1,2'));assert(dialog.innerHTML.includes('120%'));assert(dialog.innerHTML.includes('0,3 s'));assert(!dialog.innerHTML.includes('Base de origem:'));assert(!/NaN|Infinity/.test(dialog.innerHTML));
+ let prevented=false;dialog.listeners.keydown({key:'ArrowLeft',target:{closest:()=>true},preventDefault(){prevented=true;}});assert(prevented);assert(dialog.innerHTML.includes('data-troop-tab="carta" aria-selected="true"'));assert.equal(calls.length,before);
+ await click({troop:'canhao'});await dc({troopTab:'ataque'});assert(dialog.innerHTML.includes('Alcance (hex.)'));assert(dialog.innerHTML.includes('2,6'));assert(!dialog.innerHTML.includes('Velocidade'));assert(dialog.innerHTML.includes('Fixo'));
+ await click({troop:'engenheiro'});await dc({troopTab:'ataque'});assert(dialog.innerHTML.includes('0,42'));assert(dialog.innerHTML.includes('120%'));assert(dialog.innerHTML.includes('COMANDANTE 6'));assert(dialog.innerHTML.includes('data-dialog="review-upgrade" disabled'));
+ await click({troop:'tanque'});assert(dialog.innerHTML.includes('data-troop-tab="carta" aria-selected="true"'),'opening any card starts on Carta');await dc({dialog:'review-upgrade'});assert(dialog.innerHTML.includes('CONFIRMAR MELHORIA'));assert(dialog.innerHTML.includes('40 cartas de Tanque'));assert(!dialog.innerHTML.includes('data-troop-tab='));
+ assert.equal(calls.length,before,'viewing cards, changing tabs and reviewing a purchase never sends a purchase');
 });

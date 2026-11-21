@@ -58,3 +58,9 @@ test('production base silhouettes stay inside the actual battle sprite viewport 
   assert(html.includes("s.kind==='garagem'&&s.n==='P'?'quartel':s.kind"));
   assert.notEqual(art.building('heli',1),art.building('botes',1));
 });
+test('detail portraits use transparent atlases for all eleven types, separately from cached battle sprites',()=>{
+  const kinds=require('../shared/troop-rules').KINDS,source=fs.readFileSync(require.resolve('../server/index'),'utf8');
+  for(const kind of kinds){const svg=art.detail(kind);assert(svg.includes('data-art="transparent-hero"'));assert(!/NaN|undefined|Infinity/.test(svg));const href=svg.match(/href="([^\"]+)"/)[1],file=fs.readFileSync(require.resolve('../public'+href));assert.equal(file.subarray(0,4).toString(),'RIFF');assert.equal(file.subarray(8,12).toString(),'WEBP');assert(source.includes("['"+href+"'"));assert.equal(svg,art.detail(kind));}
+  assert.equal(art.detail('invalid'),'');assert(!art.unit3d('tanque',1).includes('<image'));assert(!art.building('garagem',1).includes('<image'));
+  for(const owner of [0,1,2,3,4])assert(!/NaN|undefined/.test(art.basePreview('quartel',owner)));
+});

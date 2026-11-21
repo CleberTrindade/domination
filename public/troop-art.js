@@ -257,11 +257,18 @@
   const NEXT=['batedor','foguetes','blindado','antiaereo','engenheiro','artilharia'];
   function extraCard(kind){const i=NEXT.indexOf(kind);if(i<0)return '';const x=20+(i%3)*515,y=i<3?215:610,edge=x+(kind==='engenheiro'?365:350),clip='next-'+kind;return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+[x,y,470,i<3?260:290].join(' ')+'" aria-hidden="true" class="w-troop-art" data-art="concept-3d" overflow="hidden"><defs><clipPath id="'+clip+'"><path d="M'+x+' '+y+'H'+edge+'V'+(y+120)+'H'+(x+470)+'V'+(y+275)+'H'+x+'Z"/></clipPath></defs><image clip-path="url(#'+clip+')" href="/art/troops-expanded-v1.png" width="1536" height="1024"/></svg>';}
   function baseCard(kind){const i=NEXT.indexOf(kind);if(i>=0)return sheetCard('bases-expanded-v1.png',[35+(i%3)*515,i<3?215:635,455,285]);const slots={tanque:1,desliz:3,heli:2,canhao:4,central:5},slot=slots[kind]??0;return sheetCard('bases-initial-v1.png',[35+(slot%3)*515,slot<3?215:635,455,285]);}
+  function detail(kind){
+    const first={tanque:[52,147,559,427],desliz:[637,145,599,404],heli:[34,737,592,371],canhao:[680,718,514,404]},extra={batedor:[58,93,408,377],foguetes:[528,100,453,369],blindado:[1026,98,510,368],antiaereo:[42,567,441,378],engenheiro:[512,574,482,375],artilharia:[1033,569,500,369]};
+    const crop=first[kind]||extra[kind]||(kind==='central'?[15,266,1226,730]:null);if(!crop)return '';
+    const file=first[kind]?'troop-heroes-initial-v1.webp':extra[kind]?'troop-heroes-expanded-v1.webp':'troop-hero-central-v1.webp',w=extra[kind]?1536:1254,h=extra[kind]?1024:1254;
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+crop.join(' ')+'" class="w-detail-art" data-art="transparent-hero" aria-hidden="true" overflow="hidden"><image href="/art/'+file+'" width="'+w+'" height="'+h+'"/></svg>';
+  }
+  function basePreview(kind,owner=1){return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 -46 60 64" aria-hidden="true" class="w-base-preview">'+building(kind,owner)+'</svg>';}
   function install(D){
     if(D.artVersion==='concept-bases-v2')return;
     const previous=D.S.building;
     D.S.building=(kind,owner,scale=1,opt={})=>['garagem','quartel','heli','botes','canhao','central','bomb','batedor','foguetes','blindado','antiaereo','engenheiro','artilharia'].includes(kind)?building(kind==='bomb'?'central':kind,owner,scale,opt):previous(kind,owner,scale,opt);
     D.S.CGUN=CENTRAL_GUNS;D.U3.unit3d=unit3d;D.U3.turret=turret;D.U3.turretMuzzle=turretMuzzle;D.artVersion='concept-bases-v2';
   }
-  return{unit3d,building,turret,turretMuzzle,card,baseCard,install,centralGuns:CENTRAL_GUNS};
+  return{unit3d,building,turret,turretMuzzle,card,baseCard,detail,basePreview,install,centralGuns:CENTRAL_GUNS};
 });
