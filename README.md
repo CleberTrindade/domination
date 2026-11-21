@@ -225,7 +225,13 @@ pré-carregamento ocorre em lotes de quatro e a geometria é compartilhada
 entre as cores. Não há geração de modelos a cada quadro nem consulta ao banco.
 A expansão inclui seis tropas terrestres com bases próprias: batedor,
 lança-foguetes, blindado pesado, antiaéreo, engenheiro e artilharia móvel.
-Quartel, garagem, heliporto e base de botes também receberam modelos novos.
+Quartel, garagem, heliporto e base de botes usam modelos nativos mais detalhados:
+quartel octogonal com posto de comando, hangares com portão blindado e veículo
+na saída, heliporto com torre lateral e oficina naval com ventilador e rampa.
+As seis bases especializadas mantêm esses detalhes e seus equipamentos próprios.
+A versão `concept-bases-v2` identifica o desenho e também a chave de cache das
+bases no canvas; `troop-art.js?v=bases-v2` força a seleção do recurso atualizado.
+Os modelos são rasterizados uma vez por tipo e cor, sem trabalho novo por quadro.
 A coleção permite alternar a visualização entre a tropa e sua base de origem.
 As novas pranchas ficam em `public/art/*-expanded-v1.png` e
 `public/art/bases-initial-v1.png`. As compras exigem cartas individuais e moedas,

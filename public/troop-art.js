@@ -118,19 +118,76 @@
   MODEL.engenheiro=wheels(26,14);cabin(MODEL.engenheiro,6);MODEL.engenheiro.push(box([-6,0,10],[6,7,5],'lamp',3),box([-7,0,16],[2.5,2.5,10],'lamp',4),box([-1,0,21],[13,2.4,2.4],'lamp',5),cylinder([6,0,19],[0,1,0],2,2,'steel',6,10),box([7,0,16],[1.3,2,5],'steel',5));
   MODEL.artilharia=[box([0,-7.5,3],[29,4.5,6],'rubber'),box([0,7.5,3],[29,4.5,6],'rubber'),armor([0,0,7],[26,17,5],'team',1,1.3),armor([-4,0,12],[13,12,7],'team',2,1),cylinder([12,0,17],[1,0,.3],1.9,28,'steel',3,12,'rubber')];
   for(const y of [-10,10])MODEL.artilharia.push(box([-10,y,2],[3,2,4],'steel',1),box([-10,y,0],[5,4,1],'steel',1));
-  function factory(){return[octagon(0,18,2,18,'steel'),box([0,0,10],[27,22,17],'team',1),box([0,11.2,8],[18,.5,12],'rubber',2),box([-11,11.8,9],[3,2,15],'steel',3),box([11,11.8,9],[3,2,15],'steel',3),box([0,11.8,16.2],[24,2,3],'steel',3),box([0,12.9,16.3],[5,.4,1.5],'lamp',4),box([0,0,19.2],[29,24,2],'steel',3),star([13.8,0,11],[0,1,0],[0,0,1],3,3)];}
-  MODEL.garagem=factory();for(const x of [-7,0,7])MODEL.garagem.push(cylinder([x,-4,23],[0,0,1],2.2,7,'steel',4,12,'rubber'));
-  MODEL.quartel=factory();MODEL.quartel.push(armor([0,0,23],[17,15,7],'team',4,.7),box([0,7.1,23],[12,.3,3.8],'glass',5),cylinder([-6,-3,31],[0,0,1],.45,14,'steel',5,6),mesh([face([[-6,-3,38],[2,-3,36],[2,-3,31],[-6,-3,33]],'team')],[-2,-3,34],6,false));
-  MODEL.heliBase=[octagon(0,18,6,16,'team'),cylinder([0,0,6.6],[0,0,1],15,1.2,'steel',1,16),cylinder([0,0,7.3],[0,0,1],12.7,.3,'rubber',2,16),box([-4,0,7.7],[2,13,.3],'white',3),box([4,0,7.7],[2,13,.3],'white',3),box([0,0,7.7],[8,2,.3],'white',3),cylinder([-13,-6,19],[0,0,1],1.1,26,'steel',3,8),box([-13,-6,32],[4,4,3],'lamp',4)];
-  MODEL.botesBase=factory();MODEL.botesBase.push(cylinder([0,0,23],[0,0,1],8,4,'steel',4,16,'rubber'),box([0,0,25.2],[13,1.8,.3],'white',5),box([0,0,25.3],[1.8,13,.3],'white',5));
-  for(const kind of ['batedor','foguetes','blindado','antiaereo','engenheiro','artilharia'])MODEL['base_'+kind]=factory();
-  MODEL.base_batedor.push(armor([-6,-1,24],[13,12,9],'team',4,.6),box([-6,5,24],[8,.3,4],'glass',5),cylinder([10,-5,28],[0,0,1],.45,20,'steel',4,6));
-  MODEL.base_foguetes.push(box([-8,0,22],[8,12,4],'rubber',4));for(const z of [7,13,19])MODEL.base_foguetes.push(cylinder([19,0,z],[0,1,0],2.5,14,'steel',2,10,'rubber'));
-  for(const x of [-8,0,8])MODEL.base_blindado.push(cylinder([x,-3,24],[0,0,1],2.6,9,'steel',4,12,'rubber'));
-  MODEL.base_blindado.push(box([-15,10,10],[3,3,20],'steel',3),box([15,10,10],[3,3,20],'steel',3),box([0,10,21],[33,3,3],'steel',4));
-  MODEL.base_antiaereo.push(box([0,0,23],[3,3,8],'steel',4),cylinder([0,0,29],[0,-.4,1],8,1.5,'steel',5,16));
-  MODEL.base_engenheiro.push(box([-9,7,24],[2,2,12],'lamp',4),box([0,7,30],[20,2.2,2.2],'lamp',5),cylinder([8,7,25],[0,0,1],.6,9,'steel',5,6),box([16,-2,7],[5,8,12],'lamp',3));
-  MODEL.base_artilharia.push(box([-7,-3,21],[9,14,3],'rubber',4));for(const z of [7,13])MODEL.base_artilharia.push(cylinder([19,0,z],[0,1,0],2.7,22,'steel',2,12,'rubber'));
+  // Production bases share the approved armored hangar, rather than the old
+  // narrow box. All parts remain native geometry and are rasterized once.
+  function placed(parts,scale,c,h=0){return parts.map(part=>{const p=rotate(part,h),move=v=>v.map((x,i)=>x*scale+c[i]);return{...p,layer:p.layer+10,c:move(p.c),faces:p.faces.map(f=>({...f,pts:f.pts.map(move)}))};});}
+  function pane(x,y,z,w,h,layer=5){return box([x,y,z],[w,.45,h],'glass',layer);}
+  function vent(parts,x,y,z,w=12,d=8){
+    parts.push(armor([x,y,z],[w,d,2.6],'steel',4,.65),box([x,y,z+1.4],[w-2,d-2,.4],'rubber',5));
+    for(let n=-2;n<=2;n++)parts.push(box([x,y+n*(d-2)/5,z+1.8],[w-2,.5,.5],'steel',6));
+  }
+  function beacon(parts,x,y,z,size=2.4){parts.push(armor([x,y,z],[size+1.1,size+1.1,1.2],'steel',5,.3),box([x,y,z+1.1],[size,size,1.5],'lamp',6),box([x,y,z+2],[size+.4,size+.4,.35],'white',7));}
+  function antenna(parts,x,y,z,height=12){parts.push(cylinder([x,y,z+height/2],[0,0,1],.45,height,'steel',5,6),cylinder([x,y,z+height],[0,0,1],1,.8,'lamp',6,8));}
+  function flag(parts,x,y,z){
+    parts.push(cylinder([x,y,z-7],[0,0,1],.4,14,'steel',5,6),cylinder([x,y,z+.5],[0,0,1],.7,.7,'lamp',6,8));
+    const f=face([[x,y,z],[x+4,y+.2,z-1],[x+9,y,z-.2],[x+8,y,z-6],[x+4,y+.2,z-6.8],[x,y,z-5.5]],'team');f.normal=[0,1,0];parts.push(mesh([f],[x+4,y,z-3],6));
+  }
+  function chimney(parts,x,y,z=26){parts.push(cylinder([x,y,z],[0,0,1],2.4,8,'steel',5,12,'rubber'),cylinder([x,y,z+4],[0,0,1],2.65,.8,'steel',6,12,'rubber'));}
+  function hangar(vehicle,options={}){
+    const p=[octagon(0,23,1.2,23,'steel'),armor([0,0,10.7],[36,27,19],'team',1,2.3),box([0,13.7,8.5],[24,.6,16],'rubber',3),box([0,14.15,16],[23,.5,1.2],'steel',4),box([0,19,.9],[25,13,1.2],'steel',2)];
+    // Beveled door surround, hazard stripes and bolted silver armor.
+    for(const sign of [-1,1]){
+      p.push(armor([sign*14.5,14.2,10.3],[5.8,3.4,19.5],'steel',4,1),box([sign*12.7,16.1,6.5],[1.7,.3,11],'lamp',5));
+      for(const z of [3.2,7,10.8]){const x=sign*12.7,y=16.32;const f=face([[x-1,y,z-.9],[x+1,y,z+.2],[x+1,y,z+1.2],[x-1,y,z+.1]],'rubber');f.normal=[0,1,0];p.push(mesh([f],[x,y,z],6));}
+      for(const z of [2.5,16.5])p.push(cylinder([sign*15,16.05,z],[0,1,0],.55,.5,'white',6,8));
+      beacon(p,sign*11,-6,21,2.3);
+    }
+    p.push(armor([0,14.6,18.6],[28,4,4.2],'steel',5,.7),box([-6,16.8,18.6],[4,.4,1.3],'lamp',6),box([6,16.8,18.6],[4,.4,1.3],'lamp',6),star([18.15,1,12.6],[0,1,0],[0,0,1],4.5,5));
+    // Side windows and ventilation panel remain visible from the battlefield camera.
+    for(const y of [-7,-3])p.push(box([18.2,y,13.7],[.45,3.1,3],'glass',5));
+    p.push(box([18.3,-4,6],[.7,8,4.5],'steel',5),box([18.8,-4,6],[.4,6,3],'rubber',6));
+    for(const z of [5.2,6.2,7.2])p.push(box([19.1,-4,z],[.35,6,.4],'steel',7));
+    for(const y of [-10,7])for(const z of [4,17])p.push(cylinder([18.3,y,z],[1,0,0],.45,.5,'white',6,6));
+    if(!options.noVent)vent(p,0,-2,21,14,9);
+    if(vehicle)p.push(...placed(MODEL[vehicle],vehicle==='artilharia'?.42:.48,[0,15,1.5],Math.PI/2));
+    return p;
+  }
+  function rack(parts,length=11){
+    const x=22,y=1,pipes=[5,10,15];
+    for(const z of pipes)parts.push(cylinder([x,y,z],[0,1,0],2,length,'steel',4,12,'rubber'));
+    parts.push(box([x,y,1.7],[6,length+2,2],'lamp',3),box([x-2.8,y,9],[1,length+2,16],'steel',3),box([x+2.8,y,9],[1,length+2,16],'steel',3));
+  }
+  MODEL.garagem=hangar('tanque');for(const x of [-8,0,8])chimney(MODEL.garagem,x,-8,25.5);
+  MODEL.quartel=[octagon(0,23,1.2,23,'steel'),octagon(1.2,21,18,18,'team',1),octagon(19.2,18,1.7,18,'steel',2),box([0,19.6,7.6],[15,.5,12],'rubber',3),armor([0,20,15],[20,3,4],'steel',4,.7),box([0,24,1.1],[17,7,1.1],'steel',2)];
+  for(const sign of [-1,1]){
+    MODEL.quartel.push(armor([sign*9.4,19.5,8],[3.7,3,15],'steel',4,.5),box([sign*9.5,21.1,9],[1.5,.4,6],'lamp',5));
+    for(const y of [-9,6])MODEL.quartel.push(armor([sign*17,y,4],[6,6,6],'steel',3,1));
+  }
+  for(const z of [4,7,10])MODEL.quartel.push(box([0,20.1,z],[13,.5,.55],'steel',4));
+  MODEL.quartel.push(armor([0,-1,24],[28,23,8],'team',3,1.5),armor([0,-1,28.4],[29,24,1.7],'steel',4,.6),pane(-7,10.3,24,11,4),pane(7,10.3,24,11,4),box([13.4,0,24],[.5,17,4],'glass',4),star([18,3,11],[0,1,0],[0,0,1],4,5));
+  for(const x of [-12,12])beacon(MODEL.quartel,x,7,20.8,2.6);
+  flag(MODEL.quartel,-7,-4,40);antenna(MODEL.quartel,10,-7,27,10);
+  MODEL.quartel.push(cylinder([12,-8,31],[0,1,.3],3.8,1.2,'steel',5,16,'white'));
+  MODEL.heliBase=[octagon(0,23,5.5,21.5,'team'),octagon(5.5,21.5,1.3,21.5,'steel',1),cylinder([0,0,7],[0,0,1],18,.5,'rubber',2,24),cylinder([0,0,7.3],[0,0,1],15.7,.3,'white',3,24),cylinder([0,0,7.5],[0,0,1],14.6,.3,'rubber',4,24),box([-4,0,7.8],[2.4,13,.3],'white',5),box([4,0,7.8],[2.4,13,.3],'white',5),box([0,0,7.8],[8,2.4,.3],'white',5)];
+  for(let i=0;i<6;i++){const h=i/6*TAU,x=Math.cos(h)*20,y=Math.sin(h)*20;beacon(MODEL.heliBase,x,y,7,1.6);}
+  MODEL.heliBase.push(armor([16,-11,12],[9,10,21],'team',3,1),box([16,-5.9,15],[6,.4,3],'glass',4),box([20.2,-11,15],[.4,7,3],'glass',4),armor([16,-11,23],[11,12,2],'steel',4,.6),box([16,-5.8,5],[4,.4,7],'rubber',4));beacon(MODEL.heliBase,16,-11,25,2.5);antenna(MODEL.heliBase,-17,-5,7,18);
+  MODEL.heliBase.push(star([0,20.6,3.5],[-1,0,0],[0,0,1],2.5,3));
+  MODEL.botesBase=hangar('desliz',{noVent:true});
+  MODEL.botesBase.unshift(octagon(-1,25,1.1,25,'glass',-1));
+  MODEL.botesBase.push(cylinder([0,-2,27],[0,1,0],7.5,4,'steel',5,20,'rubber'),cylinder([0,.3,27],[0,1,0],6.1,.4,'rubber',6,20));
+  for(const a of [0,Math.PI/3,Math.PI*2/3]){const fan=box([0,.7,27],[10,.5,1.2],'steel',7),co=Math.cos(a),si=Math.sin(a),r=v=>[v[0]*co-(v[2]-27)*si,v[1],27+v[0]*si+(v[2]-27)*co];MODEL.botesBase.push({...fan,faces:fan.faces.map(f=>({...f,pts:f.pts.map(r)}))});}
+  MODEL.botesBase.push(cylinder([0,1,27],[0,1,0],1.4,.8,'steel',8,12));for(const x of [-19,19])beacon(MODEL.botesBase,x,16,3,1.6);
+  MODEL.base_batedor=hangar('batedor',{noVent:true});
+  MODEL.base_batedor.push(armor([6,-5,26],[13,13,10],'team',4,1),pane(6,1.5,26,10,4),box([12.1,-5,26],[.4,10,4],'glass',5),armor([6,-5,31.7],[16,16,2],'steel',5,.6));beacon(MODEL.base_batedor,6,-5,33,2.4);antenna(MODEL.base_batedor,-12,-5,21,14);flag(MODEL.base_batedor,-7,2,33);
+  MODEL.base_foguetes=hangar('foguetes');rack(MODEL.base_foguetes,10);
+  MODEL.base_foguetes.push(box([12,-6,26],[2,2,12],'lamp',5),box([17,-6,31],[12,2.3,2.3],'lamp',6),box([22,-6,27],[.6,.6,7],'steel',6),cylinder([22,-6,23],[0,1,0],1.3,1,'lamp',7,10));
+  MODEL.base_blindado=hangar('blindado');for(const x of [-8,0,8])chimney(MODEL.base_blindado,x,-8,26);
+  MODEL.base_antiaereo=hangar('antiaereo',{noVent:true});
+  MODEL.base_antiaereo.push(box([0,-4,23],[4,4,6],'steel',4),cylinder([0,-4,29],[0,1,.7],8.5,2,'steel',5,20,'white'),cylinder([0,-2.8,29.8],[0,1,.7],6.8,.5,'steel',6,20,'steel'),cylinder([0,.8,32.4],[0,1,.7],1.2,6,'steel',7,10,'white'));antenna(MODEL.base_antiaereo,14,-5,21,13);
+  MODEL.base_engenheiro=hangar('engenheiro');
+  MODEL.base_engenheiro.push(box([0,15.3,16],[23,2,1.5],'lamp',7),box([7,16.6,15],[2.5,1.7,3],'lamp',8),box([7,16.6,11.5],[.5,.5,5],'steel',8),cylinder([7,16.6,8.5],[0,1,0],1.5,.7,'lamp',9,10),box([21,-5,5],[5,9,8],'steel',5));
+  for(const z of [3,5,7])MODEL.base_engenheiro.push(box([23.7,-5,z],[.4,7,1.4],'lamp',6));
+  MODEL.base_artilharia=hangar('artilharia');for(const x of [-7,1])chimney(MODEL.base_artilharia,x,-8,25);rack(MODEL.base_artilharia,13);
 
   const geometryCache=new Map(),svgCache=new Map(),cardCache=new Map();
   function convex(points){
@@ -179,7 +236,7 @@
   function building(kind,owner,scale=1,opt={}){
     let svg='';
     const special={garagem:'garagem',quartel:'quartel',heli:'heliBase',botes:'botesBase',batedor:'base_batedor',foguetes:'base_foguetes',blindado:'base_blindado',antiaereo:'base_antiaereo',engenheiro:'base_engenheiro',artilharia:'base_artilharia'};
-    if(special[kind])svg=shadow(22)+model(special[kind],owner,-.58);
+    if(special[kind])svg=shadow(22)+model(special[kind],owner,.58);
     if(kind==='central')svg=shadow(23)+model('central',owner,0);
     if(kind==='canhao'){
       const base=shadow(19)+model('cannonBase',owner,0),top='<g transform="translate(0 -1)">'+turret(owner,opt.h??Math.PI*.85,opt.slide||0)+'</g>';
@@ -201,10 +258,10 @@
   function extraCard(kind){const i=NEXT.indexOf(kind);if(i<0)return '';const x=20+(i%3)*515,y=i<3?215:610,edge=x+(kind==='engenheiro'?365:350),clip='next-'+kind;return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="'+[x,y,470,i<3?260:290].join(' ')+'" aria-hidden="true" class="w-troop-art" data-art="concept-3d" overflow="hidden"><defs><clipPath id="'+clip+'"><path d="M'+x+' '+y+'H'+edge+'V'+(y+120)+'H'+(x+470)+'V'+(y+275)+'H'+x+'Z"/></clipPath></defs><image clip-path="url(#'+clip+')" href="/art/troops-expanded-v1.png" width="1536" height="1024"/></svg>';}
   function baseCard(kind){const i=NEXT.indexOf(kind);if(i>=0)return sheetCard('bases-expanded-v1.png',[35+(i%3)*515,i<3?215:635,455,285]);const slots={tanque:1,desliz:3,heli:2,canhao:4,central:5},slot=slots[kind]??0;return sheetCard('bases-initial-v1.png',[35+(slot%3)*515,slot<3?215:635,455,285]);}
   function install(D){
-    if(D.artVersion==='concept-3d')return;
+    if(D.artVersion==='concept-bases-v2')return;
     const previous=D.S.building;
     D.S.building=(kind,owner,scale=1,opt={})=>['garagem','quartel','heli','botes','canhao','central','bomb','batedor','foguetes','blindado','antiaereo','engenheiro','artilharia'].includes(kind)?building(kind==='bomb'?'central':kind,owner,scale,opt):previous(kind,owner,scale,opt);
-    D.S.CGUN=CENTRAL_GUNS;D.U3.unit3d=unit3d;D.U3.turret=turret;D.U3.turretMuzzle=turretMuzzle;D.artVersion='concept-3d';
+    D.S.CGUN=CENTRAL_GUNS;D.U3.unit3d=unit3d;D.U3.turret=turret;D.U3.turretMuzzle=turretMuzzle;D.artVersion='concept-bases-v2';
   }
   return{unit3d,building,turret,turretMuzzle,card,baseCard,install,centralGuns:CENTRAL_GUNS};
 });

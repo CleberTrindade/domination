@@ -506,7 +506,7 @@ __m["units3d"]=module.exports;})();
 return {S:__m.sprites2,U3:__m.units3d};})();
 </script>
 <script src="/troop-rules.js"></script>
-<script src="/troop-art.js"></script>
+<script src="/troop-art.js?v=bases-v2"></script>
 <script>
 (()=>{
 'use strict';
@@ -629,14 +629,14 @@ const SPR=(()=>{
   const BVB=[-30,-46,60,64],UVB=[-30,-50,60,62],N=32;
   const hi=h=>((Math.round(h/(2*Math.PI)*N)%N)+N)%N;
   return {loaded:0,
-    building:(kind,col)=>img('b'+kind+col,()=>D.S.building(kind,col,1,{part:'base'}),BVB),
+    building:(kind,col)=>img('b'+D.artVersion+kind+col,()=>D.S.building(kind,col,1,{part:'base'}),BVB),
     turret:(col,h)=>{const k=hi(h);return img('t'+col+'_'+k,()=>D.S.building('canhao',col,1,{part:'turret',h:k*2*Math.PI/N}),BVB)},
     unit:(kind,col,h)=>{const k=hi(h);return img('u'+kind+col+'_'+k,()=>D.U3.unit3d(kind,col,k*2*Math.PI/N,0,1,{noShadow:1,noRotor:1,lift:kind==='heli'?12:1}),UVB)},
     draw(c,e,x,y,s){if(!e.ok)return false;const [vx,vy,w,h]=e.vb;c.drawImage(e.im,x+vx*s,y+vy*s,w*s,h*s);return true},
     muzzle(s,h){ // ponto da boca do cano (coordenadas do mapa)
       if(s.kind==='central'){let best=null,bd=1e9;const a=h*180/Math.PI;for(const g of D.S.CGUN){const d=Math.abs(((a-g.deg)%360+540)%360-180);if(d<bd){bd=d;best=g}}return[s.x+best.mx*1.32,s.y-2+best.my*1.32]}
       const m=D.U3.turretMuzzle(h);return[s.x+m[0]*1.32,s.y-2+(m[1]-1)*1.32]},
-    preload(cols){if(!D)return;for(const col of cols)for(const k of ['garagem','heli','botes','canhao','central'])this.building(k,col)},
+    preload(cols){if(!D)return;for(const col of cols)for(const k of ['quartel','garagem','heli','botes','canhao','central'])this.building(k,col)},
     preloadUnits(cols,kinds=['tanque','desliz','heli']){if(!D)return;const q=[];for(const col of cols){for(let i=0;i<N;i++){const h=i*2*Math.PI/N;for(const k of kinds)q.push(()=>this.unit(k,col,h));q.push(()=>this.turret(col,h))}}
       const step=()=>{for(let n=0;n<4&&q.length;n++)q.shift()();if(q.length)setTimeout(step,16)};step()}
   };
