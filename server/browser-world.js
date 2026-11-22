@@ -8,6 +8,7 @@ const {ARMY_RULES,powerFor,areaProfile,armyView,troopView,TROOP_KINDS,combatProf
 const {playerProfile}=require('./player-profile');
 const {troopCatalog}=require('./troops');
 const troopRules=require('../shared/troop-rules');
+const {MAX_FORMATIONS}=require('./formations');
 const {awardBattleCards,readDaily,REWARD_RULES}=require('./card-rewards');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const DISCONNECT_MS=30000;
@@ -148,9 +149,31 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     return transaction(async db=>{
       const wallet=(await readWallets(db,[player.id],now(),true)).get(player.id),available=wallet.balance-reservedFor(player.id),army=armyView(wallet,available,RULES.minEntry);
       if(input.troops.some(k=>!troopRules.GROUND.includes(k)||army.troops[k]?.locked))throw new HttpError(409,'Uma tropa ainda não foi desbloqueada. Confira seu comandante.');
-      await db.query('UPDATE world_players SET ground_loadout=$2::jsonb WHERE id=$1',[player.id,JSON.stringify(input.troops)]);
-      return {army:armyView({...wallet,loadout:input.troops},available,RULES.minEntry)};
+      const formations=army.formations.map(f=>f.id===army.activeFormationId?{...f,troops:input.troops.slice()}:f),formationRevision=army.formationRevision+1;
+      await db.query('UPDATE world_players SET ground_loadout=$2::jsonb,army_formations=$3::jsonb,formation_revision=$4 WHERE id=$1',[player.id,JSON.stringify(input.troops),JSON.stringify(formations),formationRevision]);
+      return {army:armyView({...wallet,loadout:input.troops,formations,formationRevision},available,RULES.minEntry)};
     });
+  }
+  async function saveFormations(player,input){
+    if(!input||typeof input!=='object')throw new HttpError(400,'Solicitação de formações inválida.');
+    const validId=id=>typeof id==='string'&&(id==='initial'||UUID.test(id));
+    if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0||!Array.isArray(input.formations)||!input.formations.length||input.formations.length>MAX_FORMATIONS||!validId(input.activeFormationId))throw new HttpError(400,'Solicitação de formações inválida.');
+    const formations=input.formations.map(f=>{
+      if(!f||!validId(f.id)||typeof f.name!=='string'||!f.name.trim()||f.name.trim().length>32||/[\u0000-\u001f\u007f]/.test(f.name)||!Array.isArray(f.troops)||!f.troops.length||f.troops.length>3||new Set(f.troops).size!==f.troops.length)throw new HttpError(400,'Cada formação precisa de nome e de um a três tipos terrestres diferentes.');
+      return {id:f.id,name:f.name.trim(),troops:f.troops.slice()};
+    });
+    if(new Set(formations.map(f=>f.id)).size!==formations.length||!formations.some(f=>f.id===input.activeFormationId))throw new HttpError(400,'A formação ativa precisa fazer parte da sua lista.');
+    rate('formations:'+player.id,30,60000);
+    const result=await transaction(async db=>{
+      const wallet=(await readWallets(db,[player.id],now(),true)).get(player.id),available=wallet.balance-reservedFor(player.id),army=armyView(wallet,available,RULES.minEntry);
+      if(formations.some(f=>f.troops.some(k=>!troopRules.GROUND.includes(k)||army.troops[k]?.locked)))throw new HttpError(409,'Uma tropa ainda não foi desbloqueada. Confira seu comandante.');
+      // A retry after a lost response is safe and never duplicates formations.
+      if(JSON.stringify(formations)===JSON.stringify(army.formations)&&input.activeFormationId===army.activeFormationId)return {alreadyApplied:true,army};
+      if(input.expectedRevision!==army.formationRevision)throw new HttpError(409,'Suas formações foram alteradas em outro dispositivo. Recarregue antes de salvar novamente.');
+      const loadout=formations.find(f=>f.id===input.activeFormationId).troops,formationRevision=army.formationRevision+1;
+      await db.query('UPDATE world_players SET army_formations=$2::jsonb,active_formation_id=$3,formation_revision=$4,ground_loadout=$5::jsonb WHERE id=$1',[player.id,JSON.stringify(formations),input.activeFormationId,formationRevision,JSON.stringify(loadout)]);
+      return {army:armyView({...wallet,formations,activeFormationId:input.activeFormationId,formationRevision,loadout},available,RULES.minEntry)};
+    });notify('world_changed',{},player.id);return result;
   }
   async function finish(battle,status,reason,stats={},verified=null){
     if(battle.final)return battle.final;
@@ -383,6 +406,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         if(!/^[1-9]\d{0,5}$/.test(page))throw new HttpError(400,'Página de histórico inválida.');
         json(200,await playerProfile(pool,player,Number(page)));return true;
       }
+      if(pathname==='/api/world/army/formations'&&req.method==='POST'){json(200,await saveFormations(player,await body(req)));return true;}
       if(pathname==='/api/world/army/loadout'&&req.method==='POST'){json(200,await saveLoadout(player,await body(req)));return true;}
       if(pathname==='/api/world/army/upgrade'&&req.method==='POST'){json(200,await upgradeArmy(player,await body(req)));return true;}
       const area=pathname.match(/^\/api\/world\/areas\/([a-z-]+)\/attack$/)?.[1];

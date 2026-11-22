@@ -1,5 +1,6 @@
 'use strict';
 const troopRules=require('../shared/troop-rules');
+const {formationView}=require('./formations');
 const TROOP_KINDS=Object.freeze(troopRules.KINDS);
 const ARMY_RULES=Object.freeze({maxLevel:10,powerStep:10,cpuPowerRatio:.8,defenderBaseCount:3,balanceVersion:'troops-v3',individual:true,
   upgradeCosts:Object.freeze([0,0,100,250,500,1000,2000,4000,7000,11000,18000]),
@@ -21,6 +22,6 @@ function combatProfile(levels,ratio=1,cpu=false){return Object.fromEntries(TROOP
 function armyView(wallet,available,minEntry){
   const troops=Object.fromEntries(TROOP_KINDS.map(kind=>[kind,troopView(wallet,available,minEntry,kind)]));
   const commander=troopRules.commander(wallet.levels,wallet.battles||0);
-  return {commander,loadout:troopRules.loadout(wallet.loadout,commander.level),level:wallet.level,maxLevel:ARMY_RULES.maxLevel,individual:true,troops};
+  return {commander,...formationView(wallet,commander.level),loadout:troopRules.loadout(wallet.loadout,commander.level),level:wallet.level,maxLevel:ARMY_RULES.maxLevel,individual:true,troops};
 }
 module.exports={ARMY_RULES,TROOP_KINDS,powerFor,areaProfile,armyView,troopView,levelsFor,combatProfile,cardsNeeded};

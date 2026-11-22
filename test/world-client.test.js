@@ -20,7 +20,7 @@ test('individual troop screen purchases only the selected type and recovers lost
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(root.innerHTML.includes('lobby-logo-v1.webp'));assert(!root.innerHTML.includes('3 bases + bombardeiro'));
   await root.listeners.click({target:{closest:()=>({dataset:{action:'area-details'}})}});assert(dialog.innerHTML.includes('3 bases + bombardeiro'));dialog.close();
-  await root.listeners.click({target:{closest:()=>({dataset:{tab:'troops'}})}});assert(root.innerHTML.includes('EVOLUÇÃO INDIVIDUAL'));assert(root.innerHTML.includes('Bombardeiro central'));
+  await root.listeners.click({target:{closest:()=>({dataset:{tab:'troops'}})}});await root.listeners.click({target:{closest:()=>({dataset:{armyTab:'collection'}})}});assert(root.innerHTML.includes('Todas as tropas'));assert(root.innerHTML.includes('Bombardeiro central'));
   const rootClick=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dialogClick=action=>dialog.listeners.click({target:{closest:()=>({dataset:{dialog:action}})}});
   assert.equal((root.innerHTML.match(/data-select-troop=/g)||[]).length,11);assert(!root.innerHTML.includes('data-troop='));
   await rootClick({selectTroop:'heli'});assert(root.innerHTML.includes('data-troop="heli"'));assert(!root.innerHTML.includes('data-troop="tanque"'));assert.equal(dialog.open,false);
@@ -197,15 +197,16 @@ test('expanded collection previews origin bases and saves at most three unlocked
  const world={player:{id:'hero',name:'Hero',username:'hero'},army,troops:troopCatalog(army),progression:ARMY_RULES,wallet:{balance:1000,available:1000,reserved:0,entries:[]},areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1,cpu_share:.32}],ranking:[],history:[]};
  const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{},DOMINATION_TROOP_RULES:rules,DOMINATION_TROOP_ART:require('../public/troop-art')},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,opts)=>{
-  if(path.endsWith('/loadout')){const input=JSON.parse(opts.body);calls.push(input);world.army.loadout=input.troops;return{ok:true,json:async()=>({army:structuredClone(world.army)})};}
+  if(path.endsWith('/formations')){const input=JSON.parse(opts.body);calls.push(input);world.army.formations=input.formations;world.army.activeFormationId=input.activeFormationId;world.army.formationRevision++;world.army.loadout=input.formations.find(f=>f.id===input.activeFormationId).troops;return{ok:true,json:async()=>({army:structuredClone(world.army)})};}
   return{ok:true,json:async()=>structuredClone(world)};
  }};
  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
- await click({tab:'troops'});assert(root.innerHTML.includes('NÍVEL 7'));assert(root.innerHTML.includes('250 batalhas válidas'));
+ await click({tab:'troops'});await click({action:'commander'});assert(dialog.innerHTML.includes('NÍVEL 7'));assert(dialog.innerHTML.includes('250 batalhas válidas'));await dc({dialog:'close'});
  await click({troop:'engenheiro'});assert(dialog.innerHTML.includes('/art/bases-expanded-v1.png'));assert(dialog.innerHTML.includes('Oficina de engenharia'));await dc({dialog:'close'});
- await click({action:'loadout'});assert(dialog.innerHTML.includes('Selecionadas: 1/3'));await dc({loadoutKind:'batedor'});await dc({loadoutKind:'engenheiro'});await dc({loadoutKind:'artilharia'});assert(dialog.innerHTML.includes('no máximo três'));assert.equal(calls.length,0);
- await dc({dialog:'save-loadout'});await flush();assert.equal(calls.length,1);assert.deepEqual(calls[0].troops,['tanque','batedor','engenheiro']);assert.equal(dialog.open,false);assert(root.innerHTML.includes('Tanque · Batedor · Engenheiro'));
+ await click({formationSlot:'1'});assert(dialog.innerHTML.includes('Escolher tropa'));await dc({formationKind:'batedor'});await click({formationSlot:'2'});await dc({formationKind:'engenheiro'});assert(root.innerHTML.includes('3/3 tipos terrestres'));assert.equal(calls.length,0);
+ await click({formationSlot:'2'});await dc({formationKind:'batedor'});assert(dialog.open,'a type already used elsewhere cannot be equipped twice');await dc({dialog:'close'});
+ await click({action:'formation-save'});await flush();assert.equal(calls.length,1);assert.deepEqual(calls[0].formations[0].troops,['tanque','batedor','engenheiro']);assert(root.innerHTML.includes('Formações salvas na sua conta.'));
 });
 test('daily reward screen exposes automatic missions and random drops without a preferred troop selector',async()=>{
  const root=element(),dialog=element(),body=element();
@@ -262,4 +263,39 @@ test('compact lobby keeps live map ownership and read-only area details while pr
  areas[0].battle_id='live-watch';areas[0].attacker_id='third';listeners.visibilitychange();await flush();await click({area:areas[0].id});assert(primary().includes('ASSISTIR BATALHA'));
  areas[0].participant_ids=['me'];listeners.visibilitychange();await flush();assert(primary().includes('RETOMAR BATALHA'));assert(primary().includes('data-battle="live-watch"'));
  assert(requests.every(r=>r.method==='GET'),'selection, navigation and information panels never send a mutation');
+});
+
+test('formation tabs retain drafts, duplicate and rename locally, retry safely, activate explicitly and recover conflicts',async()=>{
+ const root=element(),dialog=element(),body=element(),listeners={},calls=[],rules=require('../shared/troop-rules'),{armyView,ARMY_RULES}=require('../server/progression'),{troopCatalog}=require('../server/troops');
+ const levels=Object.fromEntries(rules.KINDS.map(k=>[k,7])),army=armyView({level:7,levels,battles:250,owned:0,loadout:['tanque']},100000n,0);
+ const world={player:{id:'formations-client',name:'Comandante'},army,troops:troopCatalog(army),progression:ARMY_RULES,wallet:{balance:1000,available:1000,reserved:0,entries:[]},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34}],ranking:[],history:[]};
+ let loseReply=false,conflict=false,commits=0;
+ const document={body,hidden:false,createElement:element,addEventListener(k,fn){listeners[k]=fn;},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
+ const context={crypto:require('node:crypto').webcrypto,FormData:class{constructor(f){this.fields=f.fields;}get(k){return this.fields[k];}},document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_TROOP_RULES:rules,DOMINATION_TROOP_ART:require('../public/troop-art'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(url,opts)=>{
+  if(url.endsWith('/formations')){
+   const input=JSON.parse(opts.body);calls.push(input);
+   if(conflict){conflict=false;world.army.formations[0].name='Outro aparelho';world.army.formationRevision++;return{ok:false,status:409,json:async()=>({error:'Formações alteradas em outro dispositivo.'})};}
+   const equal=JSON.stringify(input.formations)===JSON.stringify(world.army.formations)&&input.activeFormationId===world.army.activeFormationId;
+   if(!equal){assert.equal(input.expectedRevision,world.army.formationRevision);world.army.formations=input.formations;world.army.activeFormationId=input.activeFormationId;world.army.loadout=input.formations.find(f=>f.id===input.activeFormationId).troops;world.army.formationRevision++;commits++;}
+   if(loseReply){loseReply=false;throw Error('Resposta perdida');}
+   return{ok:true,json:async()=>({army:structuredClone(world.army),alreadyApplied:equal})};
+  }
+  return{ok:true,json:async()=>structuredClone(world)};
+ }};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
+ await click({tab:'troops'});assert(root.innerHTML.includes('data-army-tab="formations" aria-selected="true"'));assert.equal((root.innerHTML.match(/data-formation-slot=/g)||[]).length,3);assert(root.innerHTML.includes('APOIO FIXO'));assert(!root.innerHTML.includes('data-select-troop='));
+ await click({formationSlot:'2'});await dc({formationKind:'batedor'});await click({formationSlot:'2'});await dc({formationKind:'foguetes'});
+ await click({formationSlot:'2'});await dc({dialog:'formation-first'});assert(root.innerHTML.includes('3/3 tipos terrestres'));assert.equal(calls.length,0);
+ await click({action:'formation-duplicate'});assert.equal((root.innerHTML.match(/data-formation="/g)||[]).length,2);
+ await click({action:'formation-rename'});await dialog.listeners.submit({target:{id:'formationNameForm',fields:{name:'Defesa <rápida>'}},preventDefault(){}});assert(root.innerHTML.includes('Defesa &lt;rápida&gt;'));
+ let prevented=false;root.listeners.keydown({key:'ArrowRight',target:{closest:()=>({dataset:{armyTab:'formations'}})},preventDefault(){prevented=true;}});assert(prevented);assert.equal((root.innerHTML.match(/data-select-troop=/g)||[]).length,11);assert(!root.innerHTML.includes('data-formation-slot='));
+ await click({armyTab:'formations'});assert(root.innerHTML.includes('Defesa &lt;rápida&gt;'));assert.equal(calls.length,0);
+ loseReply=true;await click({action:'formation-save'});assert(root.innerHTML.includes('Resposta perdida'));assert.equal(commits,1);const snapshot=calls[0],copy=snapshot.formations[1];assert.deepEqual(copy.troops,['foguetes','tanque','batedor']);assert.equal(world.army.activeFormationId,'initial','saving a copy never activates it');
+ await click({action:'formation-save'});assert.equal(commits,1);assert.equal(calls[1].formations[1].id,copy.id);assert(root.innerHTML.includes('Formações salvas na sua conta.'));
+ await Promise.all([click({action:'formation-activate'}),click({action:'formation-activate'})]);assert.equal(calls.length,3);assert.equal(commits,2);assert.equal(world.army.activeFormationId,copy.id);assert.deepEqual(world.army.loadout,copy.troops);
+ await click({action:'formation-rename'});await dialog.listeners.submit({target:{id:'formationNameForm',fields:{name:'Alteração local'}},preventDefault(){}});conflict=true;await click({action:'formation-save'});assert(root.innerHTML.includes('Formações alteradas em outro dispositivo.'));assert(root.innerHTML.includes('Alteração local'));
+ await click({action:'formation-reload'});await click({formation:'initial'});assert(root.innerHTML.includes('Outro aparelho'));
+ await click({formationSlot:'0'});await dc({formationKind:'heli'});assert(dialog.open);assert.equal(world.wallet.balance,1000);await dc({dialog:'close'});
+ world.player={id:'new-account',name:'Outra conta'};world.army.formations=[{id:'initial',name:'Conta nova',troops:['tanque']}];world.army.activeFormationId='initial';world.army.formationRevision=0;listeners.visibilitychange();await flush();assert(root.innerHTML.includes('Conta nova'));assert(!root.innerHTML.includes('Outro aparelho'));assert(!root.innerHTML.includes('Defesa &lt;rápida&gt;'));
 });

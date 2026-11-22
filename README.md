@@ -253,6 +253,28 @@ As novas pranchas ficam em `public/art/*-expanded-v1.png` e
 `public/art/bases-initial-v1.png`. As compras exigem cartas individuais e moedas,
 com confirmação antes do gasto.
 
+### Formações salvas e coleção
+
+A tela Exército tem duas abas: **Formações** e **Todas as tropas**. Cada conta
+pode guardar até 10 formações com nomes de até 32 caracteres, duplicar uma
+formação e definir a ativa. Cada grupo aceita de um a três tipos terrestres
+já desbloqueados; a primeira tropa equipa o quartel inicial. Botes,
+helicópteros, canhões e bombardeiro continuam como apoio fixo do mapa.
+
+As edições ficam em rascunho até **Salvar formação**. **Usar formação** (ou
+**Salvar e usar**, quando há rascunhos) também altera a seleção ativa. Os
+rascunhos permanecem ao alternar abas. As melhorias individuais continuam nos
+detalhes de cada tropa, com confirmação de cartas e moedas.
+
+A migração 012 mantém a formação já equipada como a primeira e acrescenta
+`army_formations`, `active_formation_id` e `formation_revision` em
+`world_players`. `POST /api/world/army/formations` recebe a lista, a ativa e
+`expectedRevision`; uma transação com bloqueio da conta evita sobrescritas
+entre dispositivos. Repetir o mesmo salvamento é idempotente. A rota antiga
+`/army/loadout` permanece compatível e atualiza a formação ativa e sua revisão.
+Trocar formações não custa moedas e só altera as próximas batalhas: os
+exércitos dos participantes já em combate mantêm a formação de entrada.
+
 ### Comandante e formação terrestre
 
 O comandante usa os níveis de tipos diferentes (sem contar a central) e um
