@@ -675,6 +675,7 @@
   root.addEventListener('click', async event => {
     const mapArea=event.target.closest('[data-map-area]');if(mapArea?.dataset.mapArea){selected=mapArea.dataset.mapArea;tab='territories';render();return;}
     const button = event.target.closest('button'); if (!button || button.disabled) return;
+    if(button.dataset.social){await social?.handle(button);return;}
     if (button.dataset.area) { selected = button.dataset.area; tab = 'territories'; render(); return; }
     if (button.dataset.tab) { navigate(button.dataset.tab); return; }
     if(button.dataset.armyTab){if(['formations','collection'].includes(button.dataset.armyTab)){armyTab=button.dataset.armyTab;render();}return;}
@@ -718,7 +719,6 @@
   dialog.addEventListener('click', async event => {
     const button = event.target.closest('button'); if (!button) return;
     if(button.disabled)return;
-    if(button.dataset.social){await social?.handle(button);return;}
     if(button.dataset.social){await social?.handle(button);return;}
     if(button.dataset.difficultyRating){if(!difficultySaving&&difficultySurvey){difficultyRating=Number(button.dataset.difficultyRating);showDifficulty();dialog.querySelector('[data-difficulty-rating="'+difficultyRating+'"]').focus?.();}return;}
     if(receivedAction(button))return;

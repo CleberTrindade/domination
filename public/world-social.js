@@ -1,7 +1,7 @@
 'use strict';
 /* Account-scoped friends and battle records. Rendering never changes game data. */
 window.createWorldSocial=function({root,dialog,getData,getTab,api,post,render,modal,esc,money,art,icon,swords,onReplay}){
- let owner=null,history=null,historyScope='mine',historyLoading=false,historyError='',historyRequest=0;
+ let owner=undefined,history=null,historyScope='mine',historyLoading=false,historyError='',historyRequest=0;
  let friends=null,friendsTab='list',friendsLoading=false,friendsError='',friendsRequest=0,query='',results=null,searching=false,mutation=false,notice='';
  let invite=null;try{invite=new URL(location.href).searchParams.get('invite')||localStorage.getItem('domination_friend_invite');if(!/^[A-F0-9]{10}$/i.test(invite||''))invite=null;if(invite)localStorage.setItem('domination_friend_invite',invite.toUpperCase());}catch{}
  if(invite)query=invite.toUpperCase();
