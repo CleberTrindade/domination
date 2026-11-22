@@ -280,7 +280,7 @@
   function render() {
     const lobby=!!data&&tab==='territories';root.classList.add('w-themed');root.dataset.page=tab;dialog.classList.add('w-themed');root.classList.toggle('w-lobby',lobby);document.querySelector('#worldScreen').classList.add('w-themed-screen');document.querySelector('#worldScreen').classList.toggle('w-lobby-screen',lobby);
     if (!data) {
-      root.innerHTML = `<header class="w-top"><div class="w-brand">DOMINATION<small>MUNDO ABERTO</small></div></header><div class="w-empty">${esc(error || 'Conectando ao mundo…')}${error ? '<br><button class="w-textbtn" data-action="refresh">TENTAR NOVAMENTE</button><br><button class="w-textbtn" data-action="classic">MODO CLÁSSICO ›</button>' : ''}</div>`; return;
+      root.innerHTML = `<div class="w-lobby-logo"><img src="/art/lobby-logo-v1.webp" width="1086" height="362" alt="DOMINATION — MUNDO ABERTO"></div><div class="w-empty">${esc(error || 'Conectando ao mundo…')}${error ? '<br><button class="w-textbtn" data-action="refresh">TENTAR NOVAMENTE</button><br><button class="w-textbtn" data-action="classic">MODO CLÁSSICO ›</button>' : ''}</div>`; return;
     }
     root.innerHTML = `${lobbyHeader()}
       ${error ? '<div class="w-error" role="alert">' + esc(error) + '</div>' : ''}
