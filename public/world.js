@@ -98,7 +98,7 @@
   })[key]||''}</svg>`;
   function mainNavigation(){
     const active=['ranking','history','rewards','more'].includes(tab)?'more':tab;
-    return `<nav id="worldNav" class="w-world-nav" aria-label="Navegação principal do mundo" role="tablist">${[['profile','PERFIL'],['troops','TROPAS'],['territories','BATALHA'],['received','ATAQUES'],['more','MENU']].map(([key,label])=>`<button role="tab" data-tab="${key}" aria-selected="${active===key}" class="${active===key?'on':''}">${menuIcon(key)}<span>${label}</span>${key==='received'&&data.receivedAttacks?.length?'<b class="w-nav-count" aria-label="'+data.receivedAttacks.length+' ataques recentes">'+data.receivedAttacks.length+'</b>':''}</button>`).join('')}</nav>`;
+    return `<nav id="worldNav" class="w-world-nav" aria-label="Navegação principal do mundo" role="tablist">${[['profile','PERFIL'],['troops','TROPAS'],['territories','BATALHA'],['received','ATAQUES'],['more','MENU']].map(([key,label])=>`<button role="tab" data-tab="${key}" aria-selected="${active===key}" class="${active===key?'on':''}">${tab==='territories'?lobbyIcon(({troops:'cards',territories:'swords',received:'bell'})[key]||key):menuIcon(key)}<span>${label}</span>${key==='received'&&data.receivedAttacks?.length?'<b class="w-nav-count" aria-label="'+data.receivedAttacks.length+' ataques recentes">'+data.receivedAttacks.length+'</b>':''}</button>`).join('')}</nav>`;
   }
   function mainMenu(){
     const items=[['troops','Recompensas diárias','Cartas aleatórias e progresso dos objetivos','tab','rewards'],['ranking','Ranking','Comandantes e áreas conquistadas','tab','ranking'],['history','Histórico do mundo','As últimas disputas de Sergipe','tab','history'],...(data.wallet?[['wallet','Carteira','Saldo, produção e movimentações','action','wallet']]:[]),['profile',data.player?'Minha conta':'Entrar na conta',data.player?'Perfil e histórico das suas partidas':'Acesse suas conquistas em qualquer aparelho','action','account'],['classic','Modo clássico','Campanha, duelos e melhorias do clássico','action','classic']];
@@ -114,45 +114,52 @@
   }
   function showMapPreview(){
     const area=data.areas.find(a=>a.id===selected);if(!area?.map_id)return;
-    modal(`<h2>${esc(area.map_name)}</h2><p>${esc(area.map_description)}</p>${tacticalMap(area)}<div class="w-legend"><span><i style="background:#77adf0"></i>Atacante</span><span><i style="background:#ed9d90"></i>Defensor / CPU</span><span><i style="background:#ddd9ee"></i>Neutras</span></div><p class="w-map-key">Q: quartel · G: garagem · B: botes<br>H: heliporto · A: canhão · ✦: bombardeiro</p><p>Formação inicial: 3 bases e bombardeiro para a defesa. Tanques seguem a terra; botes e helicópteros alcançam outras ilhas.</p><button class="w-cta" data-dialog="close">VOLTAR À ÁREA</button>`);
+    modal(`<h2>${esc(area.map_name)}</h2><p>${esc(area.map_description)}</p>${tacticalMap(area)}<div class="w-legend"><span><i style="background:#77adf0"></i>Atacante</span><span><i style="background:#ed9d90"></i>Defensor / CPU</span><span><i style="background:#ddd9ee"></i>Neutras</span></div><p class="w-map-key">Q: quartel · G: garagem · B: botes<br>H: heliporto · A: canhão · ✦: bombardeiro</p><p>Formação inicial: 3 bases e bombardeiro para a defesa. Tanques seguem a terra; botes e helicópteros alcançam outras ilhas.</p><button class="w-cta" data-dialog="area-details">VOLTAR À ÁREA</button>`);
   }
-  function map() {
-    const owned = data.areas.filter(a => a.owner_id && a.owner_id === data.player?.id).length;
-    const area = data.areas.find(a => a.id === selected) || data.areas[0];
-    selected = area.id;
-    const mine = area.owner_id && area.owner_id === data.player?.id;
-    const ownBattle = area.battle_id && (area.attacker_id === data.player?.id||area.participant_ids?.includes(data.player?.id));
-    const canDefend=mine&&area.battle_id;
-    const action = canDefend?'ASSUMIR DEFESA':ownBattle ? 'RETOMAR BATALHA' : area.battle_id ? 'ASSISTIR BATALHA' : mine ? 'SOB SEU COMANDO' : 'ATACAR ÁREA';
-    return `<div class="w-heading"><div><h1>Sergipe</h1><p>Cinco áreas. Uma conquista compartilhada.</p></div><div class="w-total">${owned}<span style="font-size:16px;color:#a9b5c8"> / 5</span><small>SUAS ÁREAS</small></div></div>
-      ${owned === 5 ? '<div class="w-claim">Sergipe está sob seu comando. Defenda suas cinco áreas!</div>' : ''}
-      ${data.activeBattle && !ownBattle ? '<button class="w-banner" data-action="resume">Você tem uma batalha em andamento. Toque para retomar.</button>' : ''}
-      <div class="w-map" aria-label="Mapa de campanha de Sergipe">
-        <svg viewBox="${geography.viewBox}" aria-hidden="true"><defs><filter id="islandShadow"><feDropShadow dx="0" dy="5" stdDeviation="1" flood-color="#427f9a" flood-opacity=".4"/></filter><clipPath id="sergipeBoundary"><path d="${geography.outline}"/></clipPath></defs>
-          <path class="sea-line" d="M18 77h23m-12 5h25M337 48h30m-16 5h24M23 239h39m-28 6h20M303 300h45m-35 5h26"/>
-          <path class="w-state-shadow" d="${geography.outline}" filter="url(#islandShadow)"/>
-          <g clip-path="url(#sergipeBoundary)">${data.areas.map(a => `<polygon data-map-area="${a.id}" class="w-territory ${areaClass(a)} ${a.id === selected ? 'chosen' : ''}" points="${shapes[a.id]}"/>`).join('')}</g>
-          <path class="w-state-outline" d="${geography.outline}"/>
-          <g class="w-compass" transform="translate(354 35)"><text y="-7" text-anchor="middle">N</text><path d="M0 0l-5 17 5-4 5 4z"/></g>
-          <text class="w-neighbor" x="74" y="220" transform="rotate(-65 74 220)">BAHIA</text><text class="w-neighbor" x="280" y="99" transform="rotate(28 280 99)">ALAGOAS</text>
-          <text class="w-ocean" x="270" y="295" transform="rotate(-48 270 295)">OCEANO ATLÂNTICO</text>
-        </svg>
-        ${data.areas.map(a => `<button class="w-node ${areaClass(a)} ${a.id === selected ? 'selected' : ''} ${a.battle_id?'in-battle':''}" style="left:${position[a.id][0]}%;top:${position[a.id][1]}%" data-area="${a.id}" aria-label="${esc(a.name)}${a.battle_id?' — em batalha':''}" aria-pressed="${a.id === selected}"><span>${a.ordinal}${a.battle_id ? '<b class="w-busy">'+swords()+'</b>' : ''}</span><em>${a.id === 'se-sao-francisco' ? 'SÃO FRANCISCO' : a.id === 'se-aracaju' ? 'CAPITAL' : esc(a.name.toUpperCase())}</em></button>`).join('')}
-        <small class="w-map-note">CONTORNO IBGE · 5 SETORES DE JOGO</small>
-      </div>
-      <div class="w-legend"><span><i style="background:#b4afce"></i>CPU</span><span><i style="background:#78aef0"></i>Suas áreas</span><span><i style="background:#ee9a8e"></i>Rivais</span></div>
-      <section class="w-area" aria-label="Área selecionada"><div class="w-area-top"><div><div class="w-kicker">ÁREA ${String(area.ordinal).padStart(2, '0')}</div><h2>${esc(area.name)}</h2></div><span class="w-status ${mine ? 'mine' : ''}">${area.battle_id ? 'EM DISPUTA' : mine ? 'CONQUISTADA' : area.owner_id ? 'OCUPADA' : 'NÃO CONQUISTADA'}</span></div>
+  const selectedArea=()=>data?.areas.find(a=>a.id===selected)||data?.areas[0];
+  function areaState(area){
+    const mine=!!area.owner_id&&area.owner_id===data.player?.id;
+    const ownBattle=!!area.battle_id&&(area.attacker_id===data.player?.id||area.participant_ids?.includes(data.player?.id));
+    const canDefend=mine&&!!area.battle_id;
+    return {mine,ownBattle,canDefend,action:canDefend?'ASSUMIR DEFESA':ownBattle?'RETOMAR BATALHA':area.battle_id?'ASSISTIR BATALHA':mine?'SOB SEU COMANDO':'BATALHAR'};
+  }
+  function showAreaDetails(){
+    const area=selectedArea();if(!area)return;
+    const {mine,ownBattle,canDefend,action}=areaState(area);
+    modal(`      <section class="w-area" aria-label="Área selecionada"><div class="w-area-top"><div><div class="w-kicker">ÁREA ${String(area.ordinal).padStart(2, '0')}</div><h2>${esc(area.name)}</h2></div><span class="w-status ${mine ? 'mine' : ''}">${area.battle_id ? 'EM DISPUTA' : mine ? 'CONQUISTADA' : area.owner_id ? 'OCUPADA' : 'NÃO CONQUISTADA'}</span></div>
         <p class="w-owner">${area.owner_id ? 'Comandante: <strong>' + esc(area.owner_name) + '</strong>'+(area.owner_level?' · Maior nível: '+area.owner_level:'') : 'Sob controle da <strong>guarnição da CPU</strong>'}</p>
-        ${area.map_id?'<button class="w-map-teaser" data-action="preview-map">'+tacticalMap(area)+'<span><small>'+esc(area.map_tag)+'</small><strong>'+esc(area.map_name)+'</strong><b>VER CAMPO DE BATALHA ›</b></span></button>':''}
+        ${area.map_id?'<button class="w-map-teaser" data-dialog="preview-map">'+tacticalMap(area)+'<span><small>'+esc(area.map_tag)+'</small><strong>'+esc(area.map_name)+'</strong><b>VER CAMPO DE BATALHA ›</b></span></button>':''}
         <div class="w-def"><span>Ocupação inicial da defesa</span><b>≈ ${Math.round((area.defense_share??(area.owner_id ? .5 : area.cpu_share)) * 100)}% do mapa</b></div>
         ${area.defense_bases?'<p class="w-defense-summary">'+area.defense_bases+' bases + bombardeiro central · Resistência '+esc(area.resistance)+(area.owner_id?' · Níveis individuais do proprietário':' · CPU com '+Math.round((data.progression?.cpuPowerRatio||.8)*100)+'% da força do atacante')+'</p>':''}
         <div class="w-area-coins"><strong>🪙 ${mine?'Produção incluída na sua renda diária':area.economy?'+ '+money(area.economy.productionPerDay)+' moedas/dia na sua renda':'Até 1.000 moedas por dia'}</strong><small>${mine?'Produz enquanto a área estiver sob seu comando, inclusive offline.':area.economy?(data.wallet?.available===0?'Sem saldo na entrada: sem saque nem bônus em moedas.':area.owner_id?'Saque possível: até '+money(area.economy.maxLoot)+' moedas.':'Primeira conquista: +'+money(area.economy.cpuReward)+' moedas.')+' Reserva para entrar: '+money(area.economy.atRisk)+' moedas.':!area.owner_id&&!area.cpu_reward_claimed&&area.first_capture_reward?'Primeira conquista: +'+money(area.first_capture_reward)+' moedas.':'Conquiste para começar a produzir moedas.'}</small></div>
-        <button class="w-cta" data-action="${canDefend?'defend':'attack'}" ${busy || (mine&&!canDefend) ? 'disabled' : ''}>${busy ? 'PREPARANDO…' : action}</button>
+        <button class="w-cta" data-dialog="area-battle" ${busy || (mine&&!canDefend) ? 'disabled' : ''}>${busy ? 'PREPARANDO…' : action}</button>
         ${!mine&&!area.battle_id&&data.wallet?'<p class="w-money-note">'+(data.wallet.available===0?'Sem moedas: você pode conquistar a área, sem ganhos nem perdas de moedas nesta batalha.':area.owner_id?'Saque: 40% do menor saldo disponível entre vencedor e cada perdedor, arredondado para baixo.':'Se a CPU vencer, você perde o valor reservado. Valores sempre em moedas inteiras.')+'</p>':''}
         <p class="w-detail">${esc(area.description)} ${area.owner_id ? area.defender_controlled?'O proprietário está comandando a defesa online.':'A CPU defende até o proprietário assumir o controle.' : 'Vença a guarnição para registrar a área em seu nome.'} O bombardeiro central começa com ${area.owner_id?'o proprietário':'a CPU'}.</p>
-      </section>
-      <p class="w-detail" style="margin:0;text-align:center">Vence quem eliminar o inimigo. O bombardeiro é uma vantagem disputável.</p>`;
+      </section><button class="w-textbtn" data-dialog="close">VOLTAR AO MAPA</button>`,'area');
   }
+  function lobbyIcon(kind,klass=''){
+    const slots={commander:0,chest:1,cards:2,swords:3,bell:4,base:5},slot=slots[kind];
+    if(slot===undefined)return menuIcon(kind);
+    return '<svg class="w-lobby-icon '+klass+'" viewBox="0 0 512 512" aria-hidden="true"><svg width="512" height="512" viewBox="'+(slot%3*512)+' '+(Math.floor(slot/3)*512)+' 512 512" overflow="hidden"><image href="/art/lobby-icons-v1.webp" width="1536" height="1024"/></svg></svg>';
+  }
+  function lobbyHeader(){
+    return `<header class="w-lobby-top"><button class="w-lobby-player" data-action="account" aria-label="${data.player?'Perfil de '+esc(data.player.name):'Entrar na conta'}">${lobbyIcon('commander')}<strong>${data.player?esc(data.player.name):'ENTRAR'}</strong></button><button class="w-lobby-coins" data-action="${data.player?'wallet':'account'}" aria-label="${data.player?'Carteira: '+money(data.wallet?.available)+' moedas disponíveis':'Entre para salvar suas moedas'}"><i class="w-gold-coin" aria-hidden="true">★</i><strong>${money(data.wallet?.available)}</strong><span aria-hidden="true">+</span></button><button class="w-lobby-menu" data-tab="more" aria-label="Abrir menu">${menuIcon('more')}</button></header><div class="w-lobby-logo"><img src="/art/lobby-logo-v1.webp" width="1086" height="362" alt="DOMINATION — MUNDO ABERTO"></div>`;
+  }
+  function lobbyBoard(){
+    const area=selectedArea(),labels={'se-sao-francisco':'SÃO FRANCISCO','se-aracaju':'CAPITAL'},props={'se-litoral-sul':[138,307],'se-agreste':[118,228],'se-sao-francisco':[293,169]};
+    const regions=data.areas.map(a=>`<polygon data-map-area="${a.id}" class="w-territory ${areaClass(a)}" points="${shapes[a.id]}"/>`).join('');
+    const bushes=[[126,64],[157,118],[227,131],[137,216],[249,196],[179,315]].map(([x,y])=>`<g transform="translate(${x} ${y})"><ellipse cy="3" rx="8" ry="3" fill="#001e5277"/><circle cx="-4" r="4" fill="#147a59"/><circle cx="4" r="4" fill="#1b9668"/><circle cy="-3" r="4" fill="#42ad66"/><path d="m-5-2 2-2m5 1 2-2" stroke="#82ca69" stroke-width="2"/></g>`).join('');
+    const bases=data.areas.filter(a=>props[a.id]).map(a=>{const [x,y]=props[a.id];return `<g class="w-board-base ${areaClass(a)}" transform="translate(${x-17} ${y-33})"><svg width="34" height="39" viewBox="0 0 512 512">${lobbyIcon('base')}</svg></g>`;}).join('');
+    const nodes=data.areas.map(a=>{const [px,py]=position[a.id],x=px*4,y=py*3.7,label=labels[a.id]||a.name.toUpperCase(),width=Math.max(43,label.length*5.4+11);return `<g class="w-board-node ${areaClass(a)} ${a.id===area.id?'selected':''} ${a.battle_id?'in-battle':''}" transform="translate(${x} ${y})" data-map-area="${a.id}" role="button" tabindex="0" aria-label="${esc(a.name)}${a.battle_id?' — em batalha':''}" aria-pressed="${a.id===area.id}"><rect class="w-node-depth" x="-14" y="-17" width="28" height="28" rx="8"/><rect class="w-node-face" x="-14" y="-20" width="28" height="28" rx="8"/><text class="w-node-number" text-anchor="middle" y="2">${a.ordinal}</text><rect class="w-node-label" x="${-width/2}" y="11" width="${width}" height="13" rx="5"/><text class="w-node-name" text-anchor="middle" y="20.5">${esc(label)}</text>${a.battle_id?'<g transform="translate(7 -33) scale(.53)">'+swords().replace('<svg ', '<svg width="32" height="32" ')+'</g>':''}</g>`;}).join('');
+    return `<svg class="w-lobby-board" viewBox="44 5 309 352" aria-label="Mapa de campanha de Sergipe"><defs><clipPath id="lobbyBoundary"><path d="${geography.outline}"/></clipPath><linearGradient id="boardBlue" x2=".3" y2="1"><stop stop-color="#559fff"/><stop offset="1" stop-color="#1869d2"/></linearGradient><linearGradient id="boardRed" x2=".3" y2="1"><stop stop-color="#ff8177"/><stop offset="1" stop-color="#cf3f42"/></linearGradient><linearGradient id="boardNeutral" x2=".3" y2="1"><stop stop-color="#a2adc9"/><stop offset="1" stop-color="#536586"/></linearGradient><linearGradient id="boardRock" x2="0" y2="1"><stop stop-color="#8199b2"/><stop offset=".55" stop-color="#3a657c"/><stop offset="1" stop-color="#173b60"/></linearGradient><filter id="boardGlow" x="-35%" y="-25%" width="170%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="5" flood-color="#00ceff" flood-opacity=".7"/></filter><pattern id="boardTexture" width="19" height="17" patternUnits="userSpaceOnUse"><path d="m0 6 8-5 11 5-3 10H4Z" fill="#fff" fill-opacity=".025" stroke="#092d69" stroke-opacity=".12" stroke-width=".6"/><path d="m8 1 2 7-6 8m6-8 9-2" fill="none" stroke="#fff" stroke-opacity=".06"/></pattern></defs><path d="${geography.outline}" transform="translate(0 9)" fill="url(#boardRock)" stroke="#6ad2e0" stroke-width="2" filter="url(#boardGlow)"/><path d="${geography.outline}" transform="translate(0 5)" fill="#1b719b" stroke="#9ab9c8" stroke-width="2"/><g clip-path="url(#lobbyBoundary)">${regions}<path d="${geography.outline}" fill="url(#boardTexture)" pointer-events="none"/>${bushes}</g><path class="w-board-coast" d="${geography.outline}"/><g clip-path="url(#lobbyBoundary)"><polygon class="w-board-selection" points="${shapes[area.id]}"/></g>${bases}${nodes}</svg>`;
+  }
+  function map(){
+    const area=selectedArea();if(!area)return '<p class="w-empty">O mapa está sendo preparado.</p>';
+    selected=area.id;
+    const owned=data.areas.filter(a=>a.owner_id&&a.owner_id===data.player?.id).length,{mine,ownBattle,canDefend,action}=areaState(area),count=data.receivedAttacks?.length||0;
+    return `<section class="w-lobby-campaign" aria-label="Campanha de Sergipe"><header class="w-lobby-region"><div><small>BRASIL <span>› SERGIPE</span></small><h1>Sergipe</h1></div><b aria-label="${owned} de ${data.areas.length} áreas sob seu comando"><em>${owned}</em>/${data.areas.length} ÁREAS</b></header><div class="w-lobby-stage">${lobbyBoard()}${count?'<button class="w-lobby-attacks" data-action="received" aria-label="Ver '+count+' ataques sofridos">'+lobbyIcon('swords')+'<b>'+count+'</b></button>':''}${data.activeBattle&&!ownBattle?'<button class="w-lobby-resume" data-action="resume">RETOMAR BATALHA ›</button>':''}${owned===data.areas.length?'<span class="w-lobby-complete">Sergipe sob seu comando!</span>':''}</div></section><section class="w-lobby-selection ${areaClass(area)}" aria-label="Área selecionada"><span class="w-lobby-flag" aria-hidden="true">⚑</span><div><h2>${esc(area.name)}</h2><p>${area.battle_id?'EM DISPUTA · ':''}${esc(area.owner_name||'Guarnição da CPU')} · ${mine?'Sua área':area.economy?'+'+money(area.economy.productionPerDay)+' moedas/dia':'Até 1.000 moedas/dia'}</p></div><button data-action="area-details" aria-label="Informações de ${esc(area.name)}">i</button></section><div class="w-lobby-actions"><button class="w-lobby-shortcut" data-action="troops" aria-label="Tropas e evolução individual">${lobbyIcon('cards')}</button><button class="w-lobby-battle" data-action="${canDefend?'defend':ownBattle?'resume':'attack'}" ${area.battle_id?'data-battle="'+esc(area.battle_id)+'"':''} ${busy||(mine&&!canDefend)?'disabled':''}><strong>${busy?'PREPARANDO…':action}</strong><small>${esc(area.name)}</small></button><button class="w-lobby-shortcut" data-tab="rewards" aria-label="Ver recompensas diárias">${lobbyIcon('chest')}</button></div>`;
+  }
+
   function ranking() {
     return `<div class="w-heading"><div><h1>Comandantes</h1><p>Quem controla Sergipe agora.</p></div></div><div class="w-list">${data.ranking.length ? data.ranking.map((p, i) => `<div class="w-list-row"><span class="place">${i + 1}</span><div><strong>${esc(p.name)}</strong><small>${p.id === data.player?.id ? 'Você · ' : ''}Áreas sob comando</small></div><span class="score">${p.areas}</span></div>`).join('') : '<div class="w-empty">O mapa ainda está sob controle da CPU.<br>Seja o primeiro comandante a conquistar uma área.</div>'}</div>`;
   }
@@ -271,17 +278,18 @@
     return false;
   }
   function render() {
+    const lobby=!!data&&tab==='territories';root.classList.toggle('w-lobby',lobby);document.querySelector('#worldScreen').classList.toggle('w-lobby-screen',lobby);
     if (!data) {
       root.innerHTML = `<header class="w-top"><div class="w-brand">DOMINATION<small>MUNDO ABERTO</small></div></header><div class="w-empty">${esc(error || 'Conectando ao mundo…')}${error ? '<br><button class="w-textbtn" data-action="refresh">TENTAR NOVAMENTE</button><br><button class="w-textbtn" data-action="classic">MODO CLÁSSICO ›</button>' : ''}</div>`; return;
     }
-    root.innerHTML = `<header class="w-top"><div class="w-brand">DOMINATION<small>MUNDO ABERTO</small></div><div><button class="w-account" data-action="account">${data.player ? esc(data.player.name) : 'ENTRAR'}</button><span class="w-online">MUNDO COMPARTILHADO</span></div></header>
+    root.innerHTML = `${lobby?lobbyHeader():`<header class="w-top"><div class="w-brand">DOMINATION<small>MUNDO ABERTO</small></div><div><button class="w-account" data-action="account">${data.player ? esc(data.player.name) : 'ENTRAR'}</button><span class="w-online">MUNDO COMPARTILHADO</span></div></header>
       ${data.wallet?'<button class="w-wallet" data-action="wallet" aria-label="Carteira e regras de moedas"><span>🪙 <strong>'+money(data.wallet.available)+'</strong><small> DISPONÍVEIS</small></span><span>'+money(data.wallet.reserved)+' reservadas · +'+money(data.wallet.productionPerDay)+'/dia ›</span></button>':''}
       ${data.army?'<button class="w-army-card" data-action="troops" aria-label="Tropas e evolução individual"><span><strong>SEU EXÉRCITO</strong><small>'+(data.troops?.length||5)+' tipos · níveis individuais</small></span><b>VER TROPAS ›</b></button>':''}
       <div class="w-breadcrumb">BRASIL <span>›</span> NORDESTE <span>›</span> <span>SERGIPE</span></div>
+`}
       ${error ? '<div class="w-error" role="alert">' + esc(error) + '</div>' : ''}
-      ${tab==='territories'&&data.receivedAttacks?.length?'<button class="w-banner w-received-banner" data-action="received">⚔ '+data.receivedAttacks.length+' ataques sofridos · Ver lista e responder ›</button>':''}
       ${tab === 'territories' ? map() : tab==='troops'?troopsScreen():tab==='rewards'?rewardsScreen():tab==='profile'?playerProfile():tab==='more'?mainMenu():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : history()}
-      <footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p></footer>${mainNavigation()}`;
+      ${lobby?'':'<footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p></footer>'}${mainNavigation()}`;
   }
   async function refresh(force = false) {
     try {
@@ -564,6 +572,7 @@
       modal('<h2>Sair da batalha?</h2><p>Desistir conta como derrota. Suas moedas reservadas continuam em risco até o resultado. Se houver outros participantes, a batalha continua entre eles.</p><div class="w-dialog-buttons"><button class="w-cta" data-dialog="close">CONTINUAR BATALHA</button><button class="w-textbtn" data-dialog="surrender">SAIR DA DISPUTA</button></div><p class="w-form-error" role="alert"></p>');
     }
   };
+  root.addEventListener('keydown',event=>{const node=event.target.closest?.('[data-map-area]');if(node&&['Enter',' '].includes(event.key)){event.preventDefault();selected=node.dataset.mapArea;tab='territories';render();root.querySelector('[data-map-area="'+selected+'"]').focus?.();}});
   root.addEventListener('click', async event => {
     const mapArea=event.target.closest('[data-map-area]');if(mapArea?.dataset.mapArea){selected=mapArea.dataset.mapArea;tab='territories';render();return;}
     const button = event.target.closest('button'); if (!button || button.disabled) return;
@@ -576,6 +585,7 @@
     const action = button.dataset.action;
     if (action === 'refresh') refresh(true);
     if(action==='preview-map')showMapPreview();
+    if(action==='area-details')showAreaDetails();
     if(action==='wallet')showWallet();
     if(action==='army'||action==='troops')navigate('troops');
     if(action==='loadout'){loadoutDraft=(data.army?.loadout||['tanque']).slice();showLoadout();}
@@ -584,7 +594,7 @@
     if(action==='received')showReceived();
     if (action === 'attack') attack();
     if(action==='defend')defend(data.areas.find(a=>a.id===selected)?.battle_id);
-    if (action === 'resume') resume();
+    if (action === 'resume') resume(button.dataset.battle);
     if (action === 'classic') { bridge.classic(); }
     if (action === 'account') {
       if (!data?.player) authForm();
@@ -603,6 +613,9 @@
     if(receivedAction(button))return;
     if(button.dataset.loadoutKind){const kind=button.dataset.loadoutKind;if(savingLoadout)return;if(loadoutDraft.includes(kind))loadoutDraft=loadoutDraft.filter(k=>k!==kind);else if(loadoutDraft.length<3)loadoutDraft.push(kind);else{showLoadout('Escolha no máximo três tipos.');return;}showLoadout();return;}
     const action = button.dataset.dialog;
+    if(action==='area-details'){showAreaDetails();return;}
+    if(action==='preview-map'){showMapPreview();return;}
+    if(action==='area-battle'){const area=selectedArea();if(!area)return;const state=areaState(area);if(state.mine&&!state.canDefend)return;dialog.close();if(state.canDefend)await defend(area.battle_id);else if(state.ownBattle)await resume(area.battle_id);else await attack();return;}
     if(action==='save-loadout')await saveLoadout();
     if(button.dataset.troopTab){selectTroopTab(button.dataset.troopTab);return;}
     if (action === 'close') {upgradeConfirmation=null;dialog.close();}

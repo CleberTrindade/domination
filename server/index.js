@@ -39,6 +39,8 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/art/tank-attack-v2.webp', ['art/tank-attack-v2.webp', 'image/webp']],
     ['/art/tank-garage-v2.webp', ['art/tank-garage-v2.webp', 'image/webp']],
     ['/art/battle-plate-v2.webp', ['art/battle-plate-v2.webp', 'image/webp']],
+    ['/art/lobby-icons-v1.webp', ['art/lobby-icons-v1.webp', 'image/webp']],
+    ['/art/lobby-logo-v1.webp', ['art/lobby-logo-v1.webp', 'image/webp']],
     ['/art/central-v1.png', ['art/central-v1.png', 'image/png']],
     ['/art/troops-expanded-v1.png', ['art/troops-expanded-v1.png', 'image/png']],
     ['/art/bases-initial-v1.png', ['art/bases-initial-v1.png', 'image/png']],

@@ -18,7 +18,8 @@ test('individual troop screen purchases only the selected type and recovers lost
     return {ok:true,json:async()=>structuredClone(world)};
   }};
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
-  assert(root.innerHTML.includes('11 tipos · níveis individuais'));assert(root.innerHTML.includes('3 bases + bombardeiro'));
+  assert(root.innerHTML.includes('lobby-logo-v1.webp'));assert(!root.innerHTML.includes('3 bases + bombardeiro'));
+  await root.listeners.click({target:{closest:()=>({dataset:{action:'area-details'}})}});assert(dialog.innerHTML.includes('3 bases + bombardeiro'));dialog.close();
   await root.listeners.click({target:{closest:()=>({dataset:{tab:'troops'}})}});assert(root.innerHTML.includes('EVOLUÇÃO INDIVIDUAL'));assert(root.innerHTML.includes('Bombardeiro central'));
   const rootClick=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dialogClick=action=>dialog.listeners.click({target:{closest:()=>({dataset:{dialog:action}})}});
   assert.equal((root.innerHTML.match(/data-select-troop=/g)||[]).length,11);assert(!root.innerHTML.includes('data-troop='));
@@ -46,12 +47,13 @@ test('wallet shows available and reserved funds, entry risk, production, and the
   const document={body,hidden:false,createElement:element,addEventListener(type,fn){listeners[type]=fn;},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
   const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async()=>({ok:true,json:async()=>structuredClone(world)})};
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
-  assert(root.innerHTML.includes('600</strong>'));assert(root.innerHTML.includes('400 reservadas'));
-  assert(root.innerHTML.includes('1.000 moedas/dia'));assert(root.innerHTML.includes('Saque possível: até 240'));assert(root.innerHTML.includes('Reserva para entrar: 240'));
+  assert(root.innerHTML.includes('600</strong>'));assert(!root.innerHTML.includes('400 reservadas'));
+  assert(root.innerHTML.includes('1.000 moedas/dia'));assert(!root.innerHTML.includes('Saque possível: até 240'));
+  await root.listeners.click({target:{closest:()=>({dataset:{action:'area-details'}})}});assert(dialog.innerHTML.includes('Saque possível: até 240'));assert(dialog.innerHTML.includes('Reserva para entrar: 240'));dialog.close();
   await root.listeners.click({target:{closest:()=>({dataset:{action:'wallet'}})}});
-  assert(dialog.innerHTML.includes('Sua carteira'));assert(dialog.innerHTML.includes('300 moedas'));assert(dialog.innerHTML.includes('inclusive zero'));assert(dialog.innerHTML.includes('-400'));
+  assert(dialog.innerHTML.includes('Sua carteira'));assert(dialog.innerHTML.includes('400 reservadas'));assert(dialog.innerHTML.includes('300 moedas'));assert(dialog.innerHTML.includes('inclusive zero'));assert(dialog.innerHTML.includes('-400'));
   for(const balance of [99,1,0]){world.wallet.available=balance;listeners.visibilitychange();await flush();assert(!root.innerHTML.includes('data-action="attack" disabled'));}
-  assert(root.innerHTML.includes('Sem moedas: você pode conquistar a área'));
+  await root.listeners.click({target:{closest:()=>({dataset:{action:'area-details'}})}});assert(dialog.innerHTML.includes('Sem moedas: você pode conquistar a área'));
   world.wallet.available=80.09;listeners.visibilitychange();await flush();assert(root.innerHTML.includes('80</strong>'));assert(!root.innerHTML.includes('80,09'));
 });
 test('a third player sees the public attack alert, watches read-only, then selects a neutral base to join',async()=>{
@@ -235,4 +237,29 @@ test('card and attack tabs keep the action visible, expose real per-type stats, 
  await click({troop:'engenheiro'});await dc({troopTab:'ataque'});assert(dialog.innerHTML.includes('0,42'));assert(dialog.innerHTML.includes('120%'));assert(dialog.innerHTML.includes('COMANDANTE 6'));assert(dialog.innerHTML.includes('data-dialog="review-upgrade" disabled'));
  await click({troop:'tanque'});assert(dialog.innerHTML.includes('data-troop-tab="carta" aria-selected="true"'),'opening any card starts on Carta');await dc({dialog:'review-upgrade'});assert(dialog.innerHTML.includes('CONFIRMAR MELHORIA'));assert(dialog.innerHTML.includes('40 cartas de Tanque'));assert(!dialog.innerHTML.includes('data-troop-tab='));
  assert.equal(calls.length,before,'viewing cards, changing tabs and reviewing a purchase never sends a purchase');
+});
+
+test('compact lobby keeps live map ownership and read-only area details while preserving safe entry actions',async()=>{
+ const root=element(),dialog=element(),body=element(),listeners={},requests=[],maps=require('../shared/battle-maps');
+ const areas=maps.list().map((m,i)=>({id:m.area,name:['Litoral Sul','Agreste','Alto Sertão','Vale do São Francisco','Aracaju · Capital'][i],ordinal:i+1,cpu_share:.35,map_id:m.id,map_name:m.name,map_tag:m.tag,map_description:m.description,description:'Avance pelas bases.',map_defender_sites:[0,1,2,3],map_attacker_site:4,defense_bases:3,resistance:'Baixa',owner_id:i===0?'rival':i===1?null:'me',owner_name:i===0?'Rival <A>':i===1?null:'Meu jogador',economy:{productionPerDay:1000,atRisk:0,maxLoot:0,cpuReward:300}}));
+ const world={player:{id:'me',name:'Meu <Jogador>'},wallet:{balance:0,available:0,reserved:0,productionPerDay:3000,entries:[]},economy:{lootPercent:40,cpuReward:300},areas,ranking:[],history:[],receivedAttacks:[]};
+ const classes=new Set();root.classList={toggle(k,on){on?classes.add(k):classes.delete(k);}};
+ const document={body,hidden:false,createElement:element,addEventListener(k,fn){listeners[k]=fn;},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
+ const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_MAPS:maps,DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{requests.push({path,method:options.method||'GET'});return{ok:true,json:async()=>structuredClone(world)};}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}}),primary=()=>root.innerHTML.match(/<button class="w-lobby-battle"[^>]*>[\s\S]*?<\/button>/)[0];
+ assert(classes.has('w-lobby'));assert(root.innerHTML.includes('Meu &lt;Jogador&gt;'));assert(root.innerHTML.includes('3 de 5 áreas'));assert.equal((root.innerHTML.match(/role="button" tabindex="0"/g)||[]).length,5);
+ assert(!root.innerHTML.includes('w-army-card'));assert(!root.innerHTML.includes('w-def'));assert(!root.innerHTML.includes('Saque possível'));assert(root.innerHTML.includes('w-territory mine'));assert(root.innerHTML.includes('w-territory rival'));assert(!primary().includes('disabled'));
+ const initialRequests=requests.length;
+ await click({action:'area-details'});assert(dialog.open);assert(dialog.innerHTML.includes('Sem saldo na entrada: sem saque nem bônus em moedas.'));assert(dialog.innerHTML.includes('Reserva para entrar: 0'));assert(dialog.innerHTML.includes('3 bases + bombardeiro'));assert(dialog.innerHTML.includes('Rival &lt;A&gt;'));
+ await dc({dialog:'preview-map'});assert(dialog.innerHTML.includes('Q: quartel'));assert(dialog.innerHTML.includes('data-dialog="area-details"'));
+ await dc({dialog:'area-details'});assert(dialog.innerHTML.includes('Reserva para entrar: 0'));await dc({dialog:'close'});
+ await click({area:areas[2].id});assert(primary().includes('disabled'));assert(primary().includes('SOB SEU COMANDO'));
+ await click({action:'area-details'});await dc({dialog:'area-battle'});assert.equal(requests.length,initialRequests,'an owned peaceful area never starts a battle');dialog.close();
+ let prevented=false;root.listeners.keydown({key:'Enter',target:{closest:()=>({dataset:{mapArea:areas[1].id}})},preventDefault(){prevented=true;}});assert(prevented);assert(primary().includes('Agreste'));assert(!primary().includes('disabled'));
+ await click({tab:'more'});assert(!classes.has('w-lobby'));assert(root.innerHTML.includes('Recompensas diárias'));await click({tab:'territories'});assert(classes.has('w-lobby'));
+ areas[2].battle_id='live-defense';areas[2].attacker_id='rival';listeners.visibilitychange();await flush();await click({area:areas[2].id});assert(primary().includes('ASSUMIR DEFESA'));assert(primary().includes('data-action="defend"'));assert(!primary().includes('disabled'));assert(root.innerHTML.includes('— em batalha'));
+ areas[0].battle_id='live-watch';areas[0].attacker_id='third';listeners.visibilitychange();await flush();await click({area:areas[0].id});assert(primary().includes('ASSISTIR BATALHA'));
+ areas[0].participant_ids=['me'];listeners.visibilitychange();await flush();assert(primary().includes('RETOMAR BATALHA'));assert(primary().includes('data-battle="live-watch"'));
+ assert(requests.every(r=>r.method==='GET'),'selection, navigation and information panels never send a mutation');
 });
