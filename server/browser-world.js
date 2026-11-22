@@ -10,6 +10,7 @@ const {troopCatalog}=require('./troops');
 const troopRules=require('../shared/troop-rules');
 const {MAX_FORMATIONS}=require('./formations');
 const {awardBattleCards,readDaily,REWARD_RULES}=require('./card-rewards');
+const {createDifficultySurveys,pendingDifficultySurveys,answerDifficultySurvey}=require('./difficulty-surveys');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const DISCONNECT_MS=30000;
 function createWorldService(pool,{startClock=true,now=Date.now}={}){
@@ -198,6 +199,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
           if(finalStatus==='won')await db.query('UPDATE world_areas SET owner_id=$1,conquered_at=$4,version=version+1 WHERE id=$2 AND version=$3',[winner.playerId,battle.areaId,battle.areaVersion,new Date(now()).toISOString()]);
           await db.query('UPDATE world_battles SET result=$2::jsonb WHERE id=$1',[battle.id,JSON.stringify(result)]);
           for(const participant of roster)await db.query('INSERT INTO world_battle_participants(battle_id,player_id,side,joined_at,outcome,army_level) VALUES($1,$2,$3,$4,$5,$6)',[battle.id,participant.playerId,participant.owner,participant.joinedAt,participant.owner===winnerOwner?'won':(verified?.forfeited||[...battle.withdrawn]).includes(participant.owner)?'left':'lost',participant.level||1]);
+          await createDifficultySurveys(db,battle,roster,{status:finalStatus,winnerOwner,at:now()});
           if(verified&&verified.time>=30&&['won','lost'].includes(finalStatus)){
             const eligible=roster.filter(p=>!(verified.forfeited||[]).includes(p.owner)&&(battle.config.balanceVersion==='troops-v3'?(verified.participation?.[p.owner]||0)>=30:(p.owner!==2||battle.defenderEverControlled)));
             if(eligible.length)await db.query('UPDATE world_players SET battles_completed=battles_completed+1 WHERE id=ANY($1::uuid[])',[eligible.map(p=>p.playerId)]);
@@ -295,7 +297,8 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       }
     }
     const dailyRewards=player?await readDaily(pool,player.id,now()):null;
-    return {player:publicPlayer(player),wallet,army,dailyRewards,rewardRules:REWARD_RULES,troops:troopCatalog(army),progression:ARMY_RULES,economy:RULES,country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,receivedAttacks,activeBattle:[...battles.values()].find(b=>b.status==='active'&&player&&participating(b,player.id))?.id||null};
+    const difficultySurveys=await pendingDifficultySurveys(pool,player?.id);
+    return {player:publicPlayer(player),wallet,army,dailyRewards,difficultySurveys,rewardRules:REWARD_RULES,troops:troopCatalog(army),progression:ARMY_RULES,economy:RULES,country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,receivedAttacks,activeBattle:[...battles.values()].find(b=>b.status==='active'&&player&&participating(b,player.id))?.id||null};
   }
   function execute(battle,player,command){
     const owner=ownerFor(battle,player.id);if(!owner)throw new HttpError(403,'Essa batalha pertence a outro comandante.');
@@ -400,6 +403,12 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       const player=await playerFor(req);
       if(pathname==='/api/world'&&req.method==='GET'){rate('world:'+ip,180,60000);json(200,await world(player));return true;}
       if(!player)throw new HttpError(401,'Entre na sua conta para disputar territórios.');
+      const surveyId=pathname.match(/^\/api\/world\/difficulty-surveys\/([^/]+)$/)?.[1];
+      if(surveyId&&UUID.test(surveyId)&&req.method==='POST'){
+        rate('difficulty:'+player.id,30,60000);const input=await body(req);
+        const result=await transaction(db=>answerDifficultySurvey(db,player.id,surveyId,input.rating,now()));
+        notify('world_changed',{},player.id);json(200,result);return true;
+      }
       if(pathname==='/api/world/profile'&&req.method==='GET'){
         rate('profile:'+player.id,60,60000);
         const page=new URL(req.url,'http://localhost').searchParams.get('page')||'1';

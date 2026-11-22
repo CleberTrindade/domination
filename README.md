@@ -435,6 +435,29 @@ projeção geográfica com correção de longitude pela latitude média, preserv
 o formato e a orientação norte. Cinco setores são recortados por esse contorno.
 O arquivo estático `public/sergipe-map.js` evita consultas ao IBGE ao abrir o jogo.
 
+## Avaliação de dificuldade por área
+
+Após a primeira tentativa concluída de conquista, o jogador avalia de 1 a 5:
+Muito fácil, Fácil, Normal, Difícil e Muito difícil. Cada conta tem uma pergunta
+por área livre (`cpu`) e outra por área já dominada (`occupied`), tanto em vitória
+quanto em derrota ou desistência. O contexto é o proprietário no início da
+batalha, inclusive se estiver offline. Invasores participantes também avaliam;
+defensores e espectadores não. Partidas interrompidas ou expiradas não contam.
+
+A migração `013_difficulty_surveys.sql` cria `world_difficulty_surveys`, com
+jogador, área, contexto, primeira batalha, lado, resultado, nota e datas. A
+pergunta é criada na mesma transação do resultado, uma única vez por
+`(player_id,area_id,context)`. A FK da batalha permite cruzar a avaliação com
+configuração do mapa, níveis e resultado já gravados. Nenhum dado é gravado a
+cada comando de combate.
+
+`GET /api/world` inclui as perguntas pendentes da própria conta. A tela de
+resultado antecede a enquete; se o jogador adiar, ela permanece no banco e
+reaparece em um próximo acesso. `POST /api/world/difficulty-surveys/:id`, com
+`{ "rating": 1 }` até 5, exige autenticação, valida a propriedade e salva a nota
+uma única vez. Repetir a mesma resposta é seguro após perda de conexão;
+tentativas de alterar uma resposta já enviada são rejeitadas.
+
 ## Estrutura
 
 ```

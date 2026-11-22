@@ -16,6 +16,8 @@
   let upgrading=false,upgradeRequest=null,selectedTroop='tanque',troopDetailTab='carta',selectedTroopCard=null,upgradeConfirmation=null,armyTab='formations';
   let formationOwner=null,formationDraft=null,selectedFormation='initial',formationDirty=false,formationMessage='',formationFailed=false,savingFormations=false,editingFormationSlot=null;
   let profile=null,profileOwner=null,profileLoading=false,profileError='',profileRequest=0;
+  let difficultySurvey=null,difficultyRating=0,difficultySaving=false;
+  const deferredSurveys=new Set(),difficultyLabels=['Muito fácil','Fácil','Normal','Difícil','Muito difícil'];
   const troopNames={tanque:'Tanque',desliz:'Bote',heli:'Helicóptero',canhao:'Canhão',central:'Bombardeiro central',batedor:'Batedor',foguetes:'Lança-foguetes',blindado:'Blindado pesado',antiaereo:'Antiaéreo',engenheiro:'Engenheiro',artilharia:'Artilharia móvel'};
   const dateTime=value=>new Date(value).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const troopIcon=kind=>window.DOMINATION_TROOP_ART?.card(kind)||`<svg viewBox="0 0 100 76" aria-hidden="true" class="w-troop-art"><ellipse cx="50" cy="65" rx="36" ry="5" fill="#263a6114"/><g fill="#658bbe" stroke="#284d7b" stroke-width="3" stroke-linejoin="round">${({tanque:'<rect x="16" y="44" width="67" height="17" rx="8" fill="#284d7b"/><path d="M22 44l8-16h37l11 16z"/><rect x="38" y="19" width="25" height="14" rx="4"/><path d="M58 21h32v6H58z"/><path d="M29 51h40" stroke="#aac9ed" stroke-dasharray="6 4"/>',desliz:'<path d="M13 41h74L73 59H29z"/><path d="M29 39V25h36l8 14z"/><path d="M48 25V12m0 0 17 10H48"/><path d="M11 66q10-7 20 0t20 0 20 0 20 0" fill="none" stroke="#74bcd8"/>',heli:'<path d="M23 37q1-16 25-16t25 16q0 13-22 13H38z"/><path d="m23 31-15-8v19l18-4M50 21V11m-30 0h60M37 50v8m25-8v8m-34 0h44" fill="none"/><path d="M60 26v13h12" fill="#c4e6ee"/>',canhao:'<circle cx="37" cy="53" r="12" fill="#284d7b"/><path d="m34 36 42-24 6 11-41 26z"/><path d="m49 47 23 14H32" fill="none"/><circle cx="37" cy="53" r="5" fill="#acc4e6"/>',central:'<circle cx="50" cy="39" r="28" fill="#a6b7d3"/><path d="m50 16 7 17 26 10v6l-27-5-2 13h-8l-2-13-27 5v-6l26-10z" fill="#edf5ff"/><circle cx="50" cy="39" r="34" fill="none" stroke="#e2b84d" stroke-width="4"/>'})[kind]||''}</g></svg>`;
@@ -334,7 +336,9 @@
       const next = await api('/api/world'); const digest = JSON.stringify(next);
       if(next.player?.id!==profileOwner){profile=null;profileError='';profileLoading=false;profileOwner=next.player?.id||null;profileRequest++;}
       data = next; error = '';ensureSocket();syncThreats();
+      if(difficultySurvey&&difficultySurvey.playerId!==data.player?.id){difficultySurvey=null;difficultyRating=0;difficultySaving=false;if(dialog.dataset.view==='difficulty')dialog.close();}
       if (force || hadError || digest !== lastDigest) { lastDigest = digest; render(); }
+      reviewDifficulty();
       reviewReceived();
       if(tab==='profile'&&data.player&&!profile&&!profileLoading&&!profileError)loadProfile();
     } catch (e) { error = e.message; render(); }
@@ -344,6 +348,34 @@
     if(dialog.open&&!replace)dialog.close();
     dialog.dataset.view=view;dialog.classList.toggle('w-dialog-troop',view==='troop');dialog.innerHTML=html;
     if(!replace)dialog.showModal();
+  }
+  function reviewDifficulty(){
+    if(!data?.player||current||data.activeBattle||busy||dialog.open)return;
+    const survey=(data.difficultySurveys||[]).find(s=>!deferredSurveys.has(data.player.id+':'+s.id));
+    if(!survey)return;
+    difficultySurvey={...survey,playerId:data.player.id};difficultyRating=0;difficultySaving=false;showDifficulty();
+  }
+  function showDifficulty(message='',failed=false){
+    const s=difficultySurvey;if(!s||s.playerId!==data?.player?.id)return;
+    modal(`<section class="w-difficulty" aria-labelledby="difficultyTitle"><span class="w-kicker">SUA PRIMEIRA TENTATIVA</span><h2 id="difficultyTitle">Como foi o desafio?</h2><h3>${esc(s.areaName)}</h3><p>${s.context==='cpu'?'Área livre · Guarnição da CPU':'Área já dominada · Exército do proprietário'}<br><strong>${s.outcome==='won'?'Você conquistou a área':'Você não conquistou a área'}</strong></p><div class="w-difficulty-stars" role="group" aria-label="Dificuldade de 1 a 5 estrelas">${difficultyLabels.map((label,i)=>`<button data-difficulty-rating="${i+1}" aria-label="${i+1} ${i?'estrelas':'estrela'} — ${label}" aria-pressed="${difficultyRating===i+1}" ${difficultySaving?'disabled':''}><span aria-hidden="true" class="${i<difficultyRating?'filled':''}">★</span><small>${i+1}</small></button>`).join('')}</div><p class="w-difficulty-label" aria-live="polite">${difficultyRating?difficultyLabels[difficultyRating-1]:'Toque nas estrelas para avaliar'}</p><p class="w-difficulty-scale">1 Muito fácil · 2 Fácil · 3 Normal<br>4 Difícil · 5 Muito difícil</p><p class="w-form-error ${failed?'':'w-difficulty-message'}" role="status">${esc(message)}</p><div class="w-dialog-buttons"><button class="w-cta" data-dialog="difficulty-save" ${!difficultyRating||difficultySaving?'disabled':''}>${difficultySaving?'SALVANDO…':'ENVIAR AVALIAÇÃO'}</button><button class="w-textbtn" data-dialog="difficulty-later" ${difficultySaving?'disabled':''}>RESPONDER DEPOIS</button></div><small>Uma avaliação por área livre e outra por área já dominada. Sua resposta ajuda a equilibrar as batalhas.</small></section>`,'difficulty');
+  }
+  function deferDifficulty(){
+    if(difficultySaving)return;
+    if(difficultySurvey)deferredSurveys.add(difficultySurvey.playerId+':'+difficultySurvey.id);
+    difficultySurvey=null;difficultyRating=0;dialog.close();reviewDifficulty();
+  }
+  async function saveDifficulty(){
+    const survey=difficultySurvey,rating=difficultyRating;
+    if(difficultySaving||!survey||survey.playerId!==data?.player?.id||!rating)return;
+    difficultySaving=true;showDifficulty();
+    try{
+      await post('/api/world/difficulty-surveys/'+survey.id,{rating});
+      if(data?.player?.id!==survey.playerId||difficultySurvey?.id!==survey.id)return;
+      data.difficultySurveys=(data.difficultySurveys||[]).filter(s=>s.id!==survey.id);
+      difficultySurvey=null;difficultyRating=0;difficultySaving=false;
+      modal('<section class="w-difficulty"><h2>Obrigado pela avaliação!</h2><p>Sua resposta foi salva e ajudará a equilibrar esta área.</p><button class="w-cta" data-dialog="difficulty-next">CONTINUAR</button></section>');
+    }catch(e){if(data?.player?.id===survey.playerId&&difficultySurvey?.id===survey.id){difficultySaving=false;showDifficulty(e.message,true);}}
+    finally{if(difficultySurvey?.id===survey.id)difficultySaving=false;}
   }
   const detailArt=kind=>kind==='tanque'?'<img class="w-detail-art" data-art="transparent-hero" src="/art/tank-detail-v2.webp" alt="" width="900" height="600">':window.DOMINATION_TROOP_ART?.detail(kind)||troopIcon(kind);
   const fixedTroop=kind=>['canhao','central'].includes(kind);
@@ -539,7 +571,7 @@
       final.status==='expired'||final.status==='interrupted'?'A batalha foi interrompida. A área manteve seu proprietário.':'A defesa manteve o território. O resultado foi salvo no mundo compartilhado.';
     const economicResult=final.economy?.participants.find(p=>p.playerId===data?.player?.id),change=economicResult?.change;
     const reward=economicResult?'<p class="w-result-coins '+(change<0?'negative':'')+'">🪙 '+(change>0?'+':'')+money(change)+' moedas</p><p>A reserva foi liberada.'+(win&&conquered?' A nova área foi incluída na sua produção diária, conforme as faixas da carteira.':'')+'</p>':'';
-    modal(`<div class="w-result"><div class="w-result-icon">${win?'⚑':'◇'}</div><h2>${title}</h2><p><strong>${esc(areaName)}</strong></p><p>${message}</p>${reward}${battleCardsResult(final)}<button class="w-cta" data-dialog="close">VOLTAR AO MAPA</button></div>`);
+    modal(`<div class="w-result"><div class="w-result-icon">${win?'⚑':'◇'}</div><h2>${title}</h2><p><strong>${esc(areaName)}</strong></p><p>${message}</p>${reward}${battleCardsResult(final)}<button class="w-cta" data-dialog="difficulty-next">CONTINUAR</button></div>`);
   }
   function connectBattle(record) {
     if (record.final || record.status !== 'active') { current = record; battleResult(record.final || { status: record.status }); return; }
@@ -647,7 +679,7 @@
       else navigate('profile');
     }
   });
-  dialog.addEventListener('cancel',()=>{upgradeConfirmation=null;});
+  dialog.addEventListener('cancel',event=>{upgradeConfirmation=null;if(dialog.dataset.view==='difficulty'){event.preventDefault();deferDifficulty();}});
   dialog.addEventListener('keydown',event=>{
     if(!event.target.closest?.('[data-troop-tab]'))return;
     const next={ArrowLeft:'carta',ArrowRight:'ataque',Home:'carta',End:'ataque'}[event.key];
@@ -656,9 +688,13 @@
   dialog.addEventListener('click', async event => {
     const button = event.target.closest('button'); if (!button) return;
     if(button.disabled)return;
+    if(button.dataset.difficultyRating){if(!difficultySaving&&difficultySurvey){difficultyRating=Number(button.dataset.difficultyRating);showDifficulty();dialog.querySelector('[data-difficulty-rating="'+difficultyRating+'"]').focus?.();}return;}
     if(receivedAction(button))return;
     if(button.dataset.formationKind){chooseFormationKind(button.dataset.formationKind);return;}
     const action = button.dataset.dialog;
+    if(action==='difficulty-save'){await saveDifficulty();return;}
+    if(action==='difficulty-later'){deferDifficulty();return;}
+    if(action==='difficulty-next'){dialog.close();await refresh(true);reviewDifficulty();return;}
     if(action==='area-details'){showAreaDetails();return;}
     if(action==='preview-map'){showMapPreview();return;}
     if(action==='area-battle'){const area=selectedArea();if(!area)return;const state=areaState(area);if(state.mine&&!state.canDefend)return;dialog.close();if(state.canDefend)await defend(area.battle_id);else if(state.ownBattle)await resume(area.battle_id);else await attack();return;}
@@ -667,7 +703,7 @@
       if(Number.isInteger(slot)&&slot>=0&&slot<f.troops.length){if(action==='formation-first'&&slot>0)f.troops.unshift(f.troops.splice(slot,1)[0]);if(action==='formation-remove'&&f.troops.length>1)f.troops.splice(slot,1);editingFormationSlot=null;dialog.close();formationChanged();}return;
     }
     if(button.dataset.troopTab){selectTroopTab(button.dataset.troopTab);return;}
-    if (action === 'close') {upgradeConfirmation=null;dialog.close();}
+    if (action === 'close') {upgradeConfirmation=null;dialog.close();reviewDifficulty();}
     if (action === 'register') authForm(true);
     if (action === 'login') authForm(false);
     if(action==='review-upgrade')reviewUpgrade();

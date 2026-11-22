@@ -107,6 +107,7 @@ test('browser combat persists only completed battles and preserves world, sessio
       const area=(await pool.query("SELECT owner_id,version FROM world_areas WHERE id='se-aracaju'")).rows[0];assert.equal(area.owner_id,alice.data.player.id);assert.equal(area.version,1);
       assert.equal((await pool.query('SELECT count(*)::int AS n FROM world_battles WHERE id=$1',[record.id])).rows[0].n,1);
       const map=(await api('/api/world',alice.cookie)).data;assert(map.history.some(h=>h.id===record.id));assert.equal(map.ranking[0].id,alice.data.player.id);
+      const survey=map.difficultySurveys.find(s=>s.battleId===record.id);assert(survey);assert.equal(survey.context,'occupied');assert.equal(survey.outcome,'won');
     });
     await t.test('releasing defense and losing the host never concede territory to the attacker',async()=>{
       clock=Date.now();record=(await api('/api/world/areas/se-aracaju/attack',bob.cookie,{})).data;
