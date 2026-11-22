@@ -33,3 +33,11 @@
 .w-password-toggle:focus-visible{outline:3px solid #ffda71;outline-offset:2px}
 @media(max-width:380px),(max-height:650px){#worldTutorial .w-guide-avatar{width:42px;height:42px;flex-basis:42px}#worldTutorial .w-guide-identity strong{font-size:13px}#worldTutorial p{font-size:11px;line-height:1.45}#worldTutorial h2{font-size:20px}#worldTutorial{padding:10px 13px;max-height:50dvh}}
 @media(prefers-reduced-motion:reduce){#worldTutorial.is-speaking .w-guide-avatar{animation:none}}
+/* The approved full-body character stands beside the instruction bubble. */
+#worldTutorialCommander{position:fixed;z-index:40;left:max(calc(50% - 220px),12px);width:min(26vw,120px);height:min(22dvh,180px);margin:0;pointer-events:none;filter:drop-shadow(0 4px 6px #00142766)}
+#worldTutorialCommander img{display:block;width:100%;height:100%;object-fit:contain}
+#worldTutorialCommander[hidden]{display:none!important}
+#worldTutorialCommander.is-speaking{animation:guide-speaking 1.2s ease-in-out infinite alternate}
+@media(max-height:600px){#worldTutorialCommander{height:100px;width:68px}}
+@media(prefers-reduced-motion:reduce){#worldTutorialCommander.is-speaking{animation:none}}
+#worldTutorial .w-guide-voice-credit{display:block;color:#a9c5da;font:9px Nunito;margin:-2px 0 7px}

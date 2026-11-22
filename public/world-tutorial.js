@@ -1,10 +1,11 @@
 /* Account onboarding: local practice, then a guided tour of the real screens. */
 (function(){
 'use strict';
-window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,render,avatar=()=>''}){
+window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,render}){
  const coach=document.createElement('section');coach.id='worldTutorial';coach.setAttribute('role','region');coach.setAttribute('aria-label','Tutorial guiado');coach.hidden=true;document.body.append(coach);
  const spotlight=document.createElement('div');spotlight.id='worldTutorialSpotlight';spotlight.hidden=true;spotlight.setAttribute('aria-hidden','true');document.body.append(spotlight);
- const voice=window.createTutorialVoice?.({synthesis:window.speechSynthesis,Utterance:window.SpeechSynthesisUtterance,onChange:updateVoice});
+ const commander=document.createElement('figure');commander.id='worldTutorialCommander';commander.hidden=true;commander.innerHTML='<img src="/art/tutorial-commander-v1.webp" alt="Comandante instrutor de corpo inteiro" width="1024" height="1536">';document.body.append(commander);
+ const voice=window.createTutorialVoice?.({AudioClass:window.Audio,clips:window.DOMINATION_TUTORIAL_AUDIO?.clips,onChange:updateVoice});
  const tours=[
   {page:'territories',selector:'.w-lobby-campaign',title:'Seu mundo aberto',text:'Este é Sergipe. Toque em uma área do mapa para selecioná-la. Azul é sua; vermelho é de outro comandante; áreas livres são defendidas pela CPU. Todas podem ser disputadas, sem ordem obrigatória.'},
   {page:'territories',selector:'[data-action="area-details"]',title:'Conheça o desafio antes de atacar',text:'O botão de informações da área mostra proprietário, mapa, resistência e recompensas. Batalhar inicia a disputa selecionada. Em área ocupada, a CPU usa as tropas do dono até ele assumir a defesa.'},
@@ -24,7 +25,7 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
  let owner=null,mode=null,worker=null,state=null,repeated=false,step=0,saving=false,paused=false,started=false,highlight=null,digest='',message='';
  const active=()=>!!mode;
  function clearHighlight(){highlight?.classList.remove('w-tutorial-highlight');highlight=null;spotlight.hidden=true;}
- function cleanup(){voice?.clear();worker?.terminate();worker=null;state=null;started=false;digest='';bridge.guide?.(null);clearHighlight();document.body.classList.remove('tutorial-training','tutorial-touring');document.querySelector('#btnDrop')?.classList.remove('w-tutorial-highlight');coach.hidden=true;mode=null;}
+ function cleanup(){voice?.clear();worker?.terminate();worker=null;state=null;started=false;digest='';bridge.guide?.(null);clearHighlight();document.body.classList.remove('tutorial-training','tutorial-touring');document.querySelector('#btnDrop')?.classList.remove('w-tutorial-highlight');coach.hidden=true;commander.hidden=true;mode=null;}
  function stop(){const wasTraining=mode==='training';cleanup();if(wasTraining){bridge.stop();bridge.show();}render();}
  async function persist(phase,index){
   if(repeated)return true;
@@ -33,17 +34,19 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   catch(e){message='Não foi possível salvar o tutorial. Confira a conexão e tente novamente.';return false;}
  }
  function card(title,text,progress,button,disabled=false,success=''){
-  coach.innerHTML='<header><span class="w-guide-avatar" role="img" aria-label="Avatar padrão do comandante, seu orientador">'+avatar()+'</span><span class="w-guide-identity"><strong>COMANDANTE</strong><small>Seu orientador</small><span>'+progress+'</span></span><button type="button" data-guide="pause" aria-label="Pausar tutorial">PAUSAR</button></header><h2 tabindex="-1">'+title+'</h2><p class="w-guide-script">'+text+'</p>'+(success?'<p class="w-guide-success">'+success+'</p>':'')+(message?'<p role="alert">'+message+'</p>':'')+'<div class="w-guide-audio"><button type="button" data-guide="audio" aria-pressed="false">OUVIR</button><button type="button" data-guide="repeat">REPETIR ÁUDIO</button></div><p class="w-guide-voice-status" role="status"></p><footer><button type="button" data-guide="'+(mode==='training'?'next':'tour-next')+'" '+(disabled?'disabled':'')+'>'+button+'</button></footer>';
-  coach.hidden=false;voice?.setText(title+'. '+text);updateVoice();
+  coach.innerHTML='<header><span class="w-guide-identity"><strong>COMANDANTE</strong><small>Seu orientador</small><span>'+progress+'</span></span><button type="button" data-guide="pause" aria-label="Pausar tutorial">PAUSAR</button></header><h2 tabindex="-1">'+title+'</h2><p class="w-guide-script">'+text+'</p>'+(success?'<p class="w-guide-success">'+success+'</p>':'')+(message?'<p role="alert">'+message+'</p>':'')+'<div class="w-guide-audio"><button type="button" data-guide="audio" aria-pressed="false">OUVIR</button><button type="button" data-guide="repeat">REPETIR ÁUDIO</button></div><small class="w-guide-voice-credit">Voz masculina gerada por IA</small><p class="w-guide-voice-status" role="status"></p><footer><button type="button" data-guide="'+(mode==='training'?'next':'tour-next')+'" '+(disabled?'disabled':'')+'>'+button+'</button></footer>';
+  coach.hidden=false;commander.hidden=false;voice?.setText(title+'. '+text);updateVoice();
  }
  function updateVoice(){
   const status=voice?.state()||{supported:false,enabled:false,speaking:false},toggle=coach.querySelector('[data-guide="audio"]'),repeat=coach.querySelector('[data-guide="repeat"]'),notice=coach.querySelector('.w-guide-voice-status');
   if(toggle){toggle.disabled=!status.supported;toggle.textContent=status.enabled?'DESLIGAR ÁUDIO':'OUVIR';toggle.setAttribute('aria-pressed',String(status.enabled));}
   if(repeat){repeat.hidden=!status.enabled;repeat.disabled=!status.supported;}
-  if(notice)notice.textContent=status.error||(!status.supported?'Áudio indisponível neste navegador. Continue pelo texto.':'');
-  coach.classList.toggle('is-speaking',!!status.speaking);if(mode==='training')bridge.layoutGuide?.();
+  if(notice)notice.textContent=status.error||(!status.supported?'Áudio indisponível. Continue pelo texto.':'');
+  commander.classList.toggle('is-speaking',!!status.speaking);layoutCommander();if(mode==='training')bridge.layoutGuide?.();
  }
+ function layoutCommander(){if(!coach.hidden)commander.style.bottom=((coach.offsetHeight||250)+6)+'px';}
  function updateSpotlight(){
+  layoutCommander();
   if(mode!=='tour'||!highlight?.getBoundingClientRect){spotlight.hidden=true;return;}
   const rect=highlight.getBoundingClientRect(),width=window.innerWidth,height=window.innerHeight;
   const left=Math.max(0,rect.left-8),top=Math.max(0,rect.top-8),right=Math.min(width,rect.right+8),bottom=Math.min(height,rect.bottom+8);

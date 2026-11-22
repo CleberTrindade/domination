@@ -665,13 +665,33 @@ migração 016 não são interrompidas automaticamente e podem repetir pelo menu
 Repetir um tutorial concluído não altera o progresso salvo. O reset de batalha
 preserva também esse estado da conta, além das enquetes e credenciais.
 
-O orientador usa o avatar padrão do comandante da tela principal. O botão
-**Ouvir** habilita a narração em português; as próximas instruções são lidas
-automaticamente, com **Repetir áudio** e **Desligar áudio** disponíveis. Mudar de
-etapa ou sair cancela a fala anterior; esconder a página também interrompe o
-áudio. A síntese usa as vozes do navegador/aparelho (`SpeechSynthesis`), prioriza
-pt-BR e mantém o texto se não houver suporte ou voz em português. Não exige
-microfone, chave de API ou alterações no banco.
+O orientador mostra o comandante de corpo inteiro do mockup aprovado. O botão
+**Ouvir** habilita a narração masculina fixa em português brasileiro; as próximas
+instruções são reproduzidas automaticamente, com **Repetir áudio** e
+**Desligar áudio** disponíveis. Mudar de etapa, sair ou esconder a página
+interrompe a fala anterior. As 25 gravações locais cobrem o treino, o passeio e
+as mensagens de conclusão/carregamento. O texto continua disponível se um áudio
+não carregar. Não há dependência das vozes instaladas, microfone, serviço de
+síntese em tempo de jogo, chave de API ou alteração no banco.
+
+`public/tutorial-audio.json` registra textos, duração, modelo e hashes. Os MP3
+são servidos com MIME correto, cache imutável e byte ranges para reprodução em
+celulares. O nome contém hashes do texto e do áudio: mudanças de gravação não
+reutilizam conteúdo antigo do cache. Os testes conferem que cada instrução tem
+uma gravação atual. Créditos em `docs/tutorial-audio-credits.md`.
+
+Para regenerar, baixar o modelo separadamente e instalar em um ambiente Python
+local `piper-tts==1.8.0` e `onnxruntime==1.32.0`, além do FFmpeg. Não instalar
+essas ferramentas no Render. A geração deve ser executada sem acesso à rede:
+
+```bash
+node scripts/tutorial-narration.js > /tmp/tutorial-transcripts.json
+unshare --user --map-root-user --net /caminho/venv/bin/python scripts/generate-tutorial-audio.py --model /caminho/pt_BR-faber-medium.onnx --transcripts /tmp/tutorial-transcripts.json
+```
+
+O gerador define `ORT_DISABLE_TELEMETRY=1` antes de importar o runtime e chama
+`disable_telemetry_events()`. Revisar e remover gravações órfãs ao atualizar
+falas, depois rodar `npm run check` e `npm test`.
 
 No treino, uma máscara escurece o campo e mantém origem/destino iluminados, com
 as marcações 1 e 2. No passeio, uma janela de destaque acompanha o recurso real

@@ -1,20 +1,24 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),createVoice=require('../public/tutorial-voice');
-const Utterance=class{constructor(text){this.text=text;}};
-test('Portuguese narration is opt-in, advances automatically, and cancels stale speech on change or exit',()=>{
- const spoken=[],states=[];let cancelled=0;
- const voice=createVoice({Utterance,synthesis:{getVoices:()=>[{lang:'en-US'},{lang:'pt-PT'},{lang:'pt-BR'}],cancel(){cancelled++;},speak(u){spoken.push(u);}},onChange:s=>states.push(s)});
- voice.setText('Conquiste sua base. Toque no alvo.');assert.equal(spoken.length,0,'no autoplay before choosing audio');
- voice.toggle();assert.equal(spoken.length,1);assert.equal(spoken[0].lang,'pt-BR');assert.equal(spoken[0].voice.lang,'pt-BR');assert(voice.state().speaking);
- spoken[0].onend();assert.equal(spoken.length,2);const stale=spoken[1];
- voice.setText('Use o heliporto.');assert.equal(spoken.length,3);assert(cancelled>0);stale.onend();assert.equal(spoken.length,3,'cancelled paragraph cannot continue over the next step');
- voice.repeat();assert.equal(spoken.length,4);assert.equal(spoken.at(-1).text,'Use o heliporto.');
+const clips=[{text:'Conquiste sua base.',file:'base.mp3'},{text:'Use o heliporto.',file:'heli.mp3'}];
+const flush=()=>new Promise(resolve=>setImmediate(resolve));
+test('fixed male recordings are opt-in, switch steps, reuse the unlocked audio element and cancel stale events',()=>{
+ const players=[],played=[],states=[];
+ class Audio{constructor(){players.push(this);this.pauses=0;}pause(){this.pauses++;}play(){played.push(this.src);this.onplaying();return Promise.resolve();}}
+ const voice=createVoice({AudioClass:Audio,clips,onChange:s=>states.push(s)});
+ voice.setText(clips[0].text);assert.equal(played.length,0);
+ voice.toggle();assert.equal(played[0],'/audio/tutorial/base.mp3');assert(voice.state().speaking);const oldEnded=players[0].onended;
+ voice.setText(clips[1].text);assert.equal(played[1],'/audio/tutorial/heli.mp3');assert.equal(players.length,1,'mobile playback keeps the user-unlocked audio element');assert(players[0].pauses>0);
+ oldEnded();assert(voice.state().speaking,'late events cannot stop the next instruction');
+ players[0].onended();assert.equal(voice.state().speaking,false);assert(voice.state().enabled,'next instruction remains narrated');
+ voice.repeat();assert.equal(played.length,3);assert(voice.state().speaking);
  voice.toggle();assert.equal(voice.state().enabled,false);assert.equal(voice.state().speaking,false);
- voice.setText('Outro recurso.');assert.equal(spoken.length,4,'disabled narration stays disabled');
- voice.repeat();assert.equal(spoken.length,5);const pending=spoken.at(-1);voice.clear();pending.onend();assert.equal(spoken.length,5);assert.equal(voice.state().speaking,false);assert(states.length);
+ voice.setText(clips[0].text);assert.equal(played.length,3);
+ voice.repeat();assert.equal(played.length,4);voice.clear();assert.equal(voice.state().speaking,false);assert(states.length);
 });
-test('missing support, Portuguese voices and synthesis errors preserve the text path without throwing',()=>{
- const unsupported=createVoice();unsupported.setText('Leia o texto.');unsupported.toggle();assert.equal(unsupported.state().supported,false);
- const noPortuguese=createVoice({Utterance,synthesis:{getVoices:()=>[{lang:'en-US'}],cancel(){},speak(){throw Error('must not speak English');}}});noPortuguese.setText('Texto.');noPortuguese.toggle();assert.match(noPortuguese.state().error,/português/);assert.equal(noPortuguese.state().enabled,false);
- const failing=createVoice({Utterance,synthesis:{getVoices:()=>[],cancel(){},speak(){throw Error('audio blocked');}}});failing.setText('Texto.');failing.toggle();assert.match(failing.state().error,/Ouvir/);assert.equal(failing.state().speaking,false);
+test('unsupported browsers, missing clips and rejected playback preserve text and never choose a browser voice',async()=>{
+ const unsupported=createVoice();unsupported.setText('Texto.');unsupported.toggle();assert.equal(unsupported.state().supported,false);
+ class BrokenAudio{pause(){}play(){return Promise.reject(Error('network or autoplay'));}}
+ const failing=createVoice({AudioClass:BrokenAudio,clips});failing.setText(clips[0].text);failing.toggle();await flush();assert.equal(failing.state().enabled,false);assert.match(failing.state().error,/Ouvir/);
+ failing.setText('Unrecorded instruction');failing.toggle();assert.match(failing.state().error,/indisponível/);assert.equal(failing.state().speaking,false);
 });

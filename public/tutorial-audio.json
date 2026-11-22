@@ -1,0 +1,212 @@
+{
+  "voice": {
+    "name": "Comandante",
+    "language": "pt-BR",
+    "gender": "male",
+    "engine": "Piper",
+    "model": "pt_BR-faber-medium",
+    "modelSha256": "75e913eb463db0b6ac7ddf68d3e4c9ac19ace36dc3b710a81039b448352b8ffc"
+  },
+  "clips": [
+    {
+      "text": "Bem-vindo ao campo de treino. Azul é seu exército; vermelho é o inimigo; cinza são bases neutras. Os números indicam tropas. Suas bases produzem reforços até o limite. Aqui você aprende com calma, sem gastar moedas ou alterar suas conquistas.",
+      "sha256": "e8533562b131088482165ab4dd06fda644497d2e96d8549783465e6329215fd1",
+      "file": "e8533562b1310884-a8af8a3d.mp3",
+      "duration": 15.491,
+      "bytes": 108660,
+      "audioSha256": "a8af8a3dcdb08ffdb9f4684687ae22864bf590acd29d8509821217733e76756e"
+    },
+    {
+      "text": "Conquiste sua primeira base. Toque na base azul marcada 1 e depois na garagem marcada 2. Você também pode arrastar da origem até o alvo. As tropas disponíveis saem da origem, que continua produzindo. Espere suas tropas chegarem: a base conquistada passa a produzir para você.",
+      "sha256": "5e459ad0a8cc57424ba7db5c9ef3c693354609d7df9bd0d17302645c0ae6c301",
+      "file": "5e459ad0a8cc5742-469aa0c5.mp3",
+      "duration": 16.744,
+      "bytes": 117437,
+      "audioSha256": "469aa0c52b59936e1c8a8b7210f643db05ead9b93fb4a5cf0ace37868ac7c342"
+    },
+    {
+      "text": "Capture um heliporto. Use a garagem marcada 1 para atacar o heliporto marcado 2. As garagens produzem tropas terrestres; heliportos produzem helicópteros. Mais bases significam mais produção e opções de ataque.",
+      "sha256": "8d9bc40b4881c1a17304843428c6b78715039617ccffef92c2adcca86d723c14",
+      "file": "8d9bc40b4881c1a1-45339c91.mp3",
+      "duration": 13.479,
+      "bytes": 94580,
+      "audioSha256": "45339c91de90cd88825d6cf4d04b3cd1deb1775172a43f2a7e2eeb5a1ab03a8a"
+    },
+    {
+      "text": "Atravesse a água. Envie helicópteros do heliporto 1 para a base de botes 2, na ilha. Tanques precisam de caminhos terrestres; helicópteros e botes alcançam ilhas. A base capturada produzirá botes.",
+      "sha256": "91bf4faad677b98442fba82ed6ee01c5cf0619335235c2309e7c284d74776e12",
+      "file": "91bf4faad677b984-9c94ead6.mp3",
+      "duration": 12.408,
+      "bytes": 87083,
+      "audioSha256": "9c94ead65632dcd1f46c430ab1772a31a75f6368ad0ba6273bf1b4e350b3202d"
+    },
+    {
+      "text": "Use os botes e a defesa fixa. Agora envie os botes da ilha 1 para o canhão 2. Canhões atacam automaticamente inimigos dentro do alcance; capturá-los ajuda a proteger sua expansão.",
+      "sha256": "0bc79c91596bc41b0fe0705cce354c0fc0de5d02c5d4b6ea1fc022e87019491d",
+      "file": "0bc79c91596bc41b-3d2eec87.mp3",
+      "duration": 11.468,
+      "bytes": 80500,
+      "audioSha256": "3d2eec872a2af4bf541768db0970a1f9241f37c6d9c3b965f0edeef25a892c27"
+    },
+    {
+      "text": "A vantagem do bombardeiro. Envie helicópteros de 1 para o bombardeiro 2. Ele ataca automaticamente dentro do alcance. É uma vantagem estratégica, não a condição de vitória. Em uma área ocupada, ele começa com o proprietário.",
+      "sha256": "9aee73a8b30f382be75ccb0edabf402b726e8bec7a900409d43fa41e5299b9f4",
+      "file": "9aee73a8b30f382b-27f62058.mp3",
+      "duration": 13.845,
+      "bytes": 97140,
+      "audioSha256": "27f62058cec0201a65cf3fc959de59051cfaad1054cb75454c035c0a3695535d"
+    },
+    {
+      "text": "Reforce uma base. Toque no botão do paraquedas e depois no heliporto marcado. Quando carregado, ele adiciona 12 tropas a uma base sua. Durante uma batalha real, espere a recarga antes de usá-lo novamente.",
+      "sha256": "da4869aeace0df53e913cab399328ce5cad1f882b67535194d25f07bbd59318a",
+      "file": "da4869aeace0df53-262da774.mp3",
+      "duration": 12.434,
+      "bytes": 87266,
+      "audioSha256": "262da774122e180d759b23af8914ec3e2de1220375333f7e3396fdd05c37d6f6"
+    },
+    {
+      "text": "Vença a batalha. Ataque a última base vermelha com os helicópteros de 1. A vitória vem ao eliminar as bases e tropas dos outros exércitos. Nas partidas reais, preserve bases, combine rotas e reforce posições; desistir conta como derrota.",
+      "sha256": "b11afa66e82ed693d57a73a81ff23e849b160f1e809854542c7ed6f47d88c5fe",
+      "file": "b11afa66e82ed693-ef073745.mp3",
+      "duration": 14.942,
+      "bytes": 104820,
+      "audioSha256": "ef073745c7708802a1a83c4a6f08c5118ea8b2836ba63b81c60bbc7830f4d224"
+    },
+    {
+      "text": "Seu mundo aberto. Este é Sergipe. Toque em uma área do mapa para selecioná-la. Azul é sua; vermelho é de outro comandante; áreas livres são defendidas pela CPU. Todas podem ser disputadas, sem ordem obrigatória.",
+      "sha256": "672856f74a43c1cbf7d614e7b009d3d3158424b59f343c863cfcbf6fa14fe7d6",
+      "file": "672856f74a43c1cb-303fc06c.mp3",
+      "duration": 13.531,
+      "bytes": 94946,
+      "audioSha256": "303fc06caffea1f646e95bb408ac2543ca26b120e3f394c21c179dea75733c75"
+    },
+    {
+      "text": "Conheça o desafio antes de atacar. O botão de informações da área mostra proprietário, mapa, resistência e recompensas. Batalhar inicia a disputa selecionada. Em área ocupada, a CPU usa as tropas do dono até ele assumir a defesa.",
+      "sha256": "22af421e61122337500186425991de916b5ee14a45f1c8bca1a2ee59f438e909",
+      "file": "22af421e61122337-60dfe026.mp3",
+      "duration": 15.047,
+      "bytes": 105551,
+      "audioSha256": "60dfe0265163afefcbc73a86bb16602e33ff39376303da8ad573b6a018305502"
+    },
+    {
+      "text": "Moedas e conquistas. Toque no saldo no topo para abrir a carteira. Áreas conquistadas produzem moedas pelo tempo de posse, inclusive offline. A primeira conquista da CPU pode dar um bônus. A carteira explica a produção e registra movimentações.",
+      "sha256": "c4bc13c4d4e3ea212c1d00b03b655343548cd78cd4cd16c7228687d2de5bd0ea",
+      "file": "c4bc13c4d4e3ea21-3667b392.mp3",
+      "duration": 15.621,
+      "bytes": 109574,
+      "audioSha256": "3667b3924fc2cefca3682217d743d56e0f1e53bc641d70bc106cda5430108bd2"
+    },
+    {
+      "text": "Monte suas formações. Em Tropas → Formações, escolha até três tipos terrestres liberados. O primeiro ocupa sua base inicial. Crie, duplique, renomeie, salve e ative outras formações. Botes, helicópteros, canhão e bombardeiro são apoio fixo.",
+      "sha256": "fe008b0b9431462b655dd4f3b418abcc2658fc7a724909b5f192630f67c55491",
+      "file": "fe008b0b9431462b-783d16d2.mp3",
+      "duration": 16.353,
+      "bytes": 114694,
+      "audioSha256": "783d16d2c685f8cdfc7b1fda84207c662c1263eb179d3449e6503e30df1ad6a9"
+    },
+    {
+      "text": "Coleção, cartas e melhorias. Em Todas as tropas, selecione uma carta e toque em Ver detalhes. A aba Carta explica sua função e a aba Ataque mostra os atributos. Melhorar exige cartas daquele tipo e moedas; confira o próximo nível e confirme a compra. Novas tropas são liberadas conforme o nível de comandante.",
+      "sha256": "b679facec54ad942abae6abfc2d0ea31f44103426f7cd97fc2be63399ed430a1",
+      "file": "b679facec54ad942-35b47a4a.mp3",
+      "duration": 19.096,
+      "bytes": 133894,
+      "audioSha256": "35b47a4a383308fd731eeb276319c4e7a660436a1979d375bfca8525e07ce4c3"
+    },
+    {
+      "text": "Recompensas diárias. Acesse Menu → Recompensas diárias, ou o baú na tela de batalha. Acompanhe os objetivos e as cartas aleatórias recebidas pelas partidas e desafios. As cartas ficam na coleção; acumular cartas não melhora a tropa automaticamente.",
+      "sha256": "37f224edb92a0e9b87ed3f5a19ebb1a4b932b900fb397760e822b9dedcdde16d",
+      "file": "37f224edb92a0e9b-3849bfbd.mp3",
+      "duration": 15.961,
+      "bytes": 111951,
+      "audioSha256": "3849bfbdd5724ea52a654568d5d71e9177be7f27826c771a1eeaf81fe3614ff9"
+    },
+    {
+      "text": "Seu perfil e suas estatísticas. Perfil reúne sua conta, vitórias, derrotas, aproveitamento e áreas. O treino não entra nessas estatísticas. Use seu usuário e senha para acessar a mesma conta em outro aparelho.",
+      "sha256": "ddaf0d772fff389ea6b0c3de9020199029c6a79859ba57bb666398b7ec0948ab",
+      "file": "ddaf0d772fff389e-851973ac.mp3",
+      "duration": 13.531,
+      "bytes": 94946,
+      "audioSha256": "851973aca042997bc8f5ee240a036902cbdf3e8e96be84cf31f16b34baae6fd3"
+    },
+    {
+      "text": "Registro de batalhas. Menu → Registro de batalhas mostra suas partidas e as do mundo. Veja adversários, tropas, resultados e recompensas. Os detalhes ficam no registro; Assistir aparece quando existe um replay disponível.",
+      "sha256": "250812377e2100eb125014c4532199a11347c243376259dea70d67b83a0a4e6f",
+      "file": "250812377e2100eb-2bc9523d.mp3",
+      "duration": 14.211,
+      "bytes": 99700,
+      "audioSha256": "2bc9523df35e6350d1d0e98ee91e561c0c5c069761038af1a39351d41714ce82"
+    },
+    {
+      "text": "Convide seus amigos. Menu → Amigos permite compartilhar seu código ou link, procurar comandantes e enviar pedidos. A amizade só é criada depois que a outra pessoa aceitar. Acompanhe seus amigos e abra seus perfis por aqui.",
+      "sha256": "0f5e864835990c73abf9f0438e4cae48a9d660909cf3a48400485868485ab1a7",
+      "file": "0f5e864835990c73-a33ccd00.mp3",
+      "duration": 13.976,
+      "bytes": 98054,
+      "audioSha256": "a33ccd00e98bd45afbd1b53479c75b5e83d730ce92714fb7bf99954134a9d8a3"
+    },
+    {
+      "text": "Defesa, revanche e contra-ataque. Ataques reúne as invasões sofridas. Se sua área estiver sob ataque, o aviso permite assumir a defesa; offline, a CPU defende. Depois, consulte a lista para uma revanche ou escolha uma área rival para contra-atacar.",
+      "sha256": "189e6a35d72de725f0ab3020cb8c090bce4107bf716ea7c8247933850d406db5",
+      "file": "189e6a35d72de725-e9e8d59c.mp3",
+      "duration": 15.569,
+      "bytes": 109208,
+      "audioSha256": "e9e8d59cc30a8269b1c2b4d29b3690bb131279c2998c92f4920e278c7da610a3"
+    },
+    {
+      "text": "Outros participantes e saque. As espadas indicam uma área em batalha. Você pode assistir e, se houver vaga e base neutra, entrar como invasor. O vencedor fica com a área. O saque é 40% do menor saldo disponível na entrada entre vencedor e cada perdedor. Com saldo zero, você pode jogar: sem saque nem perda de moedas.",
+      "sha256": "ffb136209f445ae25bbdac0a77ab70acc623123fb7b7dcdbbb32d41d79101f98",
+      "file": "ffb136209f445ae2-13f36d4d.mp3",
+      "duration": 20.924,
+      "bytes": 146694,
+      "audioSha256": "13f36d4d922ef213a3ca5124f63ef47c525915547d5ecfe52bac4cc4a9273a8d"
+    },
+    {
+      "text": "Ranking e avaliação de dificuldade. Menu → Ranking mostra a disputa por territórios. Após sua primeira tentativa em cada área livre e em cada área já ocupada, uma enquete pede a dificuldade de 1 a 5 estrelas. Ela ajuda a equilibrar o jogo.",
+      "sha256": "b42f61568ded2e62b577d5c1415672c3adee4b342c67640e6b38d2ed698ed91a",
+      "file": "b42f61568ded2e62-86358edb.mp3",
+      "duration": 14.263,
+      "bytes": 100066,
+      "audioSha256": "86358edb6c89150a641506a8fd0fcb5530cecb03882bdd9343f3e215a675eafe"
+    },
+    {
+      "text": "Tudo ao seu alcance. O Menu reúne amigos, recompensas, ranking, histórico, carteira e o modo clássico. Em Tutorial guiado você pode repetir o treino ou rever este passeio. O treino não conquista áreas, não dá recompensas e não gasta moedas.",
+      "sha256": "2c8a6e1b852753c4ddc9df59bb47d036b222083943c001e196e2f8d0d85ab7ca",
+      "file": "2c8a6e1b852753c4-d0749e98.mp3",
+      "duration": 14.994,
+      "bytes": 105186,
+      "audioSha256": "d0749e986ff8a95452f0063c7a33f6ec5079b56bcccdd58aa2ff648c1d0df3ae"
+    },
+    {
+      "text": "Pronto para sua primeira conquista!. Escolha uma área, confira o campo de batalha e prepare sua formação. Expanda, aproveite os apoios e elimine os exércitos adversários. Boa conquista, comandante!",
+      "sha256": "1c16d52505f7461b9010d9f5c62df59cb2164677460af2aa805d8906460491ff",
+      "file": "1c16d52505f7461b-35f6ce43.mp3",
+      "duration": 12.016,
+      "bytes": 84340,
+      "audioSha256": "35f6ce43b5013d7748a64c907e7992f99120f7fef89f9abaacacd3907b16a75c"
+    },
+    {
+      "text": "Preparando o treinamento. Preparando seu campo de treinamento…",
+      "sha256": "08fe3bf6262dbfa3f4e6ef5bd54f3c822031e8f25a340a4a99866278f58d9e13",
+      "file": "08fe3bf6262dbfa3-55cfcda6.mp3",
+      "duration": 3.736,
+      "bytes": 26374,
+      "audioSha256": "55cfcda68749a86f770af736fd28ef66a0742a51032fc52147531a31bb7b402b"
+    },
+    {
+      "text": "Treinamento concluído!. Você venceu sua batalha de teste. Agora vamos conhecer as telas e recursos do Mundo Aberto. Esta partida não altera suas moedas, cartas ou estatísticas.",
+      "sha256": "8e1937251c91b5ec744c9ca1ffe601fe8eadb47db47a7010e0ae6458cbc280ef",
+      "file": "8e1937251c91b5ec-4e18062a.mp3",
+      "duration": 11.18,
+      "bytes": 78488,
+      "audioSha256": "4e18062a07b8d0ae374d574ca27a5fb0b12f79abd58e87138c0450b02dc0a79f"
+    },
+    {
+      "text": "Treino indisponível. O treino não carregou. Pause e tente novamente pelo Menu → Tutorial guiado.",
+      "sha256": "2849b4b47f0cbba671d8da3feaf324516cae36da51d38848de17dccc01553e6d",
+      "file": "2849b4b47f0cbba6-e0cf4c7e.mp3",
+      "duration": 6.348,
+      "bytes": 44660,
+      "audioSha256": "e0cf4c7ed3806c8cb4c9780d1200de30e50d4a967258233a99185d736459c163"
+    }
+  ]
+}

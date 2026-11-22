@@ -43,6 +43,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/art/tank-attack-v2.webp', ['art/tank-attack-v2.webp', 'image/webp']],
     ['/art/tank-garage-v2.webp', ['art/tank-garage-v2.webp', 'image/webp']],
     ['/art/battle-plate-v2.webp', ['art/battle-plate-v2.webp', 'image/webp']],
+    ['/art/tutorial-commander-v1.webp', ['art/tutorial-commander-v1.webp', 'image/webp']],
     ['/art/lobby-icons-v1.webp', ['art/lobby-icons-v1.webp', 'image/webp']],
     ['/art/lobby-logo-v1.webp', ['art/lobby-logo-v1.webp', 'image/webp']],
     ['/art/central-v1.png', ['art/central-v1.png', 'image/png']],
@@ -59,6 +60,9 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/world-social.js', ['world-social.js', 'application/javascript; charset=utf-8']],
     ['/replay-worker.js', ['replay-worker.js', 'application/javascript; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
+  const tutorialAudio=require('../public/tutorial-audio.json');
+  assets.set('/tutorial-audio.js',{body:'window.DOMINATION_TUTORIAL_AUDIO='+JSON.stringify(tutorialAudio)+';',mime:'application/javascript; charset=utf-8'});
+  for(const clip of tutorialAudio.clips)assets.set('/audio/tutorial/'+clip.file,{body:fs.readFileSync(path.join(__dirname,'../public/audio/tutorial',clip.file)),mime:'audio/mpeg'});
   assets.set('/training-battle.js',{body:fs.readFileSync(path.join(__dirname,'../shared/training-battle.js')),mime:'application/javascript; charset=utf-8'});
   assets.set('/battle-engine.js',{body:browserEngine(),mime:'application/javascript; charset=utf-8'});
   assets.set('/battle-maps.js',{body:browserMaps(),mime:'application/javascript; charset=utf-8'});
@@ -85,7 +89,17 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
         res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end();
       }
       const asset = assets.get(pathname);
-      if (asset) { if(['image/png','image/webp'].includes(asset.mime))res.setHeader('Cache-Control','public, max-age=31536000, immutable'); res.writeHead(200, { 'Content-Type': asset.mime }); return res.end(req.method === 'HEAD' ? undefined : asset.body); }
+      if (asset) {
+        if(['image/png','image/webp','audio/mpeg'].includes(asset.mime))res.setHeader('Cache-Control','public, max-age=31536000, immutable');
+        if(asset.mime==='audio/mpeg'){
+          res.setHeader('Accept-Ranges','bytes');
+          if(req.headers.range){const match=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range),start=Number(match?.[1]),end=match?.[2]?Number(match[2]):asset.body.length-1;
+            if(!match||start>end||start>=asset.body.length){res.writeHead(416,{'Content-Range':'bytes */'+asset.body.length});return res.end();}
+            const last=Math.min(end,asset.body.length-1);res.writeHead(206,{'Content-Type':asset.mime,'Content-Range':`bytes ${start}-${last}/${asset.body.length}`,'Content-Length':last-start+1});return res.end(req.method==='HEAD'?undefined:asset.body.subarray(start,last+1));}
+          res.setHeader('Content-Length',asset.body.length);
+        }
+        res.writeHead(200,{'Content-Type':asset.mime});return res.end(req.method==='HEAD'?undefined:asset.body);
+      }
       if (pathname === '/health' || pathname === '/api/health') {
         const database = await databaseStatus(), ok = database === 'connected';
         res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json; charset=utf-8' });

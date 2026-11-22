@@ -39,7 +39,7 @@
   const post = (path, body = {}) => api(path, { method: 'POST', body: JSON.stringify(body) });
   let replay=null;
   const social=window.createWorldSocial?.({root,dialog,getData:()=>data,getTab:()=>tab,api,post,render,modal,esc,money,art:kind=>detailArt(kind),icon:kind=>lobbyIcon(kind),swords:()=>swords(),onReplay:watchReplay});
-  const tutorial=window.createWorldTutorial?.({bridge,getData:()=>data,post,navigate:(key,army)=>{if(army)armyTab=army;navigate(key);},modal,dialog,render,avatar:()=>lobbyIcon('commander')});
+  const tutorial=window.createWorldTutorial?.({bridge,getData:()=>data,post,navigate:(key,army)=>{if(army)armyTab=army;navigate(key);},modal,dialog,render});
   const swords=()=>'<svg class="w-swords" viewBox="0 0 32 32" aria-hidden="true"><g class="sword-left"><path d="M5 3l5 2 14 16-4 4L5 8z"/><path d="M17 24l7-7m-1 7 5 5"/></g><g class="sword-right"><path d="M27 3l-5 2L8 21l4 4L27 8z"/><path d="M15 24l-7-7m1 7-5 5"/></g></svg>';
   function renderAlerts(){
     const visible=[...threats.values()].filter(t=>current?.id!==t.battleId);

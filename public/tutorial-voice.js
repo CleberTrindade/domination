@@ -1,28 +1,21 @@
 'use strict';
-/* Narration uses the voices provided by the browser/device; no microphone. */
-(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory;else root.createTutorialVoice=factory;})(typeof window==='object'?window:this,function({synthesis,Utterance,onChange=()=>{}}={}){
- const supported=!!synthesis&&typeof Utterance==='function';
- let enabled=false,speaking=false,text='',generation=0,error='';
+/* Fixed Portuguese male recordings. Never selects an installed browser voice. */
+(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory;else root.createTutorialVoice=factory;})(typeof window==='object'?window:this,function({AudioClass,clips=[],onChange=()=>{}}={}){
+ const urls=new Map(clips.map(clip=>[clip.text,'/audio/tutorial/'+clip.file]));
+ const supported=typeof AudioClass==='function'&&urls.size>0;
+ let enabled=false,speaking=false,text='',generation=0,error='',audio=null;
  const state=()=>({supported,enabled,speaking,error});
  const changed=()=>onChange(state());
- function silence(){generation++;speaking=false;if(supported)try{synthesis.cancel();}catch{}changed();}
+ function silence(){generation++;speaking=false;if(audio){audio.onended=null;audio.onerror=null;audio.onplaying=null;audio.pause();try{audio.currentTime=0;}catch{}}changed();}
  function play(){
-  silence();if(!enabled||!text||!supported)return;error='';
-  let voices=[];try{voices=synthesis.getVoices()||[];}catch{}
-  const portuguese=voice=>/^pt(?:[-_]|$)/i.test(voice.lang||'');
-  const voice=voices.find(v=>/^pt[-_]BR$/i.test(v.lang))||voices.find(portuguese);
-  if(voices.length&&!voice){error='Não há voz em português disponível neste aparelho.';enabled=false;changed();return;}
-  // Short utterances avoid long-paragraph limits on mobile speech engines.
-  const chunks=text.match(/[^.!?]+[.!?]+|[^.!?]+$/g)||[text],id=generation;
-  function next(index){
-   if(id!==generation||!enabled)return;
-   if(index>=chunks.length){speaking=false;changed();return;}
-   const utterance=new Utterance(chunks[index].trim());utterance.lang='pt-BR';utterance.rate=.95;utterance.pitch=1;if(voice)utterance.voice=voice;
-   utterance.onend=()=>{if(id===generation)next(index+1);};
-   utterance.onerror=()=>{if(id!==generation)return;speaking=false;enabled=false;error='O áudio não pôde ser iniciado. Toque em Ouvir para tentar novamente.';changed();};
-   try{speaking=true;changed();synthesis.speak(utterance);}catch{utterance.onerror();}
-  }
-  next(0);
+  silence();if(!enabled||!text||!supported)return;error='';const url=urls.get(text),id=generation;
+  if(!url){enabled=false;error='Áudio desta etapa indisponível. Continue pelo texto.';changed();return;}
+  if(!audio){audio=new AudioClass();audio.preload='auto';}
+  audio.src=url;
+  const failed=()=>{if(id!==generation)return;enabled=false;speaking=false;error='Não foi possível carregar o áudio. Confira a conexão e toque em Ouvir.';changed();};
+  audio.onended=()=>{if(id!==generation)return;speaking=false;changed();};audio.onerror=failed;
+  audio.onplaying=()=>{if(id!==generation)return;speaking=true;changed();};
+  try{const pending=audio.play();pending?.catch(failed);}catch{failed();}
  }
  return {state,silence,setText(value){if(value===text)return;text=value;silence();if(enabled)play();},toggle(){if(!supported)return;enabled=!enabled;if(enabled)play();else{error='';silence();}},repeat(){if(!supported)return;enabled=true;play();},clear(){text='';error='';silence();}};
 });
