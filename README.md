@@ -638,3 +638,29 @@ Mais estados/países, novas topologias de campo e recuperação de senha por e-m
 são evoluções futuras.
 O servidor de desenvolvimento opera em uma única instância; várias instâncias
 exigirão coordenação das simulações e do fluxo de estados entre processos.
+
+## Tutorial guiado
+
+Novos cadastros entram automaticamente em uma batalha de treinamento isolada.
+Ela usa o mesmo motor, controles e artes do jogo, com instruções em português,
+origem/alvo numerados no campo, pausa para leitura e avanço somente após a ação.
+São ensinados conquista e produção, garagem, helicópteros, ilhas/botes, canhão,
+bombardeiro, paraquedas e eliminação do exército rival. O instrutor oferece tropas
+e uma defesa reduzida somente nesse cenário. O bombardeiro é explicado como
+vantagem estratégica, nunca como condição geral de vitória.
+
+O treino roda em `training-worker.js`, sem criar batalha, participante, saque,
+moedas, cartas, conquistas, replay ou enquete no mundo compartilhado. Ao terminar,
+a conta passa ao passeio por mapa, informações da área, carteira, formações,
+coleção/melhoria individual, recompensas, perfil, histórico, amigos, ataques,
+participação de terceiros, ranking e menu. Os recursos reais são abertos e
+seus controles destacados. O passeio não compra melhorias ou inicia ataques.
+
+`world_players.tutorial_phase` e `tutorial_step` guardam a conclusão do treino e
+a etapa do passeio. A atualização autenticada `POST /api/world/tutorial` é
+monotônica: repetições e abas antigas não desfazem o progresso. Uma recarga durante
+o treino reinicia a prática; durante o passeio, retoma a etapa salva. Pausar
+permite jogar e retomar pelo **Menu → Tutorial guiado**. Contas anteriores à
+migração 016 não são interrompidas automaticamente e podem repetir pelo menu.
+Repetir um tutorial concluído não altera o progresso salvo. O reset de batalha
+preserva também esse estado da conta, além das enquetes e credenciais.

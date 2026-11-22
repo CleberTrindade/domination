@@ -28,6 +28,9 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
   const assets = new Map([
     ['/', ['index.html', 'text/html; charset=utf-8']],
     ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+    ['/world-tutorial.js', ['world-tutorial.js', 'application/javascript; charset=utf-8']],
+    ['/training-worker.js', ['training-worker.js', 'application/javascript; charset=utf-8']],
+    ['/tutorial.css', ['tutorial.css', 'text/css; charset=utf-8']],
     ['/world.js', ['world.js', 'application/javascript; charset=utf-8']],
     ['/world-motion.js', ['world-motion.js', 'application/javascript; charset=utf-8']],
     ['/troop-art.js', ['troop-art.js', 'application/javascript; charset=utf-8']],
@@ -55,6 +58,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/world-social.js', ['world-social.js', 'application/javascript; charset=utf-8']],
     ['/replay-worker.js', ['replay-worker.js', 'application/javascript; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
+  assets.set('/training-battle.js',{body:fs.readFileSync(path.join(__dirname,'../shared/training-battle.js')),mime:'application/javascript; charset=utf-8'});
   assets.set('/battle-engine.js',{body:browserEngine(),mime:'application/javascript; charset=utf-8'});
   assets.set('/battle-maps.js',{body:browserMaps(),mime:'application/javascript; charset=utf-8'});
   assets.set('/troop-rules.js',{body:fs.readFileSync(path.join(__dirname,'../shared/troop-rules.js')),mime:'application/javascript; charset=utf-8'});

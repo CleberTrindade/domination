@@ -39,6 +39,7 @@
   const post = (path, body = {}) => api(path, { method: 'POST', body: JSON.stringify(body) });
   let replay=null;
   const social=window.createWorldSocial?.({root,dialog,getData:()=>data,getTab:()=>tab,api,post,render,modal,esc,money,art:kind=>detailArt(kind),icon:kind=>lobbyIcon(kind),swords:()=>swords(),onReplay:watchReplay});
+  const tutorial=window.createWorldTutorial?.({bridge,getData:()=>data,post,navigate:(key,army)=>{if(army)armyTab=army;navigate(key);},modal,dialog,render});
   const swords=()=>'<svg class="w-swords" viewBox="0 0 32 32" aria-hidden="true"><g class="sword-left"><path d="M5 3l5 2 14 16-4 4L5 8z"/><path d="M17 24l7-7m-1 7 5 5"/></g><g class="sword-right"><path d="M27 3l-5 2L8 21l4 4L27 8z"/><path d="M15 24l-7-7m1 7-5 5"/></g></svg>';
   function renderAlerts(){
     const visible=[...threats.values()].filter(t=>current?.id!==t.battleId);
@@ -108,7 +109,7 @@
     return `<nav id="worldNav" class="w-world-nav" aria-label="Navegação principal do mundo" role="tablist">${[['profile','PERFIL'],['troops','TROPAS'],['territories','BATALHA'],['received','ATAQUES'],['more','MENU']].map(([key,label])=>`<button role="tab" data-tab="${key}" aria-selected="${active===key}" class="${active===key?'on':''}">${lobbyIcon(({troops:'cards',territories:'swords',received:'bell'})[key]||key)}<span>${label}</span>${key==='received'&&data.receivedAttacks?.length?'<b class="w-nav-count" aria-label="'+data.receivedAttacks.length+' ataques recentes">'+data.receivedAttacks.length+'</b>':''}</button>`).join('')}</nav>`;
   }
   function mainMenu(){
-    const items=[['friends','Amigos','Convide e acompanhe outros comandantes','tab','friends'],['troops','Recompensas diárias','Cartas aleatórias e progresso dos objetivos','tab','rewards'],['ranking','Ranking','Comandantes e áreas conquistadas','tab','ranking'],['history','Registro de batalhas','Suas partidas, confrontos e replays','tab','history'],...(data.wallet?[['wallet','Carteira','Saldo, produção e movimentações','action','wallet']]:[]),['profile',data.player?'Minha conta':'Entrar na conta',data.player?'Perfil e histórico das suas partidas':'Acesse suas conquistas em qualquer aparelho','action','account'],['classic','Modo clássico','Campanha, duelos e melhorias do clássico','action','classic']];
+    const items=[['classic','Tutorial guiado','Aprenda a batalhar e conheça os recursos','action','tutorial'],['friends','Amigos','Convide e acompanhe outros comandantes','tab','friends'],['troops','Recompensas diárias','Cartas aleatórias e progresso dos objetivos','tab','rewards'],['ranking','Ranking','Comandantes e áreas conquistadas','tab','ranking'],['history','Registro de batalhas','Suas partidas, confrontos e replays','tab','history'],...(data.wallet?[['wallet','Carteira','Saldo, produção e movimentações','action','wallet']]:[]),['profile',data.player?'Minha conta':'Entrar na conta',data.player?'Perfil e histórico das suas partidas':'Acesse suas conquistas em qualquer aparelho','action','account'],['classic','Modo clássico','Campanha, duelos e melhorias do clássico','action','classic']];
     return `<div class="w-heading"><div><h1>Menu</h1><p>Todos os caminhos do seu comandante.</p></div></div><nav class="w-menu-list" aria-label="Outras opções do jogo">${items.map(([icon,title,description,attribute,value])=>`<button class="w-menu-item" data-${attribute}="${value}"><i>${lobbyIcon(({troops:'chest',profile:'commander'})[icon]||icon)}</i><span><strong>${title}</strong><small>${description}</small></span><b aria-hidden="true">›</b></button>`).join('')}</nav>`;
   }
   function tacticalMap(area){
@@ -298,7 +299,7 @@
     markReceivedSeen();
   }
   function reviewReceived(){
-    if(!reviewOnReturn||!data?.player||current||dialog.open)return;
+    if(!reviewOnReturn||!data?.player||current||dialog.open||tutorial?.active())return;
     reviewOnReturn=false;
     let seen=reviewedAttacks.get(data.player.id);
     if(seen===undefined)try{seen=localStorage.getItem('domination_received_'+data.player.id);}catch{}
@@ -332,6 +333,7 @@
       ${tab==='territories'&&social?.hasInvite()?'<button class="w-banner" data-tab="friends">VOCÊ RECEBEU UM CONVITE DE AMIZADE ›</button>':''}
       ${tab === 'territories' ? map() : tab==='troops'?troopsScreen():tab==='rewards'?rewardsScreen():tab==='profile'?playerProfile():tab==='friends'?(social?.friendsScreen()||'<p>Carregue novamente para abrir os amigos.</p>'):tab==='more'?mainMenu():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : (social?.historyScreen()||history())}
       ${lobby?'':'<footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p></footer>'}${mainNavigation()}`;
+    tutorial?.decorate();
   }
   async function refresh(force = false) {
     try {
@@ -342,8 +344,8 @@
       if(difficultySurvey&&difficultySurvey.playerId!==data.player?.id){difficultySurvey=null;difficultyRating=0;difficultySaving=false;if(dialog.dataset.view==='difficulty')dialog.close();}
       if (force || hadError || digest !== lastDigest) { lastDigest = digest; render(); }
       social?.refreshed();
-      reviewDifficulty();
-      reviewReceived();
+      tutorial?.sync();
+      if(!tutorial?.active()){reviewDifficulty();reviewReceived();}
       if(tab==='profile'&&data.player&&!profile&&!profileLoading&&!profileError)loadProfile();
     } catch (e) { error = e.message; render(); }
   }
@@ -354,7 +356,7 @@
     if(!replace)dialog.showModal();
   }
   function reviewDifficulty(){
-    if(!data?.player||current||replay||data.activeBattle||busy||dialog.open)return;
+    if(!data?.player||current||replay||data.activeBattle||busy||dialog.open||tutorial?.active())return;
     const survey=(data.difficultySurveys||[]).find(s=>!deferredSurveys.has(data.player.id+':'+s.id));
     if(!survey)return;
     difficultySurvey={...survey,playerId:data.player.id};difficultyRating=0;difficultySaving=false;showDifficulty();
@@ -602,6 +604,7 @@
     };
   }
   async function attack() {
+    if(tutorial?.active()){tutorial.pause();return;}
     if (busy || !data) return;
     if (!data.player) { authForm(false); return; }
     const area = data.areas.find(a => a.id === selected);
@@ -612,6 +615,7 @@
     finally { busy = false; if (!current) render(); }
   }
   async function resume(id = data?.activeBattle) {
+    if(tutorial?.active()){tutorial.pause();return;}
     if (!id || busy) return;
     busy = true;
     try { connectBattle(await api('/api/world/battles/' + id)); }
@@ -619,6 +623,7 @@
     finally { busy = false; renderBattlePanel(); }
   }
   async function defend(id,confirmed=false){
+    if(tutorial?.active()){tutorial.pause();return;}
     if(!id||busy)return;
     if(current?.id===id&&current.playerOwner===2)return resume(id);
     if(current&&current.id!==id&&current.playerOwner!==2&&!confirmed){
@@ -662,8 +667,9 @@
   }
   window.WorldApp = {
     selectJoinSite(id){if(current?.playerOwner!==0||!current.canJoin||!current.joinableSites?.some(site=>site.id===id))return;const input=document.querySelector('#worldJoinSite');if(input)input.value=String(id);bridge.selectJoinSite?.(id);},
-    show() { if(replay){stopReplay();return;}if(current?.playerOwner===2){this.requestSurrender();return;}bridge.show(); refresh(true); },
+    show() { if(tutorial?.active()){tutorial.pause();return;}if(replay){stopReplay();return;}if(current?.playerOwner===2){this.requestSurrender();return;}bridge.show(); refresh(true); },
     requestSurrender() {
+      if(tutorial?.active()){tutorial.pause();return;}
       if(current?.playerOwner===0){stopStream();refresh(true);return;}
       if(current?.playerOwner===2){
         modal('<h2>Devolver a defesa à CPU?</h2><p>A CPU continuará defendendo sua área. Isso não encerra a batalha nem entrega o território.</p><div class="w-dialog-buttons"><button class="w-cta" data-dialog="close">CONTINUAR DEFENDENDO</button><button class="w-textbtn" data-dialog="release-defense">VOLTAR AO MAPA</button></div><p class="w-form-error" role="alert"></p>');return;
@@ -686,6 +692,7 @@
     if(button.dataset.profilePage){loadProfile(Number(button.dataset.profilePage));return;}
     if(receivedAction(button))return;
     const action = button.dataset.action;
+    if(action==='tutorial')tutorial?.menu();
     if (action === 'refresh') refresh(true);
     if(action==='preview-map')showMapPreview();
     if(action==='area-details')showAreaDetails();
@@ -704,7 +711,7 @@
     if (action === 'attack') attack();
     if(action==='defend')defend(data.areas.find(a=>a.id===selected)?.battle_id);
     if (action === 'resume') resume(button.dataset.battle);
-    if (action === 'classic') { bridge.classic(); }
+    if (action === 'classic') { if(tutorial?.active())tutorial.stop();bridge.classic(); }
     if (action === 'account') {
       if (!data?.player) authForm();
       else navigate('profile');
@@ -748,7 +755,7 @@
       try{await post('/api/world/battles/'+current.id+'/release');stopStream();dialog.close();await refresh(true);}
       catch(e){dialog.querySelector('.w-form-error').textContent=e.message;button.disabled=false;}
     }
-    if (action === 'logout') { try { await post('/api/auth/logout');stopStream(); dialog.close(); await refresh(true); } catch (e) { error = e.message; dialog.close(); render(); } }
+    if (action === 'logout') { if(tutorial?.active())tutorial.stop();try { await post('/api/auth/logout');stopStream(); dialog.close(); await refresh(true); } catch (e) { error = e.message; dialog.close(); render(); } }
     if (action === 'surrender' && current) {
       button.disabled = true;
       try { const result = await post('/api/world/battles/' + current.id + '/surrender');if(result.left||result.watching){stopStream();dialog.close();refresh(true);}else if (current) battleResult(result); }

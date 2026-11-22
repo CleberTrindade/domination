@@ -13,6 +13,7 @@ const {awardBattleCards,readDaily,REWARD_RULES}=require('./card-rewards');
 const {createDifficultySurveys,pendingDifficultySurveys,answerDifficultySurvey}=require('./difficulty-surveys');
 const {friendList,searchPlayers,requestFriend,changeFriend,publicFriendProfile}=require('./friends');
 const {historyPage,saveReplay,readReplay}=require('./battle-history');
+const {readTutorial,saveTutorial}=require('./tutorial');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const DISCONNECT_MS=30000;
 function createWorldService(pool,{startClock=true,now=Date.now}={}){
@@ -302,7 +303,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     }
     const dailyRewards=player?await readDaily(pool,player.id,now()):null;
     const difficultySurveys=await pendingDifficultySurveys(pool,player?.id);
-    return {player:publicPlayer(player),wallet,army,dailyRewards,difficultySurveys,rewardRules:REWARD_RULES,troops:troopCatalog(army),progression:ARMY_RULES,economy:RULES,country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,receivedAttacks,activeBattle:[...battles.values()].find(b=>b.status==='active'&&player&&participating(b,player.id))?.id||null};
+    return {tutorial:await readTutorial(pool,player?.id),player:publicPlayer(player),wallet,army,dailyRewards,difficultySurveys,rewardRules:REWARD_RULES,troops:troopCatalog(army),progression:ARMY_RULES,economy:RULES,country:'Brasil',region:'Nordeste',state:'Sergipe',stateId:'SE',areas,ranking,history,receivedAttacks,activeBattle:[...battles.values()].find(b=>b.status==='active'&&player&&participating(b,player.id))?.id||null};
   }
   function execute(battle,player,command){
     const owner=ownerFor(battle,player.id);if(!owner)throw new HttpError(403,'Essa batalha pertence a outro comandante.');
@@ -412,6 +413,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         json(200,await historyPage(pool,player,{scope,page:+page}));return true;
       }
       if(!player)throw new HttpError(401,'Entre na sua conta para disputar territórios.');
+      if(pathname==='/api/world/tutorial'&&req.method==='POST'){rate('tutorial:'+player.id,120,60000);json(200,await saveTutorial(pool,player.id,await body(req)));return true;}
       if(pathname==='/api/world/friends'&&req.method==='GET'){
         rate('friends:'+player.id,90,60000);const q=new URL(req.url,'http://localhost').searchParams,page=q.get('page')||'1';if(!/^[1-9]\d{0,5}$/.test(page))throw new HttpError(400,'Página inválida.');json(200,await friendList(pool,player.id,presence,+page));return true;
       }

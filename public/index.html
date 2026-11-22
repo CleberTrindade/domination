@@ -169,6 +169,8 @@ button{font:inherit}
 <link rel="stylesheet" href="/world-theme.css">
 <link rel="stylesheet" href="/army.css">
 <link rel="stylesheet" href="/social.css">
+<link rel="stylesheet" href="/tutorial.css">
+<script src="/world-tutorial.js"></script>
 <script src="/world-social.js"></script>
 <script src="/world-motion.js"></script>
 <script src="/battle-maps.js"></script>
@@ -803,7 +805,7 @@ const PTR=new Map();
 function resize(){
   const r=$('#game').getBoundingClientRect();CW=r.width;CH=r.height;
   cv.width=CW*DPR;cv.height=CH*DPR;
-  const ah=CH-TOPM-BOTM;
+  const ah=Math.max(120,CH-TOPM-(game?.worldTraining?Math.max(165,document.querySelector('#worldTutorial')?.offsetHeight||220)+18:BOTM));
   if(game){const L=game.L;SC=Math.min(CW/L.W,ah/L.H);VX=(CW-L.W*SC)/2;VY=TOPM+(ah-L.H*SC)/2;game.dirty=true}
 }
 window.addEventListener('resize',()=>{if(game)resize();if(tab==='battle')drawPreview()});
@@ -1484,6 +1486,7 @@ function render(){
     c.strokeStyle=g.joinSelected===s.id?'#f5c64b':'#fff';c.lineWidth=2.5;hexPath(c,X(s.x),Y(s.y),HR*1.08*SC);c.stroke();
     c.beginPath();c.arc(X(s.x-20),Y(s.y-22),10*SC,0,7);c.fillStyle='#386d91';c.fill();c.font=`${11*SC}px "Lilita One"`;c.textAlign='center';c.textBaseline='middle';c.fillStyle='#fff';c.fillText(s.id+1,X(s.x-20),Y(s.y-22));
   }
+  if(g.worldGuide){for(const [label,id]of [[1,g.worldGuide.source],[2,g.worldGuide.target]]){const s=g.sites[id];if(!s)continue;c.strokeStyle=label===1?'#fce17c':'#fff';c.lineWidth=3;hexPath(c,X(s.x),Y(s.y),HR*1.3*SC);c.stroke();c.beginPath();c.arc(X(s.x-20),Y(s.y-33),12,0,7);c.fillStyle='#173956';c.fill();c.lineWidth=2;c.strokeStyle='#ffda65';c.stroke();c.font='bold 15px Nunito';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#fff';c.fillText(label,X(s.x-20),Y(s.y-33));}}
   // tropas
   const us=units.slice().sort((a,b)=>a.y-b.y);
   for(const u of us){
@@ -1543,7 +1546,7 @@ function hud(){
   const key=cnt.join(',')+g.me;
   if(key!==lastBar){lastBar=key;$('#pbar').innerHTML=order.filter(o=>cnt[o]).map(o=>`<div style="width:${cnt[o]/n*100}%;background:${COL[g.pal[o]].fill}"></div>`).join('')}
   if(g.mode!=='solo'||g.cpu){
-    const tag=(g.mode==='world'?(g.worldReplay?'REPLAY ':g.me===0?'ASSISTINDO ':g.me===2?'DEFESA ':'ÁREA ')+g.worldOrdinal:'DUELO')+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
+    const tag=(g.mode==='world'?(g.worldTraining?'TREINO ':g.worldReplay?'REPLAY ':g.me===0?'ASSISTINDO ':g.me===2?'DEFESA ':'ÁREA ')+g.worldOrdinal:'DUELO')+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
     if(g.timeTag!==tag){g.timeTag=tag;$('#lvTag').innerHTML=tag;}
   }
   if(g.mode==='online'){const k='L'+g.elim.join(',')+(g.gone?Object.keys(g.gone).join(','):'');if(k!==g.legKey){g.legKey=k;$('#legend').innerHTML=Array.from({length:g.n},(_,i)=>i+1).map(o=>`<span class="${g.elim.includes(o)?'out':''}"><i style="background:${COL[g.pal[o]].base}"></i>${o===g.me?'Você':esc(g.names[o])}</span>`).join('')}}
@@ -1558,7 +1561,7 @@ window.DOMINATION_WORLD_BRIDGE={
     const L=buildLevel(1,MW,MAPH,{nAI:1,mapId:record.config?.mapId});
     const me=record.playerOwner??1,n=record.maxOwners||2;
     newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n,elim:[],worldCommand:onCommand,
-      me,mine:me?[me]:[],worldReplay:!!record.replay,armyProfiles:record.snapshot.armies,pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,worldMapName:record.config?.mapId?window.DOMINATION_MAPS.get(record.config.mapId).name:null,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
+      me,mine:me?[me]:[],worldTraining:!!record.training,worldReplay:!!record.replay,armyProfiles:record.snapshot.armies,pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,worldMapName:record.config?.mapId?window.DOMINATION_MAPS.get(record.config.mapId).name:null,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
     document.body.classList.add('world-battle');
     this.control(record.defenderControlled,record);
     $('#btnDrop').style.display=me?'':'none';
@@ -1586,6 +1589,7 @@ window.DOMINATION_WORLD_BRIDGE={
     const key=JSON.stringify(players)+controlled+game.me;if(game.worldLegendKey===key)return;game.worldLegendKey=key;
     $('#legend').innerHTML=players.map(player=>{const level=player.relativePower?' · '+Math.round(player.relativePower*100)+'% por tipo':player.troops?' · T'+player.troops.tanque.level+' B'+player.troops.desliz.level+' H'+player.troops.heli.level+' C'+player.troops.canhao.level+' BC'+player.troops.central.level:player.level?' · Nv. '+player.level:player.relativePower?' · '+Math.round(player.relativePower*100)+'% do atacante':player.power?' · '+Math.round(player.power*100)+'%':'';const name=(player.owner===game.me?'Você · '+(game.me===2?'Defesa':game.me===1?'Ataque':'Invasor'):player.name)+level;return '<span title="'+esc(name)+'"><i style="background:'+COL[game.pal[player.owner]].base+'"></i>'+esc(name)+'</span>';}).join('');
   },
+  guide(marks){if(!game?.worldTraining)return;game.worldGuide=marks;PTR.clear();game.tapSel=null;game.dropMode=false;const height=document.querySelector('#worldTutorial')?.offsetHeight||220;document.body.style.setProperty('--tutorial-height',height+'px');resize();},
   selectJoinSite(id){if(game?.mode==='world')game.joinSelected=id;},
   commandStatus(message,failed=false){
     let status=$('#worldCommandStatus');
