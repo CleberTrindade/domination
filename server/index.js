@@ -50,12 +50,16 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/sergipe-map.js', ['sergipe-map.js', 'application/javascript; charset=utf-8']],
     ['/world.css', ['world.css', 'text/css; charset=utf-8']],
     ['/world-theme.css', ['world-theme.css', 'text/css; charset=utf-8']],
-    ['/army.css', ['army.css', 'text/css; charset=utf-8']]
+    ['/army.css', ['army.css', 'text/css; charset=utf-8']],
+    ['/social.css', ['social.css', 'text/css; charset=utf-8']],
+    ['/world-social.js', ['world-social.js', 'application/javascript; charset=utf-8']],
+    ['/replay-worker.js', ['replay-worker.js', 'application/javascript; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
   assets.set('/battle-engine.js',{body:browserEngine(),mime:'application/javascript; charset=utf-8'});
   assets.set('/battle-maps.js',{body:browserMaps(),mime:'application/javascript; charset=utf-8'});
   assets.set('/troop-rules.js',{body:fs.readFileSync(path.join(__dirname,'../shared/troop-rules.js')),mime:'application/javascript; charset=utf-8'});
   assets.set('/browser-battle.js',{body:fs.readFileSync(path.join(__dirname,'../shared/browser-battle.js')),mime:'application/javascript; charset=utf-8'});
+  assets.set('/battle-replay.js',{body:fs.readFileSync(path.join(__dirname,'../shared/battle-replay.js')),mime:'application/javascript; charset=utf-8'});
   async function databaseStatus() {
     if (!pool) return 'not_configured';
     if (!dbProbe || Date.now() - dbProbeAt > 30000) {

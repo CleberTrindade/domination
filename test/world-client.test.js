@@ -157,7 +157,7 @@ test('defenders, spectators and late entrants use safe controls and distinct arm
   assert.equal(context.game.me,3);assert.equal(context.game.mine[0],3);assert.equal(context.game.pal[3],1);assert.equal(new Set(context.game.pal.slice(1)).size,4);
 });
 
-test('profile navigation paginates personal matches, shows per-match coins and clears data after logout',async()=>{
+test('profile shows account stats, links to battle records and clears private data after logout',async()=>{
   const root=element(),dialog=element(),body=element(),listeners={},calls=[];
   const {armyView,ARMY_RULES}=require('../server/progression'),{troopCatalog}=require('../server/troops');
   const army=armyView({level:1,owned:0},100000n,100);
@@ -171,9 +171,8 @@ test('profile navigation paginates personal matches, shows per-match coins and c
   }};
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}});
-  await click({tab:'profile'});await flush();assert(root.innerHTML.includes('Meu &lt;Perfil&gt;'));assert(root.innerHTML.includes('DERROTA'));assert(root.innerHTML.includes('Invasão'));assert(root.innerHTML.includes('-400 🪙'));assert(root.innerHTML.includes('21 concluídas'));
-  await click({profilePage:'2'});await flush();assert(root.innerHTML.includes('Capital'));assert(root.innerHTML.includes('+600 🪙'));assert(root.innerHTML.includes('2 / 2'));
-  assert.equal(calls.filter(p=>p.startsWith('/api/world/profile')).length,2);
+  await click({tab:'profile'});await flush();assert(root.innerHTML.includes('Meu &lt;Perfil&gt;'));assert(root.innerHTML.includes('REGISTRO DE BATALHAS'));assert(root.innerHTML.includes('50%'));assert(!root.innerHTML.includes('w-personal-history'));
+  assert.equal(calls.filter(p=>p.startsWith('/api/world/profile')).length,1);
   await click({logoutConfirm:'yes',action:'logout-confirm'});await dialog.listeners.click({target:{closest:()=>({dataset:{dialog:'logout'}})}});await flush();
   assert(root.innerHTML.includes('Entre para ver suas conquistas'));assert(!root.innerHTML.includes('Meu &lt;Perfil&gt;'));assert(!root.innerHTML.includes('21 concluídas'));
 });

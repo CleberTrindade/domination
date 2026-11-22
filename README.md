@@ -458,6 +458,44 @@ reaparece em um próximo acesso. `POST /api/world/difficulty-surveys/:id`, com
 uma única vez. Repetir a mesma resposta é seguro após perda de conexão;
 tentativas de alterar uma resposta já enviada são rejeitadas.
 
+## Registro de batalhas e amigos
+
+O perfil e o menu abrem o **Registro de batalhas**, com abas Minhas partidas
+(autenticada) e Mundo (pública), dez confrontos por página. Os cartões mostram
+participantes, formação e níveis congelados na entrada, resultado, moedas e
+cartas do jogador. Os detalhes incluem todos os invasores. Informação ausente
+em registros antigos aparece como não registrada, sem inventar níveis ou ganhos.
+`GET /api/world/history?scope=mine|world&page=1` entrega os registros paginados.
+
+As novas partidas concluídas por simulação validada salvam um replay na mesma
+transação do resultado (`world_battle_replays`, migração 014). O log contém
+configuração, número de frames e ordens autorizadas com seus frames de execução.
+`GET /api/world/replays/:id` exige login. A reprodução roda em um worker separado,
+sem ordens, reservas, transferências ou novas recompensas; permite pausar,
+reiniciar e velocidades 1×/2×/4×. Partidas antigas, interrompidas ou desistências
+sem log completo têm Assistir desabilitado. Mudanças incompatíveis no motor
+precisam atualizar `REPLAY_VERSION` em `server/battle-history.js`.
+
+**Amigos**, no menu, oferece código público individual, busca por nome, usuário
+ou código, copiar código e compartilhar o link `?invite=CODIGO`. WhatsApp e
+compartilhamento nativo só são acionados pelo jogador. Links de convite não
+autenticam ninguém e não aceitam amizade automaticamente: após entrar/criar a
+conta, o destinatário busca o código e envia a solicitação para revisão.
+
+`world_friendships` mantém um único par ordenado por jogadores, com remetente e
+estado pendente/aceito. Somente o destinatário aceita ou recusa; o remetente pode
+cancelar; ambos podem remover uma amizade aceita. A tela separa recebidos e
+enviados, confirma a remoção e pagina a lista de amigos. Presença vem das
+conexões WebSocket autenticadas e participação real em batalhas. Pings não
+gravam no banco. O perfil público mostra comandante, estatísticas e áreas,
+preservando carteira, cartas, credenciais e histórico pessoal.
+
+APIs autenticadas: `GET /api/world/friends`, `GET /api/world/friends/search?q=...`,
+`POST /api/world/friends/request` com `playerId`,
+`POST /api/world/friends/:id/accept|reject|cancel|remove` e
+`GET /api/world/friends/players/:id`. Contas e progresso são preservados pela
+migração; alianças não fazem parte desta entrega.
+
 ## Estrutura
 
 ```

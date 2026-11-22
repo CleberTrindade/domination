@@ -11,11 +11,14 @@ const troopRules=require('../shared/troop-rules');
 const {MAX_FORMATIONS}=require('./formations');
 const {awardBattleCards,readDaily,REWARD_RULES}=require('./card-rewards');
 const {createDifficultySurveys,pendingDifficultySurveys,answerDifficultySurvey}=require('./difficulty-surveys');
+const {friendList,searchPlayers,requestFriend,changeFriend,publicFriendProfile}=require('./friends');
+const {historyPage,saveReplay,readReplay}=require('./battle-history');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const DISCONNECT_MS=30000;
 function createWorldService(pool,{startClock=true,now=Date.now}={}){
   const battles=new Map(),sockets=new Set(),sessions=new Map(),limits=new Map();
   let closing=false,startQueue=Promise.resolve();
+  function presence(id){const online=[...sockets].some(s=>s.player?.id===id&&s.readyState===1);return {online,inBattle:online&&[...battles.values()].some(b=>b.status==='active'&&participating(b,id))};}
   function rate(key,max,ms){const at=now();let entry=limits.get(key);if(!entry||entry.until<at){entry={n:0,until:at+ms};limits.set(key,entry);}if(limits.size>10000)limits.delete(limits.keys().next().value);if(++entry.n>max)throw new HttpError(429,'Muitas ordens. Aguarde um instante.');}
   async function playerFor(req){
     const token=sessionToken(req);if(!token)return null;
@@ -176,7 +179,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       return {army:armyView({...wallet,formations,activeFormationId:input.activeFormationId,formationRevision,loadout},available,RULES.minEntry)};
     });notify('world_changed',{},player.id);return result;
   }
-  async function finish(battle,status,reason,stats={},verified=null){
+  async function finish(battle,status,reason,stats={},verified=null,completion=null){
     if(battle.final)return battle.final;
     if(battle.finishing)return battle.finishing;
     battle.finishing=(async()=>{
@@ -200,6 +203,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
           await db.query('UPDATE world_battles SET result=$2::jsonb WHERE id=$1',[battle.id,JSON.stringify(result)]);
           for(const participant of roster)await db.query('INSERT INTO world_battle_participants(battle_id,player_id,side,joined_at,outcome,army_level) VALUES($1,$2,$3,$4,$5,$6)',[battle.id,participant.playerId,participant.owner,participant.joinedAt,participant.owner===winnerOwner?'won':(verified?.forfeited||[...battle.withdrawn]).includes(participant.owner)?'left':'lost',participant.level||1]);
           await createDifficultySurveys(db,battle,roster,{status:finalStatus,winnerOwner,at:now()});
+          if(['won','lost'].includes(finalStatus))await saveReplay(db,battle,completion);
           if(verified&&verified.time>=30&&['won','lost'].includes(finalStatus)){
             const eligible=roster.filter(p=>!(verified.forfeited||[]).includes(p.owner)&&(battle.config.balanceVersion==='troops-v3'?(verified.participation?.[p.owner]||0)>=30:(p.owner!==2||battle.defenderEverControlled)));
             if(eligible.length)await db.query('UPDATE world_players SET battles_completed=battles_completed+1 WHERE id=ANY($1::uuid[])',[eligible.map(p=>p.playerId)]);
@@ -339,7 +343,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     if(battle.final)return battle.final;
     const maxFrames=Math.min(MAX_FRAMES,Math.ceil(((now()-new Date(battle.startedAt).getTime())/1000+2)*30));
     let snapshot;try{snapshot=verifyBrowserBattle(engineFactory,battle.config,battle.inputs,body,maxFrames);}catch(error){throw new HttpError(409,error.message);}
-    return finish(battle,snapshot.result,snapshot.reason||'elimination',snapshot.stats,snapshot);
+    return finish(battle,snapshot.result,snapshot.reason||'elimination',snapshot.stats,snapshot,{frames:body.frames,inputs:body.inputs});
   }
   async function tick(){
     const jobs=[];
@@ -363,7 +367,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       const player=await playerFor(req);if(!player)throw new HttpError(401,'Entre na sua conta.');
       if(socket.readyState!==1)return null;
       if([...sockets].filter(s=>s.player.id===player.id).length>=5)throw new HttpError(429,'Muitas janelas abertas.');
-      socket.player=player;socket.token=sessionToken(req);sockets.add(socket);socketEvent(socket,'ready',{});return player;
+      socket.player=player;socket.token=sessionToken(req);sockets.add(socket);socketEvent(socket,'ready',{});notify('friends_changed',{});return player;
     })().catch(error=>{socketEvent(socket,'error',{message:error.status?error.message:'Conexão indisponível.'});socket.close(1008);return null;});
     socket.on('message',raw=>{
       if(++queued>64){socket.close(1008);return;}
@@ -380,7 +384,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         }catch(error){socketEvent(socket,'ack',{battleId:message?.battleId,requestId:message?.requestId,accepted:false,message:error.status?error.message:'Não foi possível enviar a ordem.'});}
         finally{queued--;}
       }).catch(()=>{});
-    });socket.on('close',()=>sockets.delete(socket));return true;
+    });socket.on('close',()=>{sockets.delete(socket);notify('friends_changed',{});});return true;
   }
   async function handle(req,res){
     const pathname=new URL(req.url,'http://localhost').pathname;
@@ -402,7 +406,25 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       }
       const player=await playerFor(req);
       if(pathname==='/api/world'&&req.method==='GET'){rate('world:'+ip,180,60000);json(200,await world(player));return true;}
+      if(pathname==='/api/world/history'&&req.method==='GET'){
+        rate('history:'+ip,60,60000);const q=new URL(req.url,'http://localhost').searchParams,scope=q.get('scope')||'world',page=q.get('page')||'1';
+        if(!['mine','world'].includes(scope)||!/^\d{1,6}$/.test(page)||+page<1)throw new HttpError(400,'Página de histórico inválida.');
+        json(200,await historyPage(pool,player,{scope,page:+page}));return true;
+      }
       if(!player)throw new HttpError(401,'Entre na sua conta para disputar territórios.');
+      if(pathname==='/api/world/friends'&&req.method==='GET'){
+        rate('friends:'+player.id,90,60000);const q=new URL(req.url,'http://localhost').searchParams,page=q.get('page')||'1';if(!/^[1-9]\d{0,5}$/.test(page))throw new HttpError(400,'Página inválida.');json(200,await friendList(pool,player.id,presence,+page));return true;
+      }
+      if(pathname==='/api/world/friends/search'&&req.method==='GET'){rate('friend-search:'+player.id,45,60000);json(200,{players:await searchPlayers(pool,player.id,new URL(req.url,'http://localhost').searchParams.get('q'))});return true;}
+      if(pathname==='/api/world/friends/request'&&req.method==='POST'){
+        rate('friend-request:'+player.id,20,60000);const input=await body(req),result=await transaction(db=>requestFriend(db,player.id,input.playerId));notify('friends_changed',{},player.id);notify('friends_changed',{},input.playerId);json(200,result);return true;
+      }
+      const friendship=pathname.match(/^\/api\/world\/friends\/([a-f0-9-]+)\/(accept|reject|cancel|remove)$/);
+      if(friendship&&req.method==='POST'){rate('friend-change:'+player.id,30,60000);const result=await transaction(db=>changeFriend(db,player.id,friendship[1],friendship[2]));notify('friends_changed',{},player.id);notify('friends_changed',{},result.otherId);json(200,{saved:true});return true;}
+      const friendProfile=pathname.match(/^\/api\/world\/friends\/players\/([a-f0-9-]+)$/)?.[1];
+      if(friendProfile&&UUID.test(friendProfile)&&req.method==='GET'){rate('friend-profile:'+player.id,45,60000);json(200,await publicFriendProfile(pool,friendProfile,presence));return true;}
+      const replayId=pathname.match(/^\/api\/world\/replays\/([a-f0-9-]+)$/)?.[1];
+      if(replayId&&UUID.test(replayId)&&req.method==='GET'){rate('replay:'+player.id,20,60000);json(200,await readReplay(pool,replayId));return true;}
       const surveyId=pathname.match(/^\/api\/world\/difficulty-surveys\/([^/]+)$/)?.[1];
       if(surveyId&&UUID.test(surveyId)&&req.method==='POST'){
         rate('difficulty:'+player.id,30,60000);const input=await body(req);

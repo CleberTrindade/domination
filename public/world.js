@@ -37,6 +37,8 @@
     finally{clearTimeout(timer);}
   }
   const post = (path, body = {}) => api(path, { method: 'POST', body: JSON.stringify(body) });
+  let replay=null;
+  const social=window.createWorldSocial?.({root,dialog,getData:()=>data,getTab:()=>tab,api,post,render,modal,esc,money,art:kind=>detailArt(kind),icon:kind=>lobbyIcon(kind),swords:()=>swords(),onReplay:watchReplay});
   const swords=()=>'<svg class="w-swords" viewBox="0 0 32 32" aria-hidden="true"><g class="sword-left"><path d="M5 3l5 2 14 16-4 4L5 8z"/><path d="M17 24l7-7m-1 7 5 5"/></g><g class="sword-right"><path d="M27 3l-5 2L8 21l4 4L27 8z"/><path d="M15 24l-7-7m1 7-5 5"/></g></svg>';
   function renderAlerts(){
     const visible=[...threats.values()].filter(t=>current?.id!==t.battleId);
@@ -59,6 +61,7 @@
       if(socket!==ws)return;
       let message;try{message=JSON.parse(event.data);}catch{return;}
       if(message.type==='ready'){socketReady=true;retryDelay=1000;return;}
+      if(message.type==='friends_changed'){social?.changed();return;}
       if(message.type==='battle_input'&&current?.id===message.battleId){simulation?.postMessage({type:'input',input:message.input});return;}
       if(message.type==='battle_host'){hostChanged(message.record);return;}
       if(message.type==='ack'){
@@ -89,6 +92,7 @@
   }
   function areaClass(area) { return area.owner_id ? (area.owner_id === data?.player?.id ? 'mine' : 'rival') : ''; }
   const menuIcon=key=>`<svg viewBox="0 0 24 24" aria-hidden="true">${({
+    friends:'<circle cx="8" cy="7" r="4" fill="#8fb8f2"/><circle cx="18" cy="9" r="3" fill="#71d9f5"/><path d="M1 22v-4a7 7 0 0 1 14 0v4zm14-7a6 6 0 0 1 8 6h-6v-3z" fill="#8fb8f2"/>',
     profile:'<circle cx="12" cy="7" r="4" fill="#8fb8f2"/><path d="M4 22v-3a8 8 0 0 1 16 0v3z" fill="#6d7bb8"/>',
     troops:'<path d="M12 2 20 5v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="#6d7bb8"/><path d="m12 6 5 5h-3v5h-4v-5H7z" fill="#fff"/>',
     territories:'<path d="m4 3 10 10M20 3 10 13" stroke="#8fb8f2" stroke-width="3.2" stroke-linecap="round"/><path d="m6 14 4 4m8-4-4 4M4 20l3-3m13 3-3-3" stroke="#6d7bb8" stroke-width="3" stroke-linecap="round"/>',
@@ -100,11 +104,11 @@
     classic:'<path d="m3 5 6-2 6 3 6-2v15l-6 2-6-3-6 2z" fill="#8fb8f2"/><path d="M9 3v15m6-12v15" stroke="#fff" stroke-width="1.5"/>'
   })[key]||''}</svg>`;
   function mainNavigation(){
-    const active=['ranking','history','rewards','more'].includes(tab)?'more':tab;
+    const active=['ranking','history','friends','rewards','more'].includes(tab)?'more':tab;
     return `<nav id="worldNav" class="w-world-nav" aria-label="Navegação principal do mundo" role="tablist">${[['profile','PERFIL'],['troops','TROPAS'],['territories','BATALHA'],['received','ATAQUES'],['more','MENU']].map(([key,label])=>`<button role="tab" data-tab="${key}" aria-selected="${active===key}" class="${active===key?'on':''}">${lobbyIcon(({troops:'cards',territories:'swords',received:'bell'})[key]||key)}<span>${label}</span>${key==='received'&&data.receivedAttacks?.length?'<b class="w-nav-count" aria-label="'+data.receivedAttacks.length+' ataques recentes">'+data.receivedAttacks.length+'</b>':''}</button>`).join('')}</nav>`;
   }
   function mainMenu(){
-    const items=[['troops','Recompensas diárias','Cartas aleatórias e progresso dos objetivos','tab','rewards'],['ranking','Ranking','Comandantes e áreas conquistadas','tab','ranking'],['history','Histórico do mundo','As últimas disputas de Sergipe','tab','history'],...(data.wallet?[['wallet','Carteira','Saldo, produção e movimentações','action','wallet']]:[]),['profile',data.player?'Minha conta':'Entrar na conta',data.player?'Perfil e histórico das suas partidas':'Acesse suas conquistas em qualquer aparelho','action','account'],['classic','Modo clássico','Campanha, duelos e melhorias do clássico','action','classic']];
+    const items=[['friends','Amigos','Convide e acompanhe outros comandantes','tab','friends'],['troops','Recompensas diárias','Cartas aleatórias e progresso dos objetivos','tab','rewards'],['ranking','Ranking','Comandantes e áreas conquistadas','tab','ranking'],['history','Registro de batalhas','Suas partidas, confrontos e replays','tab','history'],...(data.wallet?[['wallet','Carteira','Saldo, produção e movimentações','action','wallet']]:[]),['profile',data.player?'Minha conta':'Entrar na conta',data.player?'Perfil e histórico das suas partidas':'Acesse suas conquistas em qualquer aparelho','action','account'],['classic','Modo clássico','Campanha, duelos e melhorias do clássico','action','classic']];
     return `<div class="w-heading"><div><h1>Menu</h1><p>Todos os caminhos do seu comandante.</p></div></div><nav class="w-menu-list" aria-label="Outras opções do jogo">${items.map(([icon,title,description,attribute,value])=>`<button class="w-menu-item" data-${attribute}="${value}"><i>${lobbyIcon(({troops:'chest',profile:'commander'})[icon]||icon)}</i><span><strong>${title}</strong><small>${description}</small></span><b aria-hidden="true">›</b></button>`).join('')}</nav>`;
   }
   function tacticalMap(area){
@@ -180,6 +184,7 @@
   function navigate(key){
     tab=key;if(key==='received')markReceivedSeen();render();
     if(key==='profile')loadProfile();
+    if(key==='history'||key==='friends')social?.open(key);
     document.querySelector('#worldScreen').scrollTop=0;
   }
   function playerProfile(){
@@ -190,12 +195,9 @@
       <section class="w-profile-hero"><div class="w-avatar" aria-hidden="true">${lobbyIcon('commander')}</div><div><span class="w-kicker">COMANDANTE</span><h2>${esc(data.player.name)}</h2><p>@${esc(data.player.username)}</p>${profile?'<small>Desde '+new Date(profile.player.createdAt).toLocaleDateString('pt-BR')+'</small>':''}</div></section>
       <div class="w-profile-stats">${[[owned.length,'Áreas atuais'],[stats?.wins??'—','Vitórias'],[stats?.losses??'—','Derrotas'],[stats?.winRate==null?'—':stats.winRate+'%','Vitórias em decisões']].map(([value,label])=>'<div><strong>'+value+'</strong><small>'+label+'</small></div>').join('')}</div>
       <section class="w-profile-assets"><div><span class="w-kicker">SEU EXÉRCITO</span><div class="w-level-chips">${Object.entries(data.army?.troops||{}).map(([kind,t])=>'<span>'+troopNames[kind]+' <b>Nv. '+t.level+'</b></span>').join('')}</div><button class="w-textbtn" data-action="troops">VER TROPAS E EVOLUIR ›</button></div><button class="w-wallet" data-action="wallet"><span>🪙 <strong>${money(data.wallet?.available)}</strong><small> DISPONÍVEIS</small></span><span>CARTEIRA ›</span></button><p class="w-detail">${owned.length?owned.map(a=>esc(a.name)).join(' · '):'Você ainda não possui áreas.'}</p></section>
-      <div class="w-heading"><div><h2>Suas partidas</h2><p>${stats?stats.total+' concluídas · '+stats.withdrawals+' desistências · '+stats.cancelled+' interrompidas':'Ataques, defesas e invasões.'}</p></div></div>
-      <p class="w-detail">A taxa considera vitórias, derrotas e desistências. Partidas interrompidas não entram no cálculo. Defesas automáticas também aparecem no histórico.</p>
-      ${data.activeBattle?'<button class="w-banner" data-action="resume">BATALHA EM ANDAMENTO · RETOMAR ›</button>':''}
-      ${profileError?'<div class="w-error" role="alert">'+esc(profileError)+' <button class="w-textbtn" data-action="profile-refresh">TENTAR NOVAMENTE</button></div>':''}
-      ${profileLoading?'<div class="w-empty" role="status">Carregando seu histórico…</div>':profile?.matches.length?'<div class="w-personal-history">'+profile.matches.map(m=>`<article class="w-match"><div class="w-match-heading"><span class="w-match-outcome ${m.outcome}">${labels[m.outcome]||'ENCERRADA'}</span><time>${dateTime(m.finished_at)}</time></div><h3>${esc(m.area_name)}</h3><p>${roles[m.role]}${m.army_level?' · Maior nível na entrada: '+m.army_level:''}${m.automatic_defense?' · Defesa pela CPU':''}</p>${m.troop_levels?'<div class="w-level-chips">'+Object.entries(m.troop_levels).map(([kind,t])=>'<span>'+troopNames[kind]+' <b>Nv. '+t.level+'</b></span>').join('')+'</div>':''}<p>Atacante: <strong>${esc(m.attacker_name)}</strong><br>Defensor: <strong>${esc(m.defender_name||'Guarnição da CPU')}</strong>${m.winner_name?'<br>Vencedor: <strong>'+esc(m.winner_name)+'</strong>':''}</p><div class="w-match-footer"><small>Início: ${dateTime(m.started_at)}</small><b class="${m.coin_change<0?'negative':'positive'}">${m.coin_change>0?'+':''}${money(m.coin_change)} 🪙</b></div></article>`).join('')+'</div>':!profileError?'<div class="w-empty">Nenhuma partida concluída ainda.<br>Suas próximas batalhas aparecerão aqui.</div>':''}
-      ${profile&&!profileLoading&&profile.pagination.pages>1?'<div class="w-pagination"><button data-profile-page="'+(profile.pagination.page-1)+'" '+(profile.pagination.page===1?'disabled':'')+'>ANTERIOR</button><span>'+profile.pagination.page+' / '+profile.pagination.pages+'</span><button data-profile-page="'+(profile.pagination.page+1)+'" '+(profile.pagination.page===profile.pagination.pages?'disabled':'')+'>PRÓXIMA</button></div>':''}
+      <button class="w-cta" data-tab="history">REGISTRO DE BATALHAS ›</button>
+      <p class="w-detail">Veja seus confrontos, tropas na entrada, recompensas e replays.</p>
+      ${profileError?'<div class="w-error" role="alert">'+esc(profileError)+'</div>':''}
       <button class="w-textbtn w-logout" data-action="logout-confirm">SAIR DA CONTA</button>`;
   }
   function troopMetrics(t){
@@ -327,7 +329,8 @@
     }
     root.innerHTML = `${lobbyHeader()}
       ${error ? '<div class="w-error" role="alert">' + esc(error) + '</div>' : ''}
-      ${tab === 'territories' ? map() : tab==='troops'?troopsScreen():tab==='rewards'?rewardsScreen():tab==='profile'?playerProfile():tab==='more'?mainMenu():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : history()}
+      ${tab==='territories'&&social?.hasInvite()?'<button class="w-banner" data-tab="friends">VOCÊ RECEBEU UM CONVITE DE AMIZADE ›</button>':''}
+      ${tab === 'territories' ? map() : tab==='troops'?troopsScreen():tab==='rewards'?rewardsScreen():tab==='profile'?playerProfile():tab==='friends'?(social?.friendsScreen()||'<p>Carregue novamente para abrir os amigos.</p>'):tab==='more'?mainMenu():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : (social?.historyScreen()||history())}
       ${lobby?'':'<footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p></footer>'}${mainNavigation()}`;
   }
   async function refresh(force = false) {
@@ -335,9 +338,10 @@
       const hadError = !!error;
       const next = await api('/api/world'); const digest = JSON.stringify(next);
       if(next.player?.id!==profileOwner){profile=null;profileError='';profileLoading=false;profileOwner=next.player?.id||null;profileRequest++;}
-      data = next; error = '';ensureSocket();syncThreats();
+      data = next; error = '';ensureSocket();syncThreats();social?.sync();
       if(difficultySurvey&&difficultySurvey.playerId!==data.player?.id){difficultySurvey=null;difficultyRating=0;difficultySaving=false;if(dialog.dataset.view==='difficulty')dialog.close();}
       if (force || hadError || digest !== lastDigest) { lastDigest = digest; render(); }
+      social?.refreshed();
       reviewDifficulty();
       reviewReceived();
       if(tab==='profile'&&data.player&&!profile&&!profileLoading&&!profileError)loadProfile();
@@ -350,7 +354,7 @@
     if(!replace)dialog.showModal();
   }
   function reviewDifficulty(){
-    if(!data?.player||current||data.activeBattle||busy||dialog.open)return;
+    if(!data?.player||current||replay||data.activeBattle||busy||dialog.open)return;
     const survey=(data.difficultySurveys||[]).find(s=>!deferredSurveys.has(data.player.id+':'+s.id));
     if(!survey)return;
     difficultySurvey={...survey,playerId:data.player.id};difficultyRating=0;difficultySaving=false;showDifficulty();
@@ -442,6 +446,7 @@
     modal(`<h2>Sua carteira</h2><div class="w-wallet-summary"><strong>🪙 ${money(wallet.balance)} moedas</strong><p>${money(wallet.available)} disponíveis · ${money(wallet.reserved)} reservadas<br>Produção das suas áreas: ${money(wallet.productionPerDay)} por dia</p></div><p>Produção por tempo de posse, inclusive offline: as primeiras 5 áreas rendem 1.000 moedas/dia cada; da 6ª à 10ª, 500 cada; as demais, 250 cada. O total é limitado a 10.000 moedas/dia. Saques ficam fora desse limite.</p><p>Você pode atacar, defender ou entrar como invasor com qualquer saldo, inclusive zero. Sem saldo disponível na entrada, não ganha nem perde moedas nessa batalha, incluindo o bônus da CPU. Reservamos 40% do saldo disponível na entrada, arredondado para baixo. O vencedor recebe de cada perdedor 40% do menor saldo entre os dois. O restante da reserva é liberado.</p><p>A primeira conquista de uma área da CPU rende ${rewardText} moedas, conforme a resistência da guarnição. Perder para a CPU desconta a reserva. Todos os valores são inteiros. Sem moedas, você ainda pode conquistar a área e iniciar sua produção diária.</p><p>Desistir conta como derrota. Uma queda curta permite reconectar; uma interrupção do servidor libera as reservas sem saque.</p><h3>Últimas movimentações concluídas</h3><div class="w-coin-ledger">${wallet.entries.length?wallet.entries.map(entry=>`<div><span>${labels[entry.kind]||'Movimentação'}<small>${entry.kind==='production'?'Produção acumulada':entry.kind==='army_upgrade'?(troopNames[entry.troop_kind]||'Treinamento geral')+' · Nível '+entry.upgrade_level:esc(entry.area_name)} · ${new Date(entry.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></span><b class="${entry.amount<0?'negative':''}">${entry.amount>0?'+':''}${money(entry.amount)}</b></div>`).join(''):'<p>Saldo inicial: '+money(rules.initialCoins)+' moedas. As próximas batalhas aparecerão aqui.</p>'}</div><button class="w-cta" data-dialog="close">VOLTAR AO MAPA</button>`);
   }
   function renderBattlePanel(){
+    if(replay){battlePanel.innerHTML='<strong>REPLAY · '+esc(replay.record.areaName)+'</strong><p>'+(replay.over?'Reprodução concluída':replay.paused?'Pausado':'Assistindo à partida gravada')+'</p><div class="w-replay-controls"><button data-replay-action="pause" '+(replay.over?'disabled':'')+'>'+(replay.paused?'▶ CONTINUAR':'Ⅱ PAUSAR')+'</button><button data-replay-action="speed">'+replay.speed+'×</button><button data-replay-action="restart">↺ REINICIAR</button><button data-replay-action="close">SAIR</button></div>';return;}
     if(!current){battlePanel.innerHTML='';panelDigest='';return;}
     const me=current.playerOwner??1,sites=current.joinableSites||[],eliminated=me>0&&Array.isArray(current.snapshot.activeOwners)&&!current.snapshot.activeOwners.includes(me)&&!current.snapshot.over;
     const digest=JSON.stringify({me,sites,canJoin:current.canJoin,joinState:current.joinState,joinError:current.joinError,eliminated,busy,economy:current.economy,available:data?.wallet?.available,level:data?.army?.level,players:current.players});
@@ -574,6 +579,7 @@
     modal(`<div class="w-result"><div class="w-result-icon">${win?'⚑':'◇'}</div><h2>${title}</h2><p><strong>${esc(areaName)}</strong></p><p>${message}</p>${reward}${battleCardsResult(final)}<button class="w-cta" data-dialog="difficulty-next">CONTINUAR</button></div>`);
   }
   function connectBattle(record) {
+    if(replay)stopReplay();
     if (record.final || record.status !== 'active') { current = record; battleResult(record.final || { status: record.status }); return; }
     events?.close(); current = record;renderAlerts();
     const area = data?.areas.find(a => a.id === record.areaId);
@@ -630,9 +636,33 @@
     }catch(e){bridge.commandStatus(e.message,true);error=e.message;if(!current){render();}else{const target=dialog.querySelector('.w-form-error');if(target)target.textContent=e.message;}}
     finally{busy=false;switchingDefense=false;}
   }
+  function stopReplay(){if(!replay)return;replay.worker.terminate();replay=null;bridge.stop();bridge.show();renderBattlePanel();render();}
+  function watchReplay(record,players){
+    if(current||data?.activeBattle){modal('<h2>Você está em batalha</h2><p>Conclua a disputa atual antes de assistir a um replay.</p><button class="w-cta" data-dialog="close">CONTINUAR</button>');return;}
+    if(replay)stopReplay();dialog.close();
+    const worker=new Worker('/replay-worker.js'),session={worker,record,players,paused:false,speed:1,over:false,started:false};replay=session;
+    worker.onmessage=event=>{
+      if(replay!==session)return;const m=event.data;
+      if(m.type==='replay-error'){stopReplay();modal('<h2>Replay indisponível</h2><p>Não foi possível reproduzir esta partida.</p><button class="w-cta" data-dialog="close">VOLTAR</button>');return;}
+      if(m.type!=='replay-state')return;
+      if(!session.started){session.started=true;bridge.start({id:record.id,replay:true,config:record.config,ordinal:record.ordinal,playerOwner:0,maxOwners:4,snapshot:m.snapshot,players:players.map(p=>({...p,relativePower:p.playerId?null:record.config.defenderPower/record.config.attackerPower})),joinableSites:[],canJoin:false},()=>{});}
+      else bridge.apply(m.snapshot);
+      const changed=session.over!==m.over;session.over=m.over;if(changed||!session.panelReady){session.panelReady=true;renderBattlePanel();}
+    };
+    worker.onerror=()=>{if(replay===session){stopReplay();modal('<h2>Replay indisponível</h2><p>Atualize a página e tente novamente.</p><button class="w-cta" data-dialog="close">VOLTAR</button>');}};
+    worker.postMessage({type:'start',record});renderBattlePanel();
+  }
+  function replayAction(action){
+    if(!replay)return;
+    if(action==='close'){stopReplay();return;}
+    if(action==='restart'){const {record,players}=replay;watchReplay(record,players);return;}
+    if(action==='pause'){replay.paused=!replay.paused;replay.worker.postMessage({type:'pause',paused:replay.paused});}
+    if(action==='speed'){replay.speed=replay.speed===4?1:replay.speed*2;replay.worker.postMessage({type:'speed',speed:replay.speed});}
+    renderBattlePanel();
+  }
   window.WorldApp = {
     selectJoinSite(id){if(current?.playerOwner!==0||!current.canJoin||!current.joinableSites?.some(site=>site.id===id))return;const input=document.querySelector('#worldJoinSite');if(input)input.value=String(id);bridge.selectJoinSite?.(id);},
-    show() { if(current?.playerOwner===2){this.requestSurrender();return;}bridge.show(); refresh(true); },
+    show() { if(replay){stopReplay();return;}if(current?.playerOwner===2){this.requestSurrender();return;}bridge.show(); refresh(true); },
     requestSurrender() {
       if(current?.playerOwner===0){stopStream();refresh(true);return;}
       if(current?.playerOwner===2){
@@ -688,6 +718,8 @@
   dialog.addEventListener('click', async event => {
     const button = event.target.closest('button'); if (!button) return;
     if(button.disabled)return;
+    if(button.dataset.social){await social?.handle(button);return;}
+    if(button.dataset.social){await social?.handle(button);return;}
     if(button.dataset.difficultyRating){if(!difficultySaving&&difficultySurvey){difficultyRating=Number(button.dataset.difficultyRating);showDifficulty();dialog.querySelector('[data-difficulty-rating="'+difficultyRating+'"]').focus?.();}return;}
     if(receivedAction(button))return;
     if(button.dataset.formationKind){chooseFormationKind(button.dataset.formationKind);return;}
@@ -735,7 +767,7 @@
   });
   document.querySelector('#backToWorld').addEventListener('click', () => window.WorldApp.show());
   alerts.addEventListener('click',event=>{const button=event.target.closest('button');if(button?.dataset.defense)defend(button.dataset.defense);else if(button?.dataset.watch)watch(button.dataset.watch);});
-  battlePanel.addEventListener('click',event=>{const action=event.target.closest('button')?.dataset.battleAction;if(action==='join')joinCurrent();if(action==='leave')window.WorldApp.requestSurrender();});
+  battlePanel.addEventListener('click',event=>{const button=event.target.closest('button');if(button?.dataset.replayAction){replayAction(button.dataset.replayAction);return;}const action=button?.dataset.battleAction;if(action==='join')joinCurrent();if(action==='leave')window.WorldApp.requestSurrender();});
   battlePanel.addEventListener('change',event=>{if(event.target.id==='worldJoinSite')window.WorldApp.selectJoinSite(Number(event.target.value));});
   document.addEventListener('visibilitychange', () => { if (!document.hidden) {reviewOnReturn=true;refresh(true);ensureSocket();} });
   setInterval(()=>{if(socketReady)socket.send(JSON.stringify({type:'ping'}));},20000);

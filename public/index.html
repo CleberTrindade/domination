@@ -168,6 +168,8 @@ button{font:inherit}
 <link rel="stylesheet" href="/world.css">
 <link rel="stylesheet" href="/world-theme.css">
 <link rel="stylesheet" href="/army.css">
+<link rel="stylesheet" href="/social.css">
+<script src="/world-social.js"></script>
 <script src="/world-motion.js"></script>
 <script src="/battle-maps.js"></script>
 <script src="/sergipe-map.js"></script>
@@ -1066,7 +1068,7 @@ function frame(rdt){
   const g=game;g.vt+=rdt;
   for(const f of g.fx)f.t+=rdt;
   g.fx=g.fx.filter(f=>f.t<({txt:1.2,cap:1.2,shot:1,ring:.8,boom:.6,hit:.6,clash:.5,ushot:.8}[f.type]||.5));
-  if(g.mode==='world'){g.waiting=performance.now()-g.lastServerAt>2500?1:0;return;}
+  if(g.mode==='world'){g.waiting=!g.worldReplay&&performance.now()-g.lastServerAt>2500?1:0;return;}
   if(g.time>6&&g.mode==='solo')$('#hint').style.opacity=0;
   if(g.mode!=='solo'&&g.time>4)$('#hint').style.opacity=0;
   if(g.mode==='online'&&(g.tick!==g.pubTick||g.myActs.length!==g.pubActs||g.quit)){g.pubTick=g.tick;g.pubActs=g.myActs.length;publish()}
@@ -1541,7 +1543,7 @@ function hud(){
   const key=cnt.join(',')+g.me;
   if(key!==lastBar){lastBar=key;$('#pbar').innerHTML=order.filter(o=>cnt[o]).map(o=>`<div style="width:${cnt[o]/n*100}%;background:${COL[g.pal[o]].fill}"></div>`).join('')}
   if(g.mode!=='solo'||g.cpu){
-    const tag=(g.mode==='world'?(g.me===0?'ASSISTINDO ':g.me===2?'DEFESA ':'ÁREA ')+g.worldOrdinal:'DUELO')+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
+    const tag=(g.mode==='world'?(g.worldReplay?'REPLAY ':g.me===0?'ASSISTINDO ':g.me===2?'DEFESA ':'ÁREA ')+g.worldOrdinal:'DUELO')+'<br>'+Math.floor(g.time/60)+':'+String(Math.floor(g.time%60)).padStart(2,'0');
     if(g.timeTag!==tag){g.timeTag=tag;$('#lvTag').innerHTML=tag;}
   }
   if(g.mode==='online'){const k='L'+g.elim.join(',')+(g.gone?Object.keys(g.gone).join(','):'');if(k!==g.legKey){g.legKey=k;$('#legend').innerHTML=Array.from({length:g.n},(_,i)=>i+1).map(o=>`<span class="${g.elim.includes(o)?'out':''}"><i style="background:${COL[g.pal[o]].base}"></i>${o===g.me?'Você':esc(g.names[o])}</span>`).join('')}}
@@ -1556,7 +1558,7 @@ window.DOMINATION_WORLD_BRIDGE={
     const L=buildLevel(1,MW,MAPH,{nAI:1,mapId:record.config?.mapId});
     const me=record.playerOwner??1,n=record.maxOwners||2;
     newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n,elim:[],worldCommand:onCommand,
-      me,mine:me?[me]:[],armyProfiles:record.snapshot.armies,pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,worldMapName:record.config?.mapId?window.DOMINATION_MAPS.get(record.config.mapId).name:null,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
+      me,mine:me?[me]:[],worldReplay:!!record.replay,armyProfiles:record.snapshot.armies,pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,worldMapName:record.config?.mapId?window.DOMINATION_MAPS.get(record.config.mapId).name:null,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
     document.body.classList.add('world-battle');
     this.control(record.defenderControlled,record);
     $('#btnDrop').style.display=me?'':'none';

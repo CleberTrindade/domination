@@ -86,6 +86,8 @@ test('third-party spectators can claim free bases and a late entrant can win the
       }
       assert.equal(runner.snapshot().winnerOwner,3);
       const final=await api('/api/world/battles/'+record.id+'/complete',hostPlayer,{...runner.completion(),hostEpoch:currentBattle().hostEpoch});assert.equal(final.status,200);assert.equal(final.data.winnerId,joiner.id);assert.equal(final.data.winnerName,joiner.name);
+      const replay=(await api('/api/world/replays/'+record.id,hostPlayer)).data;
+      const playback=require('../shared/battle-replay').createReplay(require('../server/battle-engine'),replay);playback.advance(replay.frames);assert.deepEqual(playback.snapshot(),runner.snapshot(),'replay retains late joins, leaves and transferred host commands');
       assert.equal((await pool.query("SELECT owner_id FROM world_areas WHERE id='se-agreste'")).rows[0].owner_id,joiner.id);
       assert.equal((await pool.query('SELECT winner_id FROM world_battles WHERE id=$1',[record.id])).rows[0].winner_id,joiner.id);
       assert.equal(final.data.economy.participants.find(p=>p.owner===3).change,1200);
