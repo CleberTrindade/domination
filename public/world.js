@@ -39,7 +39,7 @@
   const post = (path, body = {}) => api(path, { method: 'POST', body: JSON.stringify(body) });
   let replay=null;
   const social=window.createWorldSocial?.({root,dialog,getData:()=>data,getTab:()=>tab,api,post,render,modal,esc,money,art:kind=>detailArt(kind),icon:kind=>lobbyIcon(kind),swords:()=>swords(),onReplay:watchReplay});
-  const tutorial=window.createWorldTutorial?.({bridge,getData:()=>data,post,navigate:(key,army)=>{if(army)armyTab=army;navigate(key);},modal,dialog,render});
+  const tutorial=window.createWorldTutorial?.({bridge,getData:()=>data,post,navigate:(key,army)=>{if(army)armyTab=army;navigate(key);},modal,dialog,render,avatar:()=>lobbyIcon('commander')});
   const swords=()=>'<svg class="w-swords" viewBox="0 0 32 32" aria-hidden="true"><g class="sword-left"><path d="M5 3l5 2 14 16-4 4L5 8z"/><path d="M17 24l7-7m-1 7 5 5"/></g><g class="sword-right"><path d="M27 3l-5 2L8 21l4 4L27 8z"/><path d="M15 24l-7-7m1 7-5 5"/></g></svg>';
   function renderAlerts(){
     const visible=[...threats.values()].filter(t=>current?.id!==t.battleId);
@@ -481,7 +481,7 @@
     modal(`<h2>${register ? 'Novo comandante' : 'Bem-vindo de volta'}</h2><p>${register ? 'Crie sua conta para conquistar áreas e acessá-las em outro aparelho.' : 'Entre para continuar sua disputa por Sergipe.'}</p><form id="worldAuthForm" data-register="${register}">
       ${register ? '<label for="commanderName">Nome do comandante</label><input id="commanderName" name="name" minlength="2" maxlength="24" autocomplete="nickname" required>' : ''}
       <label for="commanderUser">Usuário</label><input id="commanderUser" name="username" minlength="3" maxlength="24" pattern="[a-zA-Z0-9_]{3,24}" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-      <label for="commanderPassword">Senha</label><input id="commanderPassword" name="password" type="password" minlength="8" maxlength="128" autocomplete="${register ? 'new-password' : 'current-password'}" required>
+      <label for="commanderPassword">Senha</label><input id="commanderPassword" name="password" type="password" minlength="8" maxlength="128" autocomplete="${register ? 'new-password' : 'current-password'}" required><button type="button" class="w-password-toggle" data-dialog="toggle-password" aria-controls="commanderPassword" aria-pressed="false">MOSTRAR SENHA</button>
       <p class="w-form-error" role="alert"></p><button class="w-cta" type="submit">${register ? 'CRIAR CONTA' : 'ENTRAR'}</button></form>
       <div class="w-dialog-buttons"><button class="w-textbtn" data-dialog="${register ? 'login' : 'register'}">${register ? 'JÁ TENHO UMA CONTA' : 'CRIAR NOVA CONTA'}</button><button class="w-textbtn" data-dialog="close">VOLTAR AO MAPA</button></div>`);
   }
@@ -731,6 +731,7 @@
     if(receivedAction(button))return;
     if(button.dataset.formationKind){chooseFormationKind(button.dataset.formationKind);return;}
     const action = button.dataset.dialog;
+    if(action==='toggle-password'){const input=dialog.querySelector('#commanderPassword');if(!input)return;const visible=input.type==='password';input.type=visible?'text':'password';button.textContent=visible?'OCULTAR SENHA':'MOSTRAR SENHA';button.setAttribute('aria-pressed',String(visible));return;}
     if(action==='difficulty-save'){await saveDifficulty();return;}
     if(action==='difficulty-later'){deferDifficulty();return;}
     if(action==='difficulty-next'){dialog.close();await refresh(true);reviewDifficulty();return;}

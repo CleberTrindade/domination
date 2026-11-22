@@ -1,8 +1,10 @@
 /* Account onboarding: local practice, then a guided tour of the real screens. */
 (function(){
 'use strict';
-window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,render}){
+window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,render,avatar=()=>''}){
  const coach=document.createElement('section');coach.id='worldTutorial';coach.setAttribute('role','region');coach.setAttribute('aria-label','Tutorial guiado');coach.hidden=true;document.body.append(coach);
+ const spotlight=document.createElement('div');spotlight.id='worldTutorialSpotlight';spotlight.hidden=true;spotlight.setAttribute('aria-hidden','true');document.body.append(spotlight);
+ const voice=window.createTutorialVoice?.({synthesis:window.speechSynthesis,Utterance:window.SpeechSynthesisUtterance,onChange:updateVoice});
  const tours=[
   {page:'territories',selector:'.w-lobby-campaign',title:'Seu mundo aberto',text:'Este é Sergipe. Toque em uma área do mapa para selecioná-la. Azul é sua; vermelho é de outro comandante; áreas livres são defendidas pela CPU. Todas podem ser disputadas, sem ordem obrigatória.'},
   {page:'territories',selector:'[data-action="area-details"]',title:'Conheça o desafio antes de atacar',text:'O botão de informações da área mostra proprietário, mapa, resistência e recompensas. Batalhar inicia a disputa selecionada. Em área ocupada, a CPU usa as tropas do dono até ele assumir a defesa.'},
@@ -21,8 +23,8 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
  ];
  let owner=null,mode=null,worker=null,state=null,repeated=false,step=0,saving=false,paused=false,started=false,highlight=null,digest='',message='';
  const active=()=>!!mode;
- function clearHighlight(){highlight?.classList.remove('w-tutorial-highlight');highlight=null;}
- function cleanup(){worker?.terminate();worker=null;state=null;started=false;digest='';bridge.guide?.(null);clearHighlight();document.body.classList.remove('tutorial-training','tutorial-touring');document.querySelector('#btnDrop')?.classList.remove('w-tutorial-highlight');coach.hidden=true;mode=null;}
+ function clearHighlight(){highlight?.classList.remove('w-tutorial-highlight');highlight=null;spotlight.hidden=true;}
+ function cleanup(){voice?.clear();worker?.terminate();worker=null;state=null;started=false;digest='';bridge.guide?.(null);clearHighlight();document.body.classList.remove('tutorial-training','tutorial-touring');document.querySelector('#btnDrop')?.classList.remove('w-tutorial-highlight');coach.hidden=true;mode=null;}
  function stop(){const wasTraining=mode==='training';cleanup();if(wasTraining){bridge.stop();bridge.show();}render();}
  async function persist(phase,index){
   if(repeated)return true;
@@ -31,9 +33,26 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   catch(e){message='Não foi possível salvar o tutorial. Confira a conexão e tente novamente.';return false;}
  }
  function card(title,text,progress,button,disabled=false,success=''){
-  coach.innerHTML='<header><span>'+progress+'</span><button type="button" data-guide="pause" aria-label="Pausar tutorial">PAUSAR</button></header><h2 tabindex="-1">'+title+'</h2><p>'+text+'</p>'+(success?'<p class="w-guide-success">'+success+'</p>':'')+(message?'<p role="alert">'+message+'</p>':'')+'<footer><button type="button" data-guide="'+(mode==='training'?'next':'tour-next')+'" '+(disabled?'disabled':'')+'>'+button+'</button></footer>';
-  coach.hidden=false;
+  coach.innerHTML='<header><span class="w-guide-avatar" role="img" aria-label="Avatar padrão do comandante, seu orientador">'+avatar()+'</span><span class="w-guide-identity"><strong>COMANDANTE</strong><small>Seu orientador</small><span>'+progress+'</span></span><button type="button" data-guide="pause" aria-label="Pausar tutorial">PAUSAR</button></header><h2 tabindex="-1">'+title+'</h2><p class="w-guide-script">'+text+'</p>'+(success?'<p class="w-guide-success">'+success+'</p>':'')+(message?'<p role="alert">'+message+'</p>':'')+'<div class="w-guide-audio"><button type="button" data-guide="audio" aria-pressed="false">OUVIR</button><button type="button" data-guide="repeat">REPETIR ÁUDIO</button></div><p class="w-guide-voice-status" role="status"></p><footer><button type="button" data-guide="'+(mode==='training'?'next':'tour-next')+'" '+(disabled?'disabled':'')+'>'+button+'</button></footer>';
+  coach.hidden=false;voice?.setText(title+'. '+text);updateVoice();
  }
+ function updateVoice(){
+  const status=voice?.state()||{supported:false,enabled:false,speaking:false},toggle=coach.querySelector('[data-guide="audio"]'),repeat=coach.querySelector('[data-guide="repeat"]'),notice=coach.querySelector('.w-guide-voice-status');
+  if(toggle){toggle.disabled=!status.supported;toggle.textContent=status.enabled?'DESLIGAR ÁUDIO':'OUVIR';toggle.setAttribute('aria-pressed',String(status.enabled));}
+  if(repeat){repeat.hidden=!status.enabled;repeat.disabled=!status.supported;}
+  if(notice)notice.textContent=status.error||(!status.supported?'Áudio indisponível neste navegador. Continue pelo texto.':'');
+  coach.classList.toggle('is-speaking',!!status.speaking);if(mode==='training')bridge.layoutGuide?.();
+ }
+ function updateSpotlight(){
+  if(mode!=='tour'||!highlight?.getBoundingClientRect){spotlight.hidden=true;return;}
+  const rect=highlight.getBoundingClientRect(),width=window.innerWidth,height=window.innerHeight;
+  const left=Math.max(0,rect.left-8),top=Math.max(0,rect.top-8),right=Math.min(width,rect.right+8),bottom=Math.min(height,rect.bottom+8);
+  if(right<=left||bottom<=top){spotlight.hidden=true;return;}
+  Object.assign(spotlight.style,{left:left+'px',top:top+'px',width:(right-left)+'px',height:(bottom-top)+'px'});spotlight.hidden=false;
+ }
+ window.addEventListener?.('resize',updateSpotlight);window.visualViewport?.addEventListener('resize',updateSpotlight);
+ document.addEventListener?.('scroll',updateSpotlight,true);
+ document.addEventListener?.('visibilitychange',()=>{if(document.hidden)voice?.silence();});
  function practiceCard(){
   if(!state)return;const key=[state.index,state.ready,state.moving,saving,message].join(':');if(key===digest)return;digest=key;
   const finished=state.finished;
@@ -56,12 +75,12 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   worker.onerror=()=>{message='O treino não carregou. Pause e tente novamente pelo Menu → Tutorial guiado.';card('Treino indisponível',message,'TREINO','AGUARDE',true);};
   worker.postMessage({type:'start'});
  }
- function decorate(){if(mode!=='tour')return;clearHighlight();highlight=document.querySelector(tours[step].selector)||document.querySelector('#worldRoot .w-heading');highlight?.classList.add('w-tutorial-highlight');}
+ function decorate(){if(mode!=='tour')return;clearHighlight();highlight=document.querySelector(tours[step].selector)||document.querySelector('#worldRoot .w-heading');highlight?.classList.add('w-tutorial-highlight');updateSpotlight();}
  function showTour(){
   clearHighlight();dialog.close();message='';const item=tours[step];navigate(item.page,item.army);document.body.classList.add('tutorial-touring');
   card(item.title,item.text,'CONHEÇA O JOGO · '+(step+1)+'/'+tours.length,saving?'SALVANDO…':step===tours.length-1?'CONCLUIR TUTORIAL':'PRÓXIMO',saving);
   // The screen remains usable; highlight an existing control instead of a screenshot.
-  decorate();highlight?.scrollIntoView?.({block:'center',behavior:'instant'});
+  decorate();highlight?.scrollIntoView?.({block:'center',behavior:'instant'});updateSpotlight();
   coach.querySelector('h2')?.focus({preventScroll:true});
  }
  function startTour(manual=false,index=0){cleanup();mode='tour';repeated=manual;paused=false;owner=getData()?.player?.id||null;step=Math.min(tours.length-1,Math.max(0,index));showTour();}
@@ -91,7 +110,7 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   if(getData()?.activeBattle){modal('<h2>Você está em batalha</h2><p>Conclua a batalha antes de iniciar o tutorial.</p><button class="w-cta" data-dialog="close">VOLTAR</button>');return;}
   modal('<h2>Tutorial guiado</h2><p>Aprenda os controles em uma batalha de teste ou conheça as telas do Mundo Aberto. Sem gastar moedas ou alterar estatísticas.</p><div class="w-dialog-buttons"><button class="w-cta" data-guide-start="training">BATALHA DE TREINAMENTO</button><button class="w-cta" data-guide-start="tour">CONHECER OS RECURSOS</button>'+(getData()?.tutorial?.phase==='tour'?'<button class="w-textbtn" data-guide-start="resume">RETOMAR PASSEIO</button>':'')+'<button class="w-textbtn" data-dialog="close">VOLTAR</button></div>');
  }
- coach.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.guide;if(action==='pause')pause();if(action==='next'||action==='tour-next')advance();});
+ coach.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.guide;if(action==='audio')voice?.toggle();if(action==='repeat')voice?.repeat();if(action==='pause')pause();if(action==='next'||action==='tour-next')advance();});
  dialog.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.guideStart;if(!action)return;dialog.close();if(action==='training')startTraining(getData()?.tutorial?.phase!=='training');else startTour(action!=='resume',action==='resume'?getData().tutorial.step:0);});
  return {active,decorate,sync,menu,pause,stop};
 };

@@ -28,6 +28,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
   const assets = new Map([
     ['/', ['index.html', 'text/html; charset=utf-8']],
     ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+    ['/tutorial-voice.js', ['tutorial-voice.js', 'application/javascript; charset=utf-8']],
     ['/world-tutorial.js', ['world-tutorial.js', 'application/javascript; charset=utf-8']],
     ['/training-worker.js', ['training-worker.js', 'application/javascript; charset=utf-8']],
     ['/tutorial.css', ['tutorial.css', 'text/css; charset=utf-8']],

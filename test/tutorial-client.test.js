@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const {createTraining}=require('../shared/training-battle'),engine=require('../server/battle-engine');
 const flush=()=>new Promise(r=>setImmediate(r));
-function element(){return {innerHTML:'',dataset:{},hidden:false,open:false,listeners:{},classList:{add(){},remove(){},toggle(){}},append(){},setAttribute(){},addEventListener(t,fn){this.listeners[t]=fn;},querySelector(){return {disabled:false,focus(){}};},close(){this.open=false;},scrollIntoView(){}};}
+function element(){return {innerHTML:'',dataset:{},hidden:false,open:false,listeners:{},classList:{add(){},remove(){},toggle(){}},append(){},setAttribute(){},addEventListener(t,fn){this.listeners[t]=fn;},querySelector(){return {disabled:false,focus(){},setAttribute(){}};},close(){this.open=false;},scrollIntoView(){}};}
 test('onboarding drives real practice actions, saves tour progress, resumes and can replay without gameplay mutations',async()=>{
  const body=element(),dialog=element(),nodes=[],requests=[],visits=[],starts=[],workers=[];let world={player:{id:'one'},tutorial:{phase:'training',step:0}},practice;
  const document={body,createElement(){const e=element();nodes.push(e);return e;},querySelector(){return element();}};
@@ -18,9 +18,20 @@ test('onboarding drives real practice actions, saves tour progress, resumes and 
  await click('tour-next');assert.equal(world.tutorial.step,1);
  await click('pause');assert(!tutorial.active());dialog.close();tutorial.sync();assert(!tutorial.active(),'pause suppresses periodic auto-open');
  // A fresh page restores the persisted account checkpoint.
- const restored=context.window.createWorldTutorial({bridge,getData:()=>world,dialog,post:async(path,input)=>{requests.push({path,...input});return {tutorial:{...input}};},navigate:(page,army)=>visits.push({page,army}),modal(){},render(){}});restored.sync();const nextCoach=nodes[1];
+ const restored=context.window.createWorldTutorial({bridge,getData:()=>world,dialog,post:async(path,input)=>{requests.push({path,...input});return {tutorial:{...input}};},navigate:(page,army)=>visits.push({page,army}),modal(){},render(){}});restored.sync();const nextCoach=nodes.filter(n=>n.id==='worldTutorial')[1];
  assert(nextCoach.innerHTML.includes('Conheça o desafio'));for(let i=1;i<14;i++){nextCoach.listeners.click({target:{closest:()=>({dataset:{guide:'tour-next'}})}});await flush();}
  assert.equal(world.tutorial.phase,'done');assert(!restored.active());assert(visits.some(v=>v.page==='troops'&&v.army==='formations'));assert(visits.some(v=>v.page==='troops'&&v.army==='collection'));for(const page of ['friends','history','received','ranking','rewards','profile'])assert(visits.some(v=>v.page===page));
  assert(requests.every(r=>r.path==='/api/world/tutorial'));
  const count=requests.length;restored.menu();dialog.listeners.click({target:{closest:()=>({dataset:{guideStart:'training'}})}});await flush();assert(restored.active());assert.equal(practice.state().index,0);restored.stop();assert(workers.at(-1).terminated);assert.equal(requests.length,count);
+});
+test('resource spotlight follows the visible target on scroll/resize and disappears when the guide stops',()=>{
+ const body=element(),dialog=element(),nodes=[],events={},windowEvents={};
+ let rect={left:100,top:90,right:360,bottom:420};const target=element();target.getBoundingClientRect=()=>rect;
+ const document={body,createElement(){const e=element();e.style={};nodes.push(e);return e;},querySelector:()=>target,addEventListener:(type,fn)=>events[type]=fn};
+ const window={innerWidth:400,innerHeight:800,addEventListener:(type,fn)=>windowEvents[type]=fn};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-tutorial.js'),'utf8'),{window,document});
+ const tutorial=window.createWorldTutorial({bridge:{guide(){}},getData:()=>({player:{id:'one'},tutorial:{phase:'tour',step:0}}),post(){},navigate(){},dialog,modal(){},render(){},avatar:()=>'<svg aria-label="Avatar padrão"></svg>'});
+ tutorial.sync();const coach=nodes.find(n=>n.id==='worldTutorial'),spotlight=nodes.find(n=>n.id==='worldTutorialSpotlight');assert(coach.innerHTML.includes('Avatar padrão'));assert(coach.innerHTML.includes('data-guide="audio"'));assert.equal(spotlight.hidden,false);assert.equal(spotlight.style.top,'82px');assert.equal(spotlight.style.left,'92px');
+ rect={left:-10,top:20,right:420,bottom:160};events.scroll();assert.equal(spotlight.style.left,'0px');assert.equal(spotlight.style.width,'400px');assert.equal(spotlight.style.top,'12px');
+ window.innerWidth=300;windowEvents.resize();assert.equal(spotlight.style.width,'300px');tutorial.stop();assert.equal(spotlight.hidden,true);assert(coach.hidden);
 });

@@ -3,7 +3,7 @@ for(const file of ['server/index.js','server/world-service.js','server/browser-w
 for(const file of ['server/player-profile.js','server/troops.js','shared/battle-maps.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
 for(const file of ['server/friends.js','server/battle-history.js','server/difficulty-surveys.js','public/world-social.js','public/replay-worker.js','shared/battle-replay.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
 for(const file of ['server/maintenance/reset-battles.js','scripts/reset-battles.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
-for(const file of ['server/tutorial.js','shared/training-battle.js','public/world-tutorial.js','public/training-worker.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
+for(const file of ['server/tutorial.js','shared/training-battle.js','public/world-tutorial.js','public/tutorial-voice.js','public/training-worker.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
 new vm.Script(require('../server/browser-assets').browserEngine());
 new vm.Script(require('../server/browser-assets').browserMaps());
 const html=fs.readFileSync('public/index.html','utf8');

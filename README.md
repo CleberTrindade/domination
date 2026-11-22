@@ -664,3 +664,17 @@ permite jogar e retomar pelo **Menu → Tutorial guiado**. Contas anteriores à
 migração 016 não são interrompidas automaticamente e podem repetir pelo menu.
 Repetir um tutorial concluído não altera o progresso salvo. O reset de batalha
 preserva também esse estado da conta, além das enquetes e credenciais.
+
+O orientador usa o avatar padrão do comandante da tela principal. O botão
+**Ouvir** habilita a narração em português; as próximas instruções são lidas
+automaticamente, com **Repetir áudio** e **Desligar áudio** disponíveis. Mudar de
+etapa ou sair cancela a fala anterior; esconder a página também interrompe o
+áudio. A síntese usa as vozes do navegador/aparelho (`SpeechSynthesis`), prioriza
+pt-BR e mantém o texto se não houver suporte ou voz em português. Não exige
+microfone, chave de API ou alterações no banco.
+
+No treino, uma máscara escurece o campo e mantém origem/destino iluminados, com
+as marcações 1 e 2. No passeio, uma janela de destaque acompanha o recurso real
+mesmo após rolagem ou redimensionamento; o painel do orientador permanece claro.
+Os formulários de cadastro e login permitem mostrar/ocultar a senha sem trocar
+seu valor ou enviar o formulário.
