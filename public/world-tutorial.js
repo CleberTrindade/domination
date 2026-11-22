@@ -31,7 +31,7 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   catch(e){message='Não foi possível salvar o tutorial. Confira a conexão e tente novamente.';return false;}
  }
  function card(title,text,progress,button,disabled=false,success=''){
-  coach.innerHTML='<header><span>'+progress+'</span><button type="button" data-guide="pause" aria-label="Pausar tutorial">Ⅱ</button></header><h2 tabindex="-1">'+title+'</h2><p>'+text+'</p>'+(success?'<p class="w-guide-success">'+success+'</p>':'')+(message?'<p role="alert">'+message+'</p>':'')+'<footer><button type="button" data-guide="'+(mode==='training'?'next':'tour-next')+'" '+(disabled?'disabled':'')+'>'+button+'</button></footer>';
+  coach.innerHTML='<header><span>'+progress+'</span><button type="button" data-guide="pause" aria-label="Pausar tutorial">PAUSAR</button></header><h2 tabindex="-1">'+title+'</h2><p>'+text+'</p>'+(success?'<p class="w-guide-success">'+success+'</p>':'')+(message?'<p role="alert">'+message+'</p>':'')+'<footer><button type="button" data-guide="'+(mode==='training'?'next':'tour-next')+'" '+(disabled?'disabled':'')+'>'+button+'</button></footer>';
   coach.hidden=false;
  }
  function practiceCard(){

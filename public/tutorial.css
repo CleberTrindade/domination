@@ -4,7 +4,7 @@
 #worldTutorial h2{font:23px 'Lilita One',sans-serif;margin:6px 0;color:#fff;outline:none}
 #worldTutorial p{font-size:12px;line-height:1.55;margin:7px 0;color:#d9e9f9}
 #worldTutorial button{font:17px 'Lilita One',sans-serif;padding:10px 15px;min-height:42px;border-radius:10px;border:2px solid #ffe49c;background:linear-gradient(#ffe186,#efb838);color:#2a3950;cursor:pointer;box-shadow:0 3px 0 #896328}
-#worldTutorial header button{padding:3px 10px;min-height:32px;background:#163555;border-color:#7ea7ca;color:white;font:16px Nunito;box-shadow:none}
+#worldTutorial header button{padding:3px 10px;min-height:32px;background:#163555;border-color:#7ea7ca;color:white;font:900 10px Nunito;letter-spacing:.4px;box-shadow:none}
 #worldTutorial footer button{width:100%}#worldTutorial button:disabled{background:#314c67;border-color:#587491;color:#aec2d7;box-shadow:none;cursor:default}
 #worldTutorial button:focus-visible{outline:3px solid #fff;outline-offset:3px}#worldTutorial p.w-guide-success{color:#aaf2a0;font-weight:900}
 .w-tutorial-highlight{outline:3px solid #ffce5a!important;outline-offset:4px;box-shadow:0 0 0 8px #ffd25c28!important}
