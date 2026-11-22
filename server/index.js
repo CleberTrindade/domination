@@ -48,7 +48,8 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
 
     ['/battle-worker.js', ['battle-worker.js', 'application/javascript; charset=utf-8']],
     ['/sergipe-map.js', ['sergipe-map.js', 'application/javascript; charset=utf-8']],
-    ['/world.css', ['world.css', 'text/css; charset=utf-8']]
+    ['/world.css', ['world.css', 'text/css; charset=utf-8']],
+    ['/world-theme.css', ['world-theme.css', 'text/css; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
   assets.set('/battle-engine.js',{body:browserEngine(),mime:'application/javascript; charset=utf-8'});
   assets.set('/battle-maps.js',{body:browserMaps(),mime:'application/javascript; charset=utf-8'});
