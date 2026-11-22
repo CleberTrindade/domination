@@ -6,8 +6,9 @@ async function createDifficultySurveys(db,battle,roster,{status,winnerOwner,at})
   // to conquer. Context is frozen at entry, even if this battle changes owner.
   if(!['won','lost','abandoned'].includes(status))return;
   for(const p of roster.filter(p=>p.owner===1||p.owner===3||p.owner===4)){
-    await db.query(`INSERT INTO world_difficulty_surveys(id,player_id,area_id,context,battle_id,side,outcome,created_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(player_id,area_id,context) DO NOTHING`,
+    await db.query(`INSERT INTO world_difficulty_surveys(id,player_id,area_id,context,battle_id,side,outcome,created_at,battle_context)
+      SELECT $1,$2,$3,$4,b.id,$6,$7,$8,jsonb_build_object('startedAt',b.started_at,'finishedAt',b.finished_at,'status',b.status,'result',b.result) FROM world_battles b WHERE b.id=$5
+      ON CONFLICT(player_id,area_id,context) DO NOTHING`,
     [randomUUID(),p.playerId,battle.areaId,battle.defenderId?'occupied':'cpu',battle.id,p.owner,p.owner===winnerOwner?'won':'lost',new Date(at).toISOString()]);
   }
 }

@@ -496,6 +496,42 @@ APIs autenticadas: `GET /api/world/friends`, `GET /api/world/friends/search?q=..
 `GET /api/world/friends/players/:id`. Contas e progresso são preservados pela
 migração; alianças não fazem parte desta entrega.
 
+## Comando operacional: reset de batalha
+
+Quando o responsável pedir **“reset de batalha”**, executar este procedimento no
+Mundo Aberto. Preservar contas, senhas, sessões, códigos/amizades e todas as
+enquetes, inclusive suas notas, datas, resultado original e configuração da
+partida. Zerar histórico, participantes, replays, saques/lançamentos, melhorias,
+recompensas diárias, moedas, cartas, progresso de comandante e áreas dominadas.
+Tropas voltam ao nível 1 e à formação inicial com tanque. Cada área retorna à
+CPU, com bônus de primeira conquista disponível.
+
+1. Conferir que a conexão é a branch Neon **mundo-aberto**, nunca `prod`.
+2. Suspender o serviço Render `domination-mundo-aberto` e confirmar a suspensão.
+   As batalhas ativas ficam em RAM; não executar o reset com o processo rodando.
+3. Com `APP_ENV=mundo-aberto` e `DATABASE_URL` já configuradas, conferir a prévia:
+
+   ```bash
+   npm run reset:batalha
+   ```
+
+4. Executar o comando explicitamente:
+
+   ```bash
+   npm run reset:batalha -- --service-stopped --confirm "reset de batalha"
+   ```
+
+5. Conferir os totais zerados e a quantidade de enquetes preservadas, reativar o
+   serviço e validar o mapa. Jogadores devem atualizar a página.
+
+O comando fica em `scripts/reset-battles.js`, com SQL compartilhado/testado em
+`server/maintenance/reset-battles.js`. Não existe endpoint público de reset.
+Tudo é aplicado em uma transação com bloqueios; uma falha desfaz todas as
+alterações. `world_reset_events` registra o comando, a data e os totais anteriores.
+A migração 015 mantém o contexto histórico em `world_difficulty_surveys.battle_context`
+e remove somente as FKs da enquete para as batalhas/participantes que serão
+apagados. A regra de uma resposta por jogador/área/contexto continua válida.
+
 ## Estrutura
 
 ```
