@@ -99,7 +99,7 @@ anterior também são encerradas sem transferir áreas na migração.
 
 - Ataques, defesas e entradas como invasor são permitidos com **qualquer saldo,
   inclusive zero**. Sem saldo disponível na entrada, o participante não ganha nem
-  perde moedas da batalha, incluindo o bônus da primeira conquista da CPU. Pode
+  perde moedas por saque, mas recebe o bônus da primeira conquista da CPU. Pode
   conquistar a área e receber sua produção diária a partir da conquista.
 - Saldos, reservas, saques e novos lançamentos usam **moedas inteiras**.
   A reserva é `floor(40% × saldo disponível)`: com 80 moedas, reserva 32;
@@ -109,8 +109,8 @@ anterior também são encerradas sem transferir áreas na migração.
   áreas 6–10, **500 cada**; demais, **250 cada**, com teto de **10.000/dia**.
   O crédito é proporcional ao tempo de posse, inclusive offline. A produção começa na conquista. Para contas e áreas
   anteriores à economia, começa na aplicação da migração 005, sem retroatividade.
-- A primeira conquista da CPU rende **300 moedas** no Litoral Sul/Agreste,
-  **450** no Alto Sertão e **600** no São Francisco/Capital. O bônus fica fora do teto de produção diária. O bônus exige saldo positivo na entrada e é único por área; conquistas anteriores
+- A primeira conquista da CPU rende **250 moedas** no Litoral Sul/Agreste,
+  **450** no Alto Sertão e **600** no São Francisco/Capital. O bônus fica fora do teto de produção diária. O bônus independe do saldo de entrada e é único por área; conquistas anteriores
   não recebem novamente. O saque de jogadores é independente desse bônus.
 - Na entrada, **40% do saldo disponível** de cada participante ficam reservados
   em RAM. O defensor recebe uma reserva automática no início do ataque, mesmo

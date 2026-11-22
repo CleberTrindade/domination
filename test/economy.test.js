@@ -16,8 +16,9 @@ test('loot is symmetric, capped by the smaller stake, and transferred once per l
 });
 test('zero-balance defense, CPU rewards, losses and interruptions have explicit settlement rules',()=>{
   for(const winner of [1,2])assert([...settleAmounts([entry(1,1000),entry(2,0)],winner,winner===1?'won':'lost',false).changes.values()].every(n=>n===0n));
-  assert.equal(settleAmounts([entry(1,1000)],1,'won',true).reward,30000n);
-  for(const reward of [300,450,600])assert.equal(settleAmounts([entry(1,0)],1,'won',true,reward).reward,0n);
+  assert.equal(settleAmounts([entry(1,1000)],1,'won',true).reward,25000n);
+  for(const reward of [250,450,600])assert.equal(settleAmounts([entry(1,0)],1,'won',true,reward).reward,BigInt(reward)*100n);
+  assert.equal(settleAmounts([entry(1,0),entry(3,0)],3,'won',true).reward,25000n);
   for(const winner of [1,2,3,4]){const result=settleAmounts([entry(1,1000),entry(2,0),entry(3,0),entry(4,80)],winner,'won',false);assert.equal(result.changes.get('player-2'),0n);assert.equal(result.changes.get('player-3'),0n);if(winner===2||winner===3)assert(result.transfers.length===0);}
   assert.equal(settleAmounts([entry(1,1000)],1,'won',false).reward,0n);
   assert.equal(settleAmounts([entry(1,1000)],2,'lost',true).changes.get('player-1'),-40000n);

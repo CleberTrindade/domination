@@ -1,7 +1,7 @@
 'use strict';
 const {randomUUID}=require('node:crypto');
 const {levelsFor}=require('./progression');
-const RULES=Object.freeze({initialCoins:1000,minEntry:0,productionPerDay:1000,cpuReward:300,lootPercent:40,wholeCoins:true,productionTiers:Object.freeze([{through:5,coins:1000},{through:10,coins:500},{through:null,coins:250}]),productionCap:10000});
+const RULES=Object.freeze({initialCoins:1000,minEntry:0,productionPerDay:1000,cpuReward:250,lootPercent:40,wholeCoins:true,productionTiers:Object.freeze([{through:5,coins:1000},{through:10,coins:500},{through:null,coins:250}]),productionCap:10000});
 const DAY=86400000n,CENTS=100n;
 // Database amounts retain their existing hundredths scale; spendable amounts
 // and new ledger entries are always multiples of 100 (one whole coin).
@@ -39,7 +39,7 @@ function settleAmounts(stakes,winnerOwner,status,cpuRewardAvailable,cpuRewardCoi
     if(winner)changes.set(winner.playerId,changes.get(winner.playerId)+amount);
     transfers.push({fromId:loser.playerId,fromOwner:loser.owner,toId:winner?.playerId||null,toOwner:winnerOwner,amount:coins(amount)});
   }
-  const reward=finished&&status==='won'&&winner&&winner.balance>0n&&cpuRewardAvailable?BigInt(cpuRewardCoins)*CENTS:0n;
+  const reward=finished&&status==='won'&&winner&&cpuRewardAvailable?BigInt(cpuRewardCoins)*CENTS:0n;
   return {changes,transfers,reward,winner};
 }
 async function settleEconomy(db,battle,roster,{winnerOwner,status,area,at}){

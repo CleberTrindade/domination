@@ -21,7 +21,7 @@ test('persistent army progression protects money, freezes battle levels and reco
     await t.test('new and existing accounts begin at level one; every area remains available and rewards reflect resistance',async()=>{
       const data=await world(alice);assert.equal(data.army.level,1);assert.equal(data.army.troops.tanque.nextCost,100);assert.equal(data.army.troops.tanque.power,1);
       assert.deepEqual(data.progression.upgradeCosts,[0,0,100,250,500,1000,2000,4000,7000,11000,18000]);
-      assert.deepEqual(data.areas.map(a=>a.first_capture_reward),[300,300,450,600,600]);assert(data.areas.every(a=>a.defense_bases===3&&a.map_id&&a.defense_share>0&&a.defense_share<.5));
+      assert.deepEqual(data.areas.map(a=>a.first_capture_reward),[250,250,450,600,600]);assert(data.areas.every(a=>a.defense_bases===3&&a.map_id&&a.defense_share>0&&a.defense_share<.5));
       assert.equal((await api('/api/world/army/upgrade',null,{requestId:randomUUID(),expectedLevel:1})).status,401);
       record=await start('se-aracaju',alice);assert.equal(record.config.defenderBaseCount,3);assert.equal(record.config.defenderPower,.8);assert.equal(record.economy.cpuReward,600);await surrender(record,alice);
       await funds(alice);
@@ -39,7 +39,7 @@ test('persistent army progression protects money, freezes battle levels and reco
     });
     await t.test('training may spend the last available coin without an attack budget, with or without territory',async()=>{
       await funds(dana,1,100);assert.equal((await world(dana)).army.troops.tanque.canUpgrade,true);assert.equal((await upgrade(dana,1)).status,200);assert.equal((await world(dana)).wallet.balance,0);
-      record=await start('se-agreste',dana);assert.equal(record.economy.atRisk,0);assert.equal(record.economy.cpuReward,0);await surrender(record,dana);
+      record=await start('se-agreste',dana);assert.equal(record.economy.atRisk,0);assert.equal(record.economy.cpuReward,250);await surrender(record,dana);
       await funds(dana,1,100);await pool.query("UPDATE world_areas SET owner_id=$1 WHERE id='se-agreste'",[dana.id]);assert.equal((await upgrade(dana,1,randomUUID(),{troopKind:'heli'})).status,200);assert.equal((await world(dana)).wallet.balance,0);
       await pool.query("UPDATE world_areas SET owner_id=NULL WHERE id='se-agreste'");
     });

@@ -7,7 +7,7 @@ const ARMY_RULES=Object.freeze({maxLevel:10,powerStep:10,cpuPowerRatio:.8,defend
   upgradeCards:Object.freeze([0,0,10,20,40,80,140,220,340,500,750])});
 const powerFor=level=>Math.round((1+(level-1)*ARMY_RULES.powerStep/100)*100)/100;
 function areaProfile(ordinal){
-  return ordinal<=2?{resistance:'Baixa',cpuReward:300}:ordinal===3?{resistance:'Média',cpuReward:450}:{resistance:'Alta',cpuReward:600};
+  return ordinal<=2?{resistance:'Baixa',cpuReward:250}:ordinal===3?{resistance:'Média',cpuReward:450}:{resistance:'Alta',cpuReward:600};
 }
 function troopView(wallet,available,minEntry,kind){
   const level=wallet.levels?.[kind]??(troopRules.CORE.includes(kind)?wallet.level:1),maximum=level>=ARMY_RULES.maxLevel,nextLevel=maximum?null:level+1,nextCost=maximum?null:ARMY_RULES.upgradeCosts[nextLevel];

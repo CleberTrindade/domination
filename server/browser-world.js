@@ -46,7 +46,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
   function battleEconomy(battle,owner,viewerId){
     const stakes=[...(battle.stakes?.values()||[])].filter(s=>!s.rejected),mine=stakes.find(s=>s.owner===owner||s.playerId===viewerId);
     const maxLoot=mine?stakes.filter(s=>s.playerId!==mine.playerId).reduce((sum,s)=>sum+(s.stake<mine.stake?s.stake:mine.stake),0n):0n;
-    return {lootPercent:RULES.lootPercent,minEntry:RULES.minEntry,wholeCoins:true,productionPerDay:RULES.productionPerDay,cpuReward:battle.cpuRewardAvailable&&mine?.balance>0n?(battle.cpuReward??RULES.cpuReward):0,
+    return {lootPercent:RULES.lootPercent,minEntry:RULES.minEntry,wholeCoins:true,productionPerDay:RULES.productionPerDay,cpuReward:battle.cpuRewardAvailable&&mine?(battle.cpuReward??RULES.cpuReward):0,
       atRisk:mine?coins(mine.stake):0,balanceAtEntry:mine?coins(mine.balance):null,maxLoot:coins(maxLoot),
       stakes:stakes.map(s=>({owner:s.owner,playerId:s.playerId,atRisk:coins(s.stake)}))};
   }
@@ -277,7 +277,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         entries:entries.map(e=>({...e,amount:coins(BigInt(e.amount))}))};
       for(const area of areas){const defenseWallet=wallets.get(area.owner_id),defenseAvailable=defenseWallet?defenseWallet.balance-reservedFor(area.owner_id):0n;
         const risk=stakeFor(available),targetRisk=stakeFor(defenseAvailable>0n?defenseAvailable:0n);
-        area.economy={atRisk:coins(risk),maxLoot:coins(targetRisk<risk?targetRisk:risk),cpuReward:available>0n&&!area.owner_id&&!area.cpu_reward_claimed?area.first_capture_reward:0,productionPerDay:area.owner_id===player.id?0:productionFor(ownWallet.owned+1)-productionFor(ownWallet.owned)};
+        area.economy={atRisk:coins(risk),maxLoot:coins(targetRisk<risk?targetRisk:risk),cpuReward:!area.owner_id&&!area.cpu_reward_claimed?area.first_capture_reward:0,productionPerDay:area.owner_id===player.id?0:productionFor(ownWallet.owned+1)-productionFor(ownWallet.owned)};
         const active=area.battle_id&&battles.get(area.battle_id);
         if(active){
           const current=battleEconomy(active,ownerFor(active,player.id),player.id);
