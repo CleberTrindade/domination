@@ -37,8 +37,8 @@ A publicação e o banco de produção da `main` permanecem independentes.
 - O bombardeiro central começa com o proprietário da área (lado defensor); em
   áreas ainda livres, começa com a CPU. Ele faz parte das quatro posições da
   defesa e continua podendo ser capturado durante o combate.
-- O atacante começa com uma posição e 38 tropas; a defesa tem 56–72 tropas
-  distribuídas nas quatro posições, conforme o perfil do setor.
+- O atacante começa com uma posição e 38 tropas; nas novas batalhas das cinco
+  áreas, a defesa tem 70 tropas distribuídas nas quatro posições.
 - Vitória por eliminação das bases **e** tropas inimigas. O bombardeiro continua
   disputável e não é uma condição de vitória.
 - Ao vencer, o servidor transfere a área para o comandante vencedor, inclusive
@@ -756,10 +756,11 @@ A versão acompanha configurações, checkpoints e replays. Partidas gravadas
 sem essa versão mantêm as regras anteriores para reproduzir o mesmo resultado;
 os círculos de alcance exibidos respeitam a versão da partida.
 
-Novas batalhas da área 5 também usam `defenseVersion: capital-v7`: produção
+Novas batalhas das cinco áreas usam `defenseVersion: world-defense-v1`: produção
 básica da CPU de 0,875 tropa/s, intervalo médio de decisão de 2,35 s e 70 tropas
 iniciais (26 no quartel, 14 no central e 15 em cada uma das duas bases de apoio).
 Os multiplicadores de produção do quartel e de cada tipo de tropa continuam
-aplicáveis. A versão acompanha checkpoints e replays; as áreas 1–4 e registros
-anteriores conservam seus parâmetros.
+aplicáveis. A versão acompanha checkpoints e replays; registros anteriores
+conservam seus parâmetros, inclusive a dificuldade original das áreas 1–4.
 Replays com `capital-v2`, `capital-v3`, `capital-v4`, `capital-v5` e `capital-v6` preservam a produção de 0,850 tropa/s e seus intervalos de 2,45 s, 2,50 s, 2,47 s, 2,45 s e 2,35 s, respectivamente.
+Replays com `capital-v7` preservam a produção de 0,875 tropa/s, o intervalo de 2,35 s e 70 tropas somente na área 5.

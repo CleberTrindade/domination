@@ -4,7 +4,7 @@ const maps=require('../shared/battle-maps');
 const troopRules=require('../shared/troop-rules');
 const MAPDATA=maps.get('classic').data;
 const HR=26;
-const CAPITAL_DEFENSE_VERSION='capital-v7';
+const DEFENSE_VERSION='world-defense-v1';
 const PCT={garagem:.40,heli:.55,botes:.45,canhao:.55,central:.55};
 const BASE0=25,RANGE=Object.fromEntries(Object.entries(troopRules.weaponRange(troopRules.COMBAT_VERSION)).map(([kind,range])=>[kind,HR*range])),FIRE={central:.42,canhao:.95};
 const SPEED=Object.fromEntries(Object.entries(troopRules.DEFINITIONS).filter(([,t])=>t.speed).map(([kind,t])=>[kind,t.speed]));
@@ -62,10 +62,11 @@ function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner
   let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount,mapId);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
-  if([CAPITAL_DEFENSE_VERSION,'capital-v6','capital-v5','capital-v4','capital-v3','capital-v2'].includes(defenseVersion)&&mapId==='citadel-v1'&&difficulty===5){
-    aip.prod=defenseVersion===CAPITAL_DEFENSE_VERSION?.875:.85;aip.int=({'capital-v2':2.45,'capital-v3':2.5,'capital-v4':2.47,'capital-v5':2.45})[defenseVersion]??2.35;
+  const uniformDefense=defenseVersion===DEFENSE_VERSION&&maps.list().some(map=>map.id===mapId);
+  if(uniformDefense||['capital-v7','capital-v6','capital-v5','capital-v4','capital-v3','capital-v2'].includes(defenseVersion)&&mapId==='citadel-v1'&&difficulty===5){
+    aip.prod=uniformDefense||defenseVersion==='capital-v7'?.875:.85;aip.int=({'capital-v2':2.45,'capital-v3':2.5,'capital-v4':2.47,'capital-v5':2.45})[defenseVersion]??2.35;
     // 26 in HQ, 14 in the central weapon and 15 in each support base = 70.
-    for(const site of setup.sites)if(site.owner===2){if(site.hq)site.troops=26;else if(site.kind==='central')site.troops=14;}
+    for(const site of setup.sites)if(site.owner===2)site.troops=site.hq?26:site.kind==='central'?14:15;
   }
   const game={objectives:{},participation:{1:0,2:0},sites:setup.sites,units:[],fights:[],fx:[],time:0,uid:0,me:1,mode:'solo',over:false,result:null,winnerOwner:null,joinedOwners:[],forfeited:[],cd:3,
     stats:{cap:0,kill:0},dropM:{1:.35,2:.35},par:{1:{prod:1.2,cap:60},2:aip},aip,ais:[{id:2,timer:7,dead:false}],
@@ -286,4 +287,4 @@ function simStep(dt){
 }
 function restoreBattle(saved){const battle=createBattle(saved.config);battle.restore(saved);return battle;}
 // Read-only catalog metadata uses the same constants as combat.
-module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA,maps,combatRules:{version:troopRules.COMBAT_VERSION,defenseVersion:CAPITAL_DEFENSE_VERSION,speed:SPEED,range:RANGE,fire:FIRE,hexRadius:HR}};
+module.exports={createBattle,restoreBattle,initialSites,weights,MAPDATA,maps,combatRules:{version:troopRules.COMBAT_VERSION,defenseVersion:DEFENSE_VERSION,speed:SPEED,range:RANGE,fire:FIRE,hexRadius:HR}};
