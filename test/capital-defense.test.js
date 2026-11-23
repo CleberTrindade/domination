@@ -4,9 +4,9 @@ const engine=require('../server/battle-engine'),rules=require('../shared/troop-r
 const {browserEngine}=require('../server/browser-assets');
 const config={difficulty:5,mapId:'citadel-v1',share:.5,defenderBaseCount:3,centralOwner:2,balanceVersion:'troops-v3',combatVersion:rules.COMBAT_VERSION,defenseVersion:engine.combatRules.defenseVersion,seed:27};
 const defenders=snapshot=>snapshot.sites.filter(site=>site.owner===2);
-test('capital defense starts with 70 troops and really produces at 0.850/s with a 2.45s decision interval',()=>{
+test('capital defense starts with 70 troops and really produces at 0.850/s with a 2.35s decision interval',()=>{
   const battle=engine.createBattle(config),snapshot=battle.snapshot();
-  assert.equal(snapshot.par[2].prod,.85);assert.equal(snapshot.par[2].int,2.45);
+  assert.equal(snapshot.par[2].prod,.85);assert.equal(snapshot.par[2].int,2.35);
   assert.equal(defenders(snapshot).length,4);assert.equal(defenders(snapshot).reduce((sum,site)=>sum+site.troops,0),70);
   assert.equal(snapshot.sites.find(site=>site.owner===1).troops,38);
   const saved=battle.checkpoint();saved.cd=0;
@@ -14,8 +14,8 @@ test('capital defense starts with 70 troops and really produces at 0.850/s with 
   const quiet=engine.restoreBattle(saved);quiet.setDefenderControlled(true);quiet.step(1);
   assert(Math.abs(quiet.snapshot().sites[base.id].troops-base.troops-.85)<1e-12);
 });
-test('capital-v2 through capital-v4 replays retain their original decision intervals, production and troop counts',()=>{
-  for(const [defenseVersion,interval] of [['capital-v2',2.45],['capital-v3',2.5],['capital-v4',2.47]]){
+test('capital-v2 through capital-v5 replays retain their original decision intervals, production and troop counts',()=>{
+  for(const [defenseVersion,interval] of [['capital-v2',2.45],['capital-v3',2.5],['capital-v4',2.47],['capital-v5',2.45]]){
     const snapshot=engine.createBattle({...config,defenseVersion}).snapshot();
     assert.equal(snapshot.par[2].int,interval);assert.equal(snapshot.par[2].prod,.85);
     assert.equal(defenders(snapshot).reduce((n,s)=>n+s.troops,0),70);
@@ -52,7 +52,7 @@ test('new world battles apply the tuned profile only to area 5',async t=>{
     const record=await response.json();
     assert.equal(record.config.defenseVersion,i===4?config.defenseVersion:undefined);
     assert.equal(defenders(record.snapshot).reduce((n,s)=>n+s.troops,0),i===4?70:56+i*4);
-    if(i===4){assert.equal(record.snapshot.par[2].prod,.85);assert.equal(record.snapshot.par[2].int,2.45);}
+    if(i===4){assert.equal(record.snapshot.par[2].prod,.85);assert.equal(record.snapshot.par[2].int,2.35);}
     const surrendered=await fetch(base+'/api/world/battles/'+record.id+'/surrender',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:'{}'});assert.equal(surrendered.status,200);await surrendered.json();
   }
 });
