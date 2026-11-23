@@ -4,7 +4,7 @@ const maps=require('../shared/battle-maps');
 const troopRules=require('../shared/troop-rules');
 const MAPDATA=maps.get('classic').data;
 const HR=26;
-const CAPITAL_DEFENSE_VERSION='capital-v4';
+const CAPITAL_DEFENSE_VERSION='capital-v5';
 const PCT={garagem:.40,heli:.55,botes:.45,canhao:.55,central:.55};
 const BASE0=25,RANGE=Object.fromEntries(Object.entries(troopRules.weaponRange(troopRules.COMBAT_VERSION)).map(([kind,range])=>[kind,HR*range])),FIRE={central:.42,canhao:.95};
 const SPEED=Object.fromEntries(Object.entries(troopRules.DEFINITIONS).filter(([,t])=>t.speed).map(([kind,t])=>[kind,t.speed]));
@@ -62,8 +62,8 @@ function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner
   let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount,mapId);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
-  if([CAPITAL_DEFENSE_VERSION,'capital-v3','capital-v2'].includes(defenseVersion)&&mapId==='citadel-v1'&&difficulty===5){
-    aip.prod=.85;aip.int=({'capital-v2':2.45,'capital-v3':2.5})[defenseVersion]??2.47;
+  if([CAPITAL_DEFENSE_VERSION,'capital-v4','capital-v3','capital-v2'].includes(defenseVersion)&&mapId==='citadel-v1'&&difficulty===5){
+    aip.prod=.85;aip.int=({'capital-v2':2.45,'capital-v3':2.5,'capital-v4':2.47})[defenseVersion]??2.45;
     // 26 in HQ, 14 in the central weapon and 15 in each support base = 70.
     for(const site of setup.sites)if(site.owner===2){if(site.hq)site.troops=26;else if(site.kind==='central')site.troops=14;}
   }
