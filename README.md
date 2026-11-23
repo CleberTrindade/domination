@@ -718,3 +718,23 @@ Commitar o manifesto e as imagens geradas; o Render apenas serve os arquivos,
 sem executar a geração. Nomes com hash permitem cache imutável. Ao atualizar a
 arte, revisar arquivos antigos que deixarem de ser referenciados. Os testes
 verificam pixels, direções, cache, rotas HTTP e cadência de desenho.
+
+### Seleção e espectadores
+
+Toques em bases próprias adicionam/removem bases da seleção. Tocar numa base
+inimiga ou neutra envia as bases selecionadas em uma única ordem. Arrastar
+continua permitindo atacar e reforçar outra base própria; passar por bases
+próprias as adiciona ao envio, inclusive em movimentos rápidos e com vários
+dedos. A área de toque cobre o prédio visível e seu marcador. Cancelamentos de
+gesto não disparam ordens nem restauram seleções já enviadas.
+
+Durante o combate, avisos de outras áreas e painéis fixos de moedas/espectador
+não cobrem o mapa. Um olho verde discreto indica espectadores conectados; dois
+ou mais exibem o total. A contagem usa contas distintas com assinatura SSE
+ativa: abas duplicadas contam uma vez e participantes não são espectadores.
+Conectar, desconectar ou entrar no combate atualiza os observadores.
+
+Para quem está assistindo, tocar no olho abre as opções de entrada; tocar numa
+base neutra disponível abre a mesma janela com a base selecionada. Os valores
+de reserva continuam disponíveis nessa janela e na carteira, sem uma barra
+permanente sobre o campo. Nenhuma entrada ocorre antes da confirmação.

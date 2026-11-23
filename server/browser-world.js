@@ -55,10 +55,18 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     const reserved=new Set([...(battle.members?.values()||[])].filter(p=>p.status==='pending').map(p=>p.site));
     return battle.snapshot.sites.filter(site=>site.owner===0&&site.id!==0&&!reserved.has(site.id)).map(site=>({id:site.id,kind:engineFactory.maps.get(battle.config.mapId).data.seeds[site.id][1]}));
   }
+  function spectatorCount(battle){
+    return new Set([...battle.streams].filter(stream=>!stream.destroyed&&!stream.writableEnded&&ownerFor(battle,stream.worldPlayerId)===0).map(stream=>stream.worldPlayerId)).size;
+  }
+  function publishSpectators(battle){
+    if(closing||battle.final)return;
+    const count=spectatorCount(battle);
+    for(const stream of battle.streams)event(stream,'spectators',{count});
+  }
   function state(battle,owner=1,full=false,viewerId=null){
     const member=battle.members?.get(viewerId),vacancy=![3,4].every(side=>[...(battle.members?.values()||[])].some(p=>p.owner===side&&p.status!=='rejected')),available=joinSites(battle);
     const record={id:battle.id,areaId:battle.areaId,areaName:battle.areaName,attackerName:battle.attackerName,defenderName:battle.defenderName,
-      playerOwner:owner,defenderControlled:!!battle.defenderControlled,status:battle.status,startedAt:battle.startedAt,
+      playerOwner:owner,spectatorCount:spectatorCount(battle),defenderControlled:!!battle.defenderControlled,status:battle.status,startedAt:battle.startedAt,
       epoch:battle.id,revision:battle.revision,mode:'browser',config:battle.config,snapshot:battle.snapshot,retaliationOf:battle.retaliationOf||null,
       players:playersFor(battle),isHost:owner>0&&ownerFor(battle,battle.hostId)===owner,hostEpoch:battle.hostEpoch,maxOwners:4,
       joinableSites:available,canJoin:owner===0&&vacancy&&available.length>0&&!battle.snapshot.over&&!battle.finishing&&!['pending','active','left'].includes(member?.status),joinState:member?.status||null,joinError:member?.error||null,economy:battleEconomy(battle,owner,viewerId)};
@@ -461,7 +469,8 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         if([...battle.streams].filter(s=>s.worldPlayerId===player.id).length>=3||owner===0&&[...battle.streams].filter(s=>s.worldOwner===0).length>=60)throw new HttpError(429,'Muitas janelas desta batalha.');
         res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform',Connection:'keep-alive','X-Accel-Buffering':'no'});res.flushHeaders();res.worldOwner=owner;res.worldPlayerId=player.id;res.worldToken=sessionToken(req);battle.streams.add(res);
         updateDefense(battle);event(res,'state',state(battle,owner,false,player.id));if(battle.hostId===player.id)for(const input of battle.inputs.values())event(res,'input',input);
-        res.on('close',()=>{battle.streams.delete(res);if(owner===2)battle.defenseUntil=0;updateDefense(battle);});return true;
+        publishSpectators(battle);
+        res.on('close',()=>{battle.streams.delete(res);if(owner===2)battle.defenseUntil=0;updateDefense(battle);publishSpectators(battle);});return true;
       }
       if(action==='defend'&&req.method==='POST'){if(owner!==2)throw new HttpError(403,'Somente o proprietário pode assumir a defesa.');battle.defenseUntil=now()+5000;updateDefense(battle);json(200,state(battle,2));return true;}
       if(action==='release'&&req.method==='POST'){if(owner!==2)throw new HttpError(403,'Você não controla a defesa.');for(const stream of battle.streams)if(stream.worldOwner===2){battle.streams.delete(stream);stream.end();}battle.defenseUntil=0;updateDefense(battle);json(200,{released:true});return true;}

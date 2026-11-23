@@ -1,5 +1,5 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-for(const file of ['public/battle-sprites.js','scripts/build-battle-sprites.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
+for(const file of ['public/battle-sprites.js','public/battle-input.js','scripts/build-battle-sprites.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
 for(const file of ['server/index.js','server/world-service.js','server/browser-world.js','server/economy.js','server/card-rewards.js','server/progression.js','server/browser-assets.js','server/battle-engine.js','server/auth.js','server/database.js','public/world.js','shared/troop-rules.js','public/troop-art.js','public/world-motion.js','public/battle-worker.js','shared/browser-battle.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
 for(const file of ['server/player-profile.js','server/troops.js','shared/battle-maps.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
 for(const file of ['server/friends.js','server/battle-history.js','server/difficulty-surveys.js','public/world-social.js','public/replay-worker.js','shared/battle-replay.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});

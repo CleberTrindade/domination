@@ -517,6 +517,7 @@ return {S:__m.sprites2,U3:__m.units3d};})();
 <script src="/troop-art.js?v=bases-v2"></script>
 <script src="/battle-sprites-manifest.js"></script>
 <script src="/battle-sprites.js"></script>
+<script src="/battle-input.js"></script>
 <script>
 (()=>{
 'use strict';
@@ -889,7 +890,7 @@ $('#btnPlay').addEventListener('click',startGame);
 $('#btnDrop').addEventListener('click',()=>{
   if(!game||game.over)return;
   if(game.dropM[game.me]<1){toast('Paraquedas carregando…');return}
-  game.dropMode=!game.dropMode;game.tapSel=null;
+  game.dropMode=!game.dropMode;game.tapSel=null;game.selectedSites?.clear();PTR.clear();
   if(game.dropMode)toast('Toque numa base sua 🪂');
 });
 
@@ -897,11 +898,11 @@ $('#btnDrop').addEventListener('click',()=>{
 function cmdSend(owner,srcs,dst){
   const g=game;if(!srcs.length||!dst)return;
   const ok=srcs.filter(s=>canReach(s,dst));
-  if(!ok.length){if(owner===g.me||g.mode==='local')toast('🌊 Tanque não atravessa a água — use o heliporto ou os botes');return}
+  if(!ok.length){if(owner===g.me||g.mode==='local')toast('🌊 Tanque não atravessa a água — use o heliporto ou os botes');return false}
   srcs=ok;
   if(g.mode==='world'){
     srcs=srcs.filter(s=>s.owner===g.me&&s.troops>=1);
-    if(!srcs.length){window.DOMINATION_WORLD_BRIDGE.commandStatus('Aguarde a base produzir tropas.',true);return;}
+    if(!srcs.length){window.DOMINATION_WORLD_BRIDGE.commandStatus('Aguarde a base produzir tropas.',true);return false;}
     g.worldCommand({type:'send',sources:srcs.map(s=>s.id),target:dst.id});return;
   }
   if(g.mode==='online'){g.myActs.push({id:g.me+':'+(++g.actN),o:owner,k:g.tick+inDelay(g),t:'s',s:srcs.map(x=>x.id),d:dst.id});return}
@@ -1392,31 +1393,19 @@ $('#btnDuel').addEventListener('click',showDuelMenu);
 
 /* input (vários dedos: no duelo local cada jogador arrasta as próprias bases) */
 function toMap(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left-VX)/SC,y:(e.clientY-r.top-VY)/SC}}
-function hit(m,rad=26){let b=null,bd=rad*rad;for(const s of game.sites){const dx=s.x-m.x,dy=s.y-m.y,d=dx*dx+dy*dy;if(d<bd){bd=d;b=s}}return b}
+function hit(m,rad=26){
+  let best=null,score=1;const radius=Math.max(rad,Math.min(38,20/SC));
+  for(const site of game.sites){
+    const dx=site.x-m.x,dy=m.y-site.y;
+    // Accept the visible building (above its ground anchor) and the troop badge.
+    const distance=Math.min((dx*dx+dy*dy)/(radius*radius),dx*dx/(30*30)+(dy+20)*(dy+20)/(34*34));
+    if(distance<score){score=distance;best=site;}
+  }
+  return best;
+}
 const playable=g=>!g.over&&!g.paused&&g.cd<=0;
-cv.addEventListener('pointerdown',e=>{
-  const g=game;if(!g||!playable(g))return;
-  try{cv.setPointerCapture(e.pointerId)}catch(_){}
-  const m=toMap(e),s=hit(m);
-  if(g.mode==='world'&&g.me===0){if(s)window.WorldApp.selectJoinSite(s.id);return;}
-  if(g.dropMode){if(s&&s.owner===g.me)cmdDrop(g.me,s);g.dropMode=false;return}
-  if(g.mode!=='local'&&g.tapSel&&s&&s!==g.tapSel){if(g.tapSel.owner===g.me)cmdSend(g.me,[g.tapSel],s);g.tapSel=null;return}
-  g.tapSel=null;
-  if(s&&g.mine.includes(s.owner))PTR.set(e.pointerId,{owner:s.owner,sel:[s],ptr:m,moved:false,down:s});
-});
-cv.addEventListener('pointermove',e=>{
-  const g=game,d=PTR.get(e.pointerId);if(!g||!d)return;
-  const m=toMap(e);d.ptr=m;
-  if(Math.hypot(m.x-d.down.x,m.y-d.down.y)>18)d.moved=true;
-  const s=hit(m);if(s&&s.owner===d.owner&&!d.sel.includes(s))d.sel.push(s);
-});
-cv.addEventListener('pointerup',e=>{
-  const g=game,d=PTR.get(e.pointerId);PTR.delete(e.pointerId);if(!g||!d||!playable(g))return;
-  const s=hit(toMap(e),d.moved?40:26);
-  if(!d.moved&&s===d.down){if(g.mode!=='local')g.tapSel=s;return}
-  if(s){const srcs=d.sel.filter(x=>x!==s&&x.owner===d.owner);if(srcs.length)cmdSend(d.owner,srcs,s)}
-});
-cv.addEventListener('pointercancel',e=>PTR.delete(e.pointerId));
+window.installBattleInput({canvas:cv,getGame:()=>game,toMap,hit,playable,pointers:PTR,
+  send:cmdSend,drop:cmdDrop,spectate:id=>window.WorldApp.selectJoinSite(id)});
 
 /* render */
 let lastR=0;
@@ -1463,8 +1452,9 @@ function render(){
   for(const u of units){c.beginPath();c.moveTo(X(u.x),Y(u.y));for(let i=u.si+1;i<u.P.length;i++)c.lineTo(X(u.P[i][0]),Y(u.P[i][1]));
     c.strokeStyle=TEAMC[P[u.owner]].dark;c.globalAlpha=.7;c.lineWidth=2.4*SC;c.setLineDash([6*SC,6*SC]);c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // seleção e arrasto
-  const selected=new Set();if(g.tapSel)selected.add(g.tapSel);
+  const selected=new Set([...(g.selectedSites||[])].filter(s=>s.owner===g.me));
   for(const d of PTR.values()){
+    if(d.consumed)continue;
     d.sel.forEach(s=>selected.add(s));
     if(!d.moved)continue;
     c.strokeStyle='rgba(255,255,255,.95)';c.lineWidth=Math.max(3,5*SC);c.setLineDash([2,9*SC]);
@@ -1580,7 +1570,7 @@ window.DOMINATION_WORLD_BRIDGE={
     this.control(record.defenderControlled,record);
     $('#btnDrop').style.display=me?'':'none';
     this.commandStatus('');
-    $('#hint').textContent=me?(game.worldMapName?game.worldMapName+' · ':'')+'Elimine os outros exércitos':'Você está acompanhando esta batalha';$('#hint').style.opacity=me?1:0;
+    $('#hint').textContent='';$('#hint').style.opacity=0;
     this.apply(record.snapshot);
   },
   apply(snapshot){
@@ -1603,7 +1593,7 @@ window.DOMINATION_WORLD_BRIDGE={
     const key=JSON.stringify(players)+controlled+game.me;if(game.worldLegendKey===key)return;game.worldLegendKey=key;
     $('#legend').innerHTML=players.map(player=>{const level=player.relativePower?' · '+Math.round(player.relativePower*100)+'% por tipo':player.troops?' · T'+player.troops.tanque.level+' B'+player.troops.desliz.level+' H'+player.troops.heli.level+' C'+player.troops.canhao.level+' BC'+player.troops.central.level:player.level?' · Nv. '+player.level:player.relativePower?' · '+Math.round(player.relativePower*100)+'% do atacante':player.power?' · '+Math.round(player.power*100)+'%':'';const name=(player.owner===game.me?'Você · '+(game.me===2?'Defesa':game.me===1?'Ataque':'Invasor'):player.name)+level;return '<span title="'+esc(name)+'"><i style="background:'+COL[game.pal[player.owner]].base+'"></i>'+esc(name)+'</span>';}).join('');
   },
-  guide(marks){if(!game?.worldTraining)return;game.worldGuide=marks;PTR.clear();game.tapSel=null;game.dropMode=false;this.layoutGuide();},
+  guide(marks){if(!game?.worldTraining)return;game.worldGuide=marks;PTR.clear();game.tapSel=null;game.selectedSites?.clear();game.dropMode=false;this.layoutGuide();},
   layoutGuide(){if(!game?.worldTraining)return;const height=document.querySelector('#worldTutorial')?.offsetHeight||220;if(game.guideHeight===height)return;game.guideHeight=height;document.body.style.setProperty('--tutorial-height',height+'px');resize();},
   selectJoinSite(id){if(game?.mode==='world')game.joinSelected=id;},
   commandStatus(message,failed=false){

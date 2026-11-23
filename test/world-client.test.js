@@ -60,7 +60,7 @@ test('a third player sees the public attack alert, watches read-only, then selec
   const root=element(),dialog=element(),body=element(),game=element(),back=element(),calls=[],started=[],sources=[],select={id:'worldJoinSite',value:'12'};
   const engine=createBattle({centralOwner:2,share:.5}),snapshot=engine.snapshot();
   const watch={id:'live',areaId:'se-agreste',areaName:'Agreste',status:'active',mode:'browser',isHost:false,playerOwner:0,epoch:'live',revision:0,maxOwners:4,snapshot,canJoin:true,joinableSites:[{id:12,kind:'H'}],players:[{owner:1,name:'Atacante'},{owner:2,name:'Defensor'}]};
-  const world={player:{id:'third',name:'Terceiro'},wallet:{balance:0,available:0,reserved:0},economy:{minEntry:0,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'defender',owner_name:'Defensor',battle_id:'live',attacker_id:'host'}],ranking:[],history:[]};
+  const world={player:{id:'third',name:'Terceiro'},wallet:{balance:0,available:0,reserved:0},economy:{minEntry:0,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'defender',owner_name:'Defensor',battle_id:'live',attacker_id:'host'},{id:'se-aracaju',name:'Capital',ordinal:5,cpu_share:.5,owner_id:'elsewhere',battle_id:'other-live',attacker_id:'another'}],ranking:[],history:[]};
   const bridge={start(record,command){started.push({record,command});},apply(){},control(){},commandStatus(){},stop(){},show(){}};
   class Events{constructor(){this.handlers={};sources.push(this);}addEventListener(type,fn){this.handlers[type]=fn;}close(){}}
   const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog,'#game':game,'#backToWorld':back,'#worldJoinSite':select}[selector]||element();}};
@@ -70,13 +70,19 @@ test('a third player sees the public attack alert, watches read-only, then selec
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(body.children[0].innerHTML.includes('Agreste sob ataque'));assert(root.innerHTML.includes('ASSISTIR BATALHA'));
   await root.listeners.click({target:{closest:()=>({dataset:{action:'attack'}})}});await flush();
-  assert.equal(started[0].record.playerOwner,0);const panel=game.children[0];assert(panel.innerHTML.includes('ESPECTADOR'));assert(panel.innerHTML.includes('Base 13 · Heliporto'));assert(!panel.innerHTML.includes('data-battle-action="join" disabled'));assert(panel.innerHTML.includes('Sem saldo: sem saque nem perda'));
+  assert.equal(started[0].record.playerOwner,0);const panel=game.children[0],tools=game.children[1];
+  assert.equal(panel.innerHTML,'','spectators never have a fixed panel over the map');assert.equal(body.children[0].innerHTML,'');
+  assert(tools.innerHTML.includes('w-spectator-eye'));assert(tools.innerHTML.includes('1 espectador'));assert(!tools.innerHTML.includes('<b>1</b>'));
+  sources[0].handlers.spectators({data:JSON.stringify({count:3})});assert(tools.innerHTML.includes('<b>3</b>'));
+  await tools.listeners.click({target:{closest:()=>({})}});assert(dialog.open);assert(dialog.innerHTML.includes('ESPECTADOR'));assert(dialog.innerHTML.includes('Base 13 · Heliporto'));assert(dialog.innerHTML.includes('Sem saldo: sem saque nem perda'));
   const before=calls.length;await started[0].command({type:'send',sources:[4],target:0});assert.equal(calls.length,before);
-  await panel.listeners.click({target:{closest:()=>({dataset:{battleAction:'join'}})}});await flush();
-  assert.equal(calls.find(call=>call.path.endsWith('/join')).body.site,12);assert(panel.innerHTML.includes('Aguardando a confirmação'));
+  await dialog.listeners.click({target:{closest:()=>({dataset:{dialog:'battle-join'}})}});await flush();
+  assert.equal(calls.find(call=>call.path.endsWith('/join')).body.site,12);assert(dialog.innerHTML.includes('Aguardando a confirmação'));assert.equal(panel.innerHTML,'');
   assert(engine.join(3,12));
   sources[0].handlers.state({data:JSON.stringify({...watch,playerOwner:3,joinState:'active',canJoin:false,revision:1,snapshot:engine.snapshot(),players:[...watch.players,{owner:3,name:'Terceiro'}]})});
-  assert.equal(started.at(-1).record.playerOwner,3);assert.equal(panel.innerHTML,'');
+  assert.equal(started.at(-1).record.playerOwner,3);assert.equal(panel.innerHTML,'');assert.equal(dialog.open,false);assert(!tools.innerHTML.includes('data-battle-options'));
+  sources[0].handlers.spectators({data:JSON.stringify({count:2})});assert(tools.innerHTML.includes('<b>2</b>'));assert(!tools.innerHTML.includes('<button'));
+  sources[0].handlers.spectators({data:JSON.stringify({count:0})});assert.equal(tools.innerHTML,'');
 });
 test('returning player sees every recent attack, is not repeatedly interrupted, and can select a counterattack target',async()=>{
   const root=element(),dialog=element(),body=element(),back=element(),calls=[],started=[],storage=new Map(),listeners={};

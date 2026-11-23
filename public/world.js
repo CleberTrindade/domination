@@ -25,6 +25,7 @@
   let simulation=null,pendingCompletion=null,completing=false,completionTimer=null,relayBusy=false,lastHttpRelay=0,localOrders=0;
   const alerts=document.createElement('aside');alerts.id='worldAlerts';alerts.setAttribute('aria-live','polite');document.body.append(alerts);
   const battlePanel=document.createElement('div');battlePanel.id='worldBattlePanel';document.querySelector('#game').append(battlePanel);let panelDigest='',relayReceipts=[];
+  const battleTools=document.createElement('div');battleTools.id='worldBattleTools';document.querySelector('#game').append(battleTools);let toolsDigest='';
   async function api(path, options = {}) {
     const {timeout=15000,...request}=options,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
     try{
@@ -42,7 +43,8 @@
   const tutorial=window.createWorldTutorial?.({bridge,getData:()=>data,post,navigate:(key,army)=>{if(army)armyTab=army;navigate(key);},modal,dialog,render});
   const swords=()=>'<svg class="w-swords" viewBox="0 0 32 32" aria-hidden="true"><g class="sword-left"><path d="M5 3l5 2 14 16-4 4L5 8z"/><path d="M17 24l7-7m-1 7 5 5"/></g><g class="sword-right"><path d="M27 3l-5 2L8 21l4 4L27 8z"/><path d="M15 24l-7-7m1 7-5 5"/></g></svg>';
   function renderAlerts(){
-    const visible=[...threats.values()].filter(t=>current?.id!==t.battleId);
+    if(current||replay){if(alertDigest){alertDigest='';alerts.innerHTML='';}return;}
+    const visible=[...threats.values()];
     const html=visible.map(t=>`<button class="w-attack-alert" data-defense="${esc(t.battleId)}">${swords()}<span><strong>Sua área está sob ataque!</strong><small>${esc(t.areaName)} · ${esc(t.attackerName||'Comandante rival')}</small><b>ASSUMIR DEFESA ›</b></span></button>`).join('')+[...watchedThreats.values()].filter(t=>current?.id!==t.battleId).map(t=>`<button class="w-attack-alert public-battle" data-watch="${esc(t.battleId)}">${swords()}<span><strong>${esc(t.areaName)} sob ataque</strong><small>Batalha em andamento · acompanhe a disputa</small><b>ASSISTIR BATALHA ›</b></span></button>`).join('');
     if(html!==alertDigest){alertDigest=html;alerts.innerHTML=html;}
   }
@@ -350,7 +352,7 @@
     } catch (e) { error = e.message; render(); }
   }
   function modal(html,view='') {
-    const replace=dialog.open&&view==='troop'&&dialog.dataset.view==='troop';
+    const replace=dialog.open&&['troop','battle-watch'].includes(view)&&dialog.dataset.view===view;
     if(dialog.open&&!replace)dialog.close();
     dialog.dataset.view=view;dialog.classList.toggle('w-dialog-troop',view==='troop');dialog.innerHTML=html;
     if(!replace)dialog.showModal();
@@ -449,19 +451,31 @@
   }
   function renderBattlePanel(){
     if(replay){battlePanel.innerHTML='<strong>REPLAY · '+esc(replay.record.areaName)+'</strong><p>'+(replay.over?'Reprodução concluída':replay.paused?'Pausado':'Assistindo à partida gravada')+'</p><div class="w-replay-controls"><button data-replay-action="pause" '+(replay.over?'disabled':'')+'>'+(replay.paused?'▶ CONTINUAR':'Ⅱ PAUSAR')+'</button><button data-replay-action="speed">'+replay.speed+'×</button><button data-replay-action="restart">↺ REINICIAR</button><button data-replay-action="close">SAIR</button></div>';return;}
-    if(!current){battlePanel.innerHTML='';panelDigest='';return;}
-    const me=current.playerOwner??1,sites=current.joinableSites||[],eliminated=me>0&&Array.isArray(current.snapshot.activeOwners)&&!current.snapshot.activeOwners.includes(me)&&!current.snapshot.over;
-    const digest=JSON.stringify({me,sites,canJoin:current.canJoin,joinState:current.joinState,joinError:current.joinError,eliminated,busy,economy:current.economy,available:data?.wallet?.available,level:data?.army?.level,players:current.players});
-    if(digest===panelDigest)return;panelDigest=digest;
-    battlePanel.classList.toggle('is-participant',me>0);
-    const selected=battlePanel.querySelector('select')?.value;
-    const kind={P:'Garagem',G:'Garagem',H:'Heliporto',B:'Botes',A:'Canhão'};
-    if(me===0){
-      const pending=current.joinState==='pending';
-      battlePanel.innerHTML=`<strong>ESPECTADOR · BATALHA EM ANDAMENTO</strong>${current.joinError?'<p class="w-join-error">'+esc(current.joinError)+'</p>':''}${pending?'<p>Aguardando a confirmação da sua entrada…</p>':current.canJoin&&sites.length?`<p>Escolha uma base neutra para entrar com 25 tropas.${data?.army?' Suas tropas entram com os níveis individuais atuais.':''}</p>${data?.wallet?'<p>Reserva: '+money(entryStake())+' moedas. '+(data.wallet.available===0?'Sem saldo: sem saque nem perda. A primeira conquista da CPU pode render bônus, quando disponível.':'Saque de 40% do menor saldo contra cada adversário, arredondado para baixo.')+'</p>':''}<div class="w-join-controls"><select id="worldJoinSite" aria-label="Base neutra para entrar"><option value="" disabled selected>Escolha uma base livre</option>${sites.map(site=>`<option value="${site.id}">Base ${site.id+1} · ${kind[site.kind]||'Base'}</option>`).join('')}</select><button data-battle-action="join" ${busy?'disabled':''}>ENTRAR</button></div>`:'<p>'+(current.joinState==='left'?'Você saiu desta disputa e pode acompanhar o restante.':sites.length?'Os quatro exércitos já estão ocupados.':'Não há base neutra disponível. Você pode continuar assistindo.')+'</p>'}`;
-      const input=battlePanel.querySelector('select');if(selected&&sites.some(site=>String(site.id)===selected)&&input)input.value=selected;
-    }else battlePanel.innerHTML=eliminated?'<strong>SEU EXÉRCITO FOI ELIMINADO</strong><p>A reserva continua vinculada ao resultado.</p><button data-battle-action="leave">VOLTAR AO MAPA</button>':current.economy?'<strong>'+((current.players||[]).find(p=>p.owner===me)?.level?'Maior nível: '+current.players.find(p=>p.owner===me).level+' · ':'')+'🪙 '+money(current.economy.atRisk)+' reservadas</strong><p>Saque possível: até '+money(current.economy.maxLoot)+' moedas'+(current.economy.cpuReward?' · CPU: +'+money(current.economy.cpuReward):'')+'</p>':'';
+    if(battlePanel.innerHTML)battlePanel.innerHTML='';
+    if(!current){battleTools.innerHTML='';toolsDigest='';panelDigest='';return;}
+    const me=current.playerOwner??1,count=Math.max(me===0?1:0,Math.trunc(Number(current.spectatorCount)||0));
+    const label=count===1?'1 espectador':count+' espectadores';
+    const eye='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const tools=count?me===0?'<button class="w-spectator-eye" data-battle-options aria-label="'+label+' · opções da batalha" title="Opções da batalha">'+eye+(count>1?'<b>'+count+'</b>':'')+'</button>':'<span class="w-spectator-eye" role="status" aria-label="'+label+'" title="'+label+'">'+eye+(count>1?'<b>'+count+'</b>':'')+'</span>':'';
+    if(tools!==toolsDigest){toolsDigest=tools;battleTools.innerHTML=tools;}
+    const digest=JSON.stringify({me,sites:current.joinableSites,canJoin:current.canJoin,joinState:current.joinState,joinError:current.joinError,busy});
+    if(digest!==panelDigest){panelDigest=digest;if(dialog.open&&dialog.dataset.view==='battle-watch'){if(me===0)showWatchOptions();else dialog.close();}}
   }
+  function showWatchOptions(preselected){
+    if(!current||current.playerOwner!==0)return;
+    const sites=current.joinableSites||[],kind={P:'Garagem',G:'Garagem',H:'Heliporto',B:'Botes',A:'Canhão'};
+    const selected=preselected??document.querySelector('#worldJoinSite')?.value??'';
+    const pending=current.joinState==='pending';
+    modal('<h2>ESPECTADOR · BATALHA EM ANDAMENTO</h2><p>Você está assistindo à disputa. Feche esta janela para acompanhar o campo inteiro.</p>'+
+      (current.joinError?'<p class="w-join-error">'+esc(current.joinError)+'</p>':'')+
+      (pending?'<p>Aguardando a confirmação da sua entrada…</p>':current.canJoin&&sites.length?
+        '<p>Escolha uma base neutra para entrar com 25 tropas.'+(data?.army?' Suas tropas entram com os níveis individuais atuais.':'')+'</p>'+
+        (data?.wallet?'<p>Reserva: '+money(entryStake())+' moedas. '+(data.wallet.available===0?'Sem saldo: sem saque nem perda. A primeira conquista da CPU pode render bônus, quando disponível.':'Saque de 40% do menor saldo contra cada adversário, arredondado para baixo.')+'</p>':'')+
+        '<label for="worldJoinSite">Base neutra para entrar</label><div class="w-join-controls"><select id="worldJoinSite"><option value="" disabled '+(selected===''?'selected':'')+'>Escolha uma base livre</option>'+sites.map(site=>'<option value="'+site.id+'" '+(String(site.id)===String(selected)?'selected':'')+'>Base '+(site.id+1)+' · '+(kind[site.kind]||'Base')+'</option>').join('')+'</select><button class="w-cta" data-dialog="battle-join" '+(busy?'disabled':'')+'>ENTRAR</button></div>':
+        '<p>'+(current.joinState==='left'?'Você saiu desta disputa e pode acompanhar o restante.':sites.length?'Os quatro exércitos já estão ocupados.':'Não há base neutra disponível.')+'</p>')+
+      '<button class="w-textbtn" data-dialog="close">VOLTAR À BATALHA</button>','battle-watch');
+  }
+
   async function watch(id){
     if(!data?.player){authForm();return;}
     if(current&&current.id!==id&&(current.playerOwner??1)>0){modal('<h2>Você está em batalha</h2><p>Conclua sua participação ou saia da batalha atual antes de acompanhar outra disputa.</p><button class="w-cta" data-dialog="close">CONTINUAR</button>');return;}
@@ -566,7 +580,7 @@
     }
     finally{localOrders--;finishSimulation();}
   }
-  function stopStream() { events?.close(); events = null;simulation?.terminate();simulation=null;pendingCompletion=null;clearTimeout(completionTimer);completionTimer=null; current = null; bridge.stop();renderAlerts();renderBattlePanel(); }
+  function stopStream() { events?.close(); events = null;simulation?.terminate();simulation=null;pendingCompletion=null;clearTimeout(completionTimer);completionTimer=null; current = null;if(dialog.dataset.view==='battle-watch')dialog.close();bridge.stop();renderAlerts();renderBattlePanel(); }
   function battleResult(final) {
     profile=null;
     if (!current) return;
@@ -590,6 +604,7 @@
     renderBattlePanel();
     events = new EventSource('/api/world/battles/' + record.id + '/events');
     events.addEventListener('state', event => applyRecord(JSON.parse(event.data)));
+    events.addEventListener('spectators',event=>{if(current?.id!==record.id)return;current.spectatorCount=JSON.parse(event.data).count;renderBattlePanel();});
     events.addEventListener('host',event=>hostChanged(JSON.parse(event.data)));
     events.addEventListener('input',event=>{if(current?.id===record.id)simulation?.postMessage({type:'input',input:JSON.parse(event.data)});});
     events.addEventListener('result', event => { if (!switchingDefense&&current?.id === record.id) battleResult(JSON.parse(event.data)); });
@@ -666,7 +681,7 @@
     renderBattlePanel();
   }
   window.WorldApp = {
-    selectJoinSite(id){if(current?.playerOwner!==0||!current.canJoin||!current.joinableSites?.some(site=>site.id===id))return;const input=document.querySelector('#worldJoinSite');if(input)input.value=String(id);bridge.selectJoinSite?.(id);},
+    selectJoinSite(id){if(current?.playerOwner!==0||!current.canJoin||!current.joinableSites?.some(site=>site.id===id))return;bridge.selectJoinSite?.(id);showWatchOptions(id);},
     show() { if(tutorial?.active()){tutorial.pause();return;}if(replay){stopReplay();return;}if(current?.playerOwner===2){this.requestSurrender();return;}bridge.show(); refresh(true); },
     requestSurrender() {
       if(tutorial?.active()){tutorial.pause();return;}
@@ -731,6 +746,7 @@
     if(receivedAction(button))return;
     if(button.dataset.formationKind){chooseFormationKind(button.dataset.formationKind);return;}
     const action = button.dataset.dialog;
+    if(action==='battle-join'){await joinCurrent();return;}
     if(action==='toggle-password'){const input=dialog.querySelector('#commanderPassword');if(!input)return;const visible=input.type==='password';input.type=visible?'text':'password';button.textContent=visible?'OCULTAR SENHA':'MOSTRAR SENHA';button.setAttribute('aria-pressed',String(visible));return;}
     if(action==='difficulty-save'){await saveDifficulty();return;}
     if(action==='difficulty-later'){deferDifficulty();return;}
@@ -775,8 +791,9 @@
   });
   document.querySelector('#backToWorld').addEventListener('click', () => window.WorldApp.show());
   alerts.addEventListener('click',event=>{const button=event.target.closest('button');if(button?.dataset.defense)defend(button.dataset.defense);else if(button?.dataset.watch)watch(button.dataset.watch);});
-  battlePanel.addEventListener('click',event=>{const button=event.target.closest('button');if(button?.dataset.replayAction){replayAction(button.dataset.replayAction);return;}const action=button?.dataset.battleAction;if(action==='join')joinCurrent();if(action==='leave')window.WorldApp.requestSurrender();});
-  battlePanel.addEventListener('change',event=>{if(event.target.id==='worldJoinSite')window.WorldApp.selectJoinSite(Number(event.target.value));});
+  battlePanel.addEventListener('click',event=>{const button=event.target.closest('button');if(button?.dataset.replayAction)replayAction(button.dataset.replayAction);});
+  battleTools.addEventListener('click',event=>{if(event.target.closest('button'))showWatchOptions();});
+  dialog.addEventListener('change',event=>{if(event.target.id==='worldJoinSite')bridge.selectJoinSite?.(Number(event.target.value));});
   document.addEventListener('visibilitychange', () => { if (!document.hidden) {reviewOnReturn=true;refresh(true);ensureSocket();} });
   setInterval(()=>{if(socketReady)socket.send(JSON.stringify({type:'ping'}));},20000);
   setInterval(() => { if (!document.hidden&&(!current||!socketReady)) refresh(); }, 12000);

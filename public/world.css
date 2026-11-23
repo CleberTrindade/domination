@@ -25,6 +25,17 @@
 @keyframes sword-clash-right{0%,100%{transform:rotate(14deg)}45%,60%{transform:rotate(-8deg)}}
 #worldAlerts{position:fixed;z-index:35;left:50%;top:72px;transform:translateX(-50%);width:calc(100% - 28px);max-width:450px;display:flex;flex-direction:column;gap:7px;max-height:32dvh;overflow:auto;pointer-events:none}
 #worldAlerts:empty{display:none}.w-attack-alert{pointer-events:auto;display:flex;align-items:center;gap:12px;padding:12px 15px;border:2px solid #fff;border-radius:14px;background:#fff2dc;color:#76442b;box-shadow:0 5px 20px #182f5545;text-align:left;cursor:pointer}
+.world-battle #worldAlerts{display:none}
+#worldBattleTools{position:absolute;left:14px;bottom:20px;z-index:15;pointer-events:none;display:flex;align-items:center}
+#worldBattleTools:empty{display:none}
+.w-spectator-eye{display:flex;align-items:center;justify-content:center;gap:4px;min-width:38px;min-height:36px;padding:6px 8px;border:1px solid #81f5b0;border-radius:13px;color:#6dffa0;background:#0a3c39df;font:bold 14px Nunito;box-shadow:0 2px 7px #082e3440}
+.w-spectator-eye svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8}
+.w-spectator-eye b{min-width:10px}
+button.w-spectator-eye{pointer-events:auto;cursor:pointer}
+button.w-spectator-eye:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#worldDialog .w-join-controls{align-items:center;margin:12px 0}
+#worldDialog .w-join-controls select{min-width:0;flex:1;min-height:44px;border:1px solid #88a6bd;border-radius:8px;background:#fff;color:#294268;padding:8px;font:12px Nunito}
+#worldDialog .w-join-controls .w-cta{width:auto;margin:0;padding:10px 14px}
 .w-attack-alert .w-swords{width:36px;height:36px;fill:#4d658a;stroke:#6d4251}.w-attack-alert strong,.w-attack-alert small,.w-attack-alert b{display:block}.w-attack-alert strong{font:17px 'Lilita One'}.w-attack-alert small{font-size:10px;margin:3px 0}.w-attack-alert b{font-size:9px;letter-spacing:.5px;color:#a04b35}
 #worldCommandStatus{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:12;max-width:85%;padding:7px 11px;border-radius:9px;background:#193a68de;color:#fff;font:12px Nunito;text-align:center;pointer-events:none}
 #worldCommandStatus:empty{display:none}#worldCommandStatus.failed{background:#9c453be8}
