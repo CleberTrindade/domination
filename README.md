@@ -756,10 +756,10 @@ A versão acompanha configurações, checkpoints e replays. Partidas gravadas
 sem essa versão mantêm as regras anteriores para reproduzir o mesmo resultado;
 os círculos de alcance exibidos respeitam a versão da partida.
 
-Novas batalhas da área 5 também usam `defenseVersion: capital-v6`: produção
-básica da CPU de 0,850 tropa/s, intervalo médio de decisão de 2,35 s e 70 tropas
+Novas batalhas da área 5 também usam `defenseVersion: capital-v7`: produção
+básica da CPU de 0,875 tropa/s, intervalo médio de decisão de 2,35 s e 70 tropas
 iniciais (26 no quartel, 14 no central e 15 em cada uma das duas bases de apoio).
 Os multiplicadores de produção do quartel e de cada tipo de tropa continuam
 aplicáveis. A versão acompanha checkpoints e replays; as áreas 1–4 e registros
 anteriores conservam seus parâmetros.
-Replays com `capital-v2`, `capital-v3`, `capital-v4` e `capital-v5` preservam seus intervalos de 2,45 s, 2,50 s, 2,47 s e 2,45 s, respectivamente.
+Replays com `capital-v2`, `capital-v3`, `capital-v4`, `capital-v5` e `capital-v6` preservam a produção de 0,850 tropa/s e seus intervalos de 2,45 s, 2,50 s, 2,47 s, 2,45 s e 2,35 s, respectivamente.
