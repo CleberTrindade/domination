@@ -256,7 +256,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         const opponents=new Set([original.attackerId,...[...(original.members?.values()||[])].filter(p=>p.owner>=3).map(p=>p.playerId)]);
         if(!opponents.has(area.owner_id))throw new HttpError(409,'Essa área não pertence mais ao agressor. Atualize a lista de ataques.');
       }
-      const config={share:.50,difficulty:area.ordinal,seed:randomInt(1,2147483647),centralOwner:2,defenderBaseCount:ARMY_RULES.defenderBaseCount,balanceVersion:ARMY_RULES.balanceVersion,combatVersion:troopRules.COMBAT_VERSION,mapId:engineFactory.maps.forArea(area.id)};
+      const config={share:.50,difficulty:area.ordinal,seed:randomInt(1,2147483647),centralOwner:2,defenderBaseCount:ARMY_RULES.defenderBaseCount,balanceVersion:ARMY_RULES.balanceVersion,combatVersion:troopRules.COMBAT_VERSION,...(area.ordinal===5?{defenseVersion:engineFactory.combatRules.defenseVersion}:{}),mapId:engineFactory.maps.forArea(area.id)};
       const battle={id:randomUUID(),areaId:area.id,areaName:area.name,areaVersion:area.version,attackerId:player.id,attackerName:player.display_name,
         defenderId:area.owner_id,defenderName:area.owner_name||'Guarnição da CPU',config,
         status:'active',startedAt:new Date(now()).toISOString(),lastClientAt:now(),lastHostAt:now(),revision:0,streams:new Set(),inputs:new Map(),resume:null,retaliationOf,members:new Map(),withdrawn:new Set(),hostId:player.id,hostEpoch:randomUUID(),stakes:new Map(),cpuRewardAvailable:!area.owner_id&&!area.cpu_reward_claimed,cpuReward:areaProfile(area.ordinal).cpuReward};
