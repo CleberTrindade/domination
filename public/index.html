@@ -515,6 +515,8 @@ return {S:__m.sprites2,U3:__m.units3d};})();
 </script>
 <script src="/troop-rules.js"></script>
 <script src="/troop-art.js?v=bases-v2"></script>
+<script src="/battle-sprites-manifest.js"></script>
+<script src="/battle-sprites.js"></script>
 <script>
 (()=>{
 'use strict';
@@ -627,9 +629,9 @@ function drawMap(c,L,sites,pal=[0,1,2,3,4]){
       c.beginPath();c.moveTo(p[a][0],p[a][1]);c.lineTo(p[b][0],p[b][1]);c.stroke()}}
   c.restore();
 }
-/* ---- sprites (SVG → imagem, desenhadas no canvas) ---- */
+/* ---- cached bitmap sheets, with SVG fallback ---- */
 const SPR=(()=>{
-  const D=window.DSPR||null,RS=3,cache=new Map();
+  const D=window.DSPR||null,R=window.DOMINATION_BATTLE_SPRITES,RS=3,cache=new Map();
   function img(key,make,vb){let e=cache.get(key);if(e)return e;e={ok:false,vb};cache.set(key,e);
     if(!D)return e;const [x,y,w,h]=vb;
     const s=`<svg xmlns="http://www.w3.org/2000/svg" width="${w*RS}" height="${h*RS}" viewBox="${x} ${y} ${w} ${h}">${make()}</svg>`;
@@ -637,15 +639,15 @@ const SPR=(()=>{
   const BVB=[-30,-46,60,64],UVB=[-30,-50,60,62],N=32;
   const hi=h=>((Math.round(h/(2*Math.PI)*N)%N)+N)%N;
   return {loaded:0,
-    building:(kind,col)=>img('b'+D.artVersion+kind+col,()=>D.S.building(kind,col,1,{part:'base'}),BVB),
-    turret:(col,h)=>{const k=hi(h);return img('t'+col+'_'+k,()=>D.S.building('canhao',col,1,{part:'turret',h:k*2*Math.PI/N}),BVB)},
-    unit:(kind,col,h)=>{const k=hi(h);return img('u'+kind+col+'_'+k,()=>D.U3.unit3d(kind,col,k*2*Math.PI/N,0,1,{noShadow:1,noRotor:1,lift:kind==='heli'?12:1}),UVB)},
-    draw(c,e,x,y,s){if(!e.ok)return false;const [vx,vy,w,h]=e.vb;c.drawImage(e.im,x+vx*s,y+vy*s,w*s,h*s);return true},
+    building:(kind,col)=>R?.building(kind,col)||img('b'+D.artVersion+kind+col,()=>D.S.building(kind,col,1,{part:'base'}),BVB),
+    turret:(col,h)=>{const k=hi(h);return R?.turret(col,h)||img('t'+col+'_'+k,()=>D.S.building('canhao',col,1,{part:'turret',h:k*2*Math.PI/N}),BVB)},
+    unit:(kind,col,h)=>{const k=hi(h);return R?.unit(kind,col,h)||img('u'+kind+col+'_'+k,()=>D.U3.unit3d(kind,col,k*2*Math.PI/N,0,1,{noShadow:1,noRotor:1,lift:kind==='heli'?12:1}),UVB)},
+    draw(c,e,x,y,s){if(!e.ok)return false;const [vx,vy,w,h]=e.vb;if(e.sw)c.drawImage(e.im,e.sx,e.sy,e.sw,e.sh,x+vx*s,y+vy*s,w*s,h*s);else c.drawImage(e.im,x+vx*s,y+vy*s,w*s,h*s);return true},
     muzzle(s,h){ // ponto da boca do cano (coordenadas do mapa)
       if(s.kind==='central'){let best=null,bd=1e9;const a=h*180/Math.PI;for(const g of D.S.CGUN){const d=Math.abs(((a-g.deg)%360+540)%360-180);if(d<bd){bd=d;best=g}}return[s.x+best.mx*1.32,s.y-2+best.my*1.32]}
       const m=D.U3.turretMuzzle(h);return[s.x+m[0]*1.32,s.y-2+(m[1]-1)*1.32]},
     preload(cols){if(!D)return;for(const col of cols)for(const k of ['quartel','garagem','heli','botes','canhao','central'])this.building(k,col)},
-    preloadUnits(cols,kinds=['tanque','desliz','heli']){if(!D)return;const q=[];for(const col of cols){for(let i=0;i<N;i++){const h=i*2*Math.PI/N;for(const k of kinds)q.push(()=>this.unit(k,col,h));q.push(()=>this.turret(col,h))}}
+    preloadUnits(cols,kinds=['tanque','desliz','heli']){if(!D)return;if(R){for(const col of cols){for(const kind of kinds)this.unit(kind,col,0);this.turret(col,0);}return;}const q=[];for(const col of cols){for(let i=0;i<N;i++){const h=i*2*Math.PI/N;for(const k of kinds)q.push(()=>this.unit(k,col,h));q.push(()=>this.turret(col,h))}}
       const step=()=>{for(let n=0;n<4&&q.length;n++)q.shift()();if(q.length)setTimeout(step,16)};step()}
   };
 })();
@@ -820,7 +822,8 @@ function newGame(o){
   game.reach=game.L.reach;
   game.dropM=game.mode==='solo'?{1:0.35}:{1:0.35,2:0.35};
   for(const s of game.sites){s.cd=0;s.vh=null;s.kick=null}
-  SPR.preload([...new Set(game.pal)]);SPR.preloadUnits([...new Set(game.pal)],game.armyProfiles?[...new Set(['desliz','heli',...Object.values(game.armyProfiles).flatMap(a=>a.loadout||['tanque'])])]:undefined);
+  const colors=[...new Set([0,...Object.keys(game.par).map(owner=>game.pal[owner])])];
+  SPR.preload(colors);SPR.preloadUnits(colors.filter(col=>col!==0),game.armyProfiles?[...new Set(['desliz','heli',...Object.values(game.armyProfiles).flatMap(a=>a.loadout||['tanque'])])]:undefined);
   PTR.clear();lastBar='';
   $('#btnDrop').style.display=game.mode==='local'?'none':'';
   resize();
@@ -1478,7 +1481,7 @@ function render(){
   const C=g.sites[(g.L.geometry||HX).center];
   for(const s of g.sites){if(s.kind!=='canhao')continue;const tx=s.tx!=null?s.tx:C.x,ty=s.ty!=null?s.ty:C.y;s.vh=turnTo(s.vh,ang(tx-s.x,ty-s.y),rdt*12);if(s.kick!=null)s.kick+=rdt}
   // prédios e marcadores (de trás para frente)
-  const bs=g.sites.slice().sort((a,b)=>a.y-b.y);
+  const bs=g.drawSites||(g.drawSites=g.sites.slice().sort((a,b)=>a.y-b.y));
   for(const s of bs)drawBase(c,s,P[s.owner]||0,X,Y,SC);
   for(const s of bs)if(s.fortification>0){c.font=`${9*SC}px Nunito`;c.textAlign='center';c.fillStyle='#c9f5ff';c.fillText('🛡 '+Math.ceil(s.fortification),X(s.x),Y(s.y+27));}
   for(const s of bs){const col=P[s.owner]||0,cap=s.owner?g.par[s.owner].cap:0,tr=Math.floor(s.troops);
@@ -1560,8 +1563,9 @@ function hud(){
     if(g.timeTag!==tag){g.timeTag=tag;$('#lvTag').innerHTML=tag;}
   }
   if(g.mode==='online'){const k='L'+g.elim.join(',')+(g.gone?Object.keys(g.gone).join(','):'');if(k!==g.legKey){g.legKey=k;$('#legend').innerHTML=Array.from({length:g.n},(_,i)=>i+1).map(o=>`<span class="${g.elim.includes(o)?'out':''}"><i style="background:${COL[g.pal[o]].base}"></i>${o===g.me?'Você':esc(g.names[o])}</span>`).join('')}}
-  const b=$('#btnDrop'),dm=g.dropM[g.me]||0;b.style.setProperty('--p',Math.round(dm*100));
-  b.classList.toggle('ready',dm>=1&&!g.dropMode);b.classList.toggle('active',g.dropMode);
+  const dm=g.dropM[g.me]||0,dropKey=Math.round(dm*100)+':'+(dm>=1)+':'+!!g.dropMode;
+  if(g.dropHudKey!==dropKey){g.dropHudKey=dropKey;const b=$('#btnDrop');b.style.setProperty('--p',Math.round(dm*100));
+    b.classList.toggle('ready',dm>=1&&!g.dropMode);b.classList.toggle('active',g.dropMode);}
 }
 
 // World battles use browser workers; this bridge reuses the existing renderer.
@@ -1614,10 +1618,18 @@ window.DOMINATION_WORLD_BRIDGE={
 };
 
 window.DOMDBG=()=>({game,VX,VY,SC,HX,send});
-let last=performance.now();
+let last=performance.now(),lastPaint=0;
+const PAINT_STEP=1000/60;
 function loop(now){
   const dt=Math.min(0.1,(now-last)/1000);last=now;
-  if(game){frame(dt);if(game&&(game.mode!=='world'||document.body.classList.contains('world-battle'))){render();hud()}}
+  if(game){
+    frame(dt);
+    if(game&&!document.hidden&&(game.mode!=='world'||document.body.classList.contains('world-battle'))&&now-lastPaint>=PAINT_STEP-.5){
+      // Retain fractional time so 72/90/144 Hz displays still average 60 paints/s.
+      lastPaint=now-Math.min(PAINT_STEP,Math.max(0,now-lastPaint-PAINT_STEP));
+      render();hud();
+    }
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

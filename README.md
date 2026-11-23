@@ -698,3 +698,23 @@ as marcações 1 e 2. No passeio, uma janela de destaque acompanha o recurso rea
 mesmo após rolagem ou redimensionamento; o painel do orientador permanece claro.
 Os formulários de cadastro e login permitem mostrar/ocultar a senha sem trocar
 seu valor ou enviar o formulário.
+
+### Desenho das batalhas
+
+As artes aprovadas são pré-renderizadas em folhas WebP sem perdas, com as mesmas
+32 direções, cores, resolução e enquadramento dos modelos vetoriais. Cada tipo e
+cor compartilha uma imagem para todas as direções. O cliente carrega somente as
+folhas necessárias e decodifica as imagens de forma assíncrona. Isso evita gerar
+e rasterizar centenas de SVGs durante a partida. Se uma folha falhar, o desenho
+vetorial existente é usado como alternativa.
+
+O desenho limita-se a 60 quadros por segundo, inclusive em telas de 72–144 Hz,
+sem alterar atualizações da simulação, velocidade, combate ou sincronização.
+Abas ocultas deixam de desenhar. A ordem dos prédios e o estado visual do botão
+de reforços são reutilizados quando não mudam.
+
+`npm run sprites:build` regenera as 55 folhas a partir de `public/troop-art.js`.
+Commitar o manifesto e as imagens geradas; o Render apenas serve os arquivos,
+sem executar a geração. Nomes com hash permitem cache imutável. Ao atualizar a
+arte, revisar arquivos antigos que deixarem de ser referenciados. Os testes
+verificam pixels, direções, cache, rotas HTTP e cadência de desenho.

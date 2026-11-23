@@ -1,0 +1,734 @@
+{
+  "version": 1,
+  "bases": [
+    "quartel",
+    "garagem",
+    "heli",
+    "botes",
+    "canhao",
+    "central",
+    "batedor",
+    "foguetes",
+    "blindado",
+    "antiaereo",
+    "engenheiro",
+    "artilharia"
+  ],
+  "atlases": {
+    "bases0": {
+      "file": "bases-0-cfd838d57779.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 12
+    },
+    "turret0": {
+      "file": "turret-0-f8deba4fe6c3.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 32
+    },
+    "tanque0": {
+      "file": "tanque-0-179e1c1b42a8.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "desliz0": {
+      "file": "desliz-0-b500d7078413.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "heli0": {
+      "file": "heli-0-896e6297e9c8.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "batedor0": {
+      "file": "batedor-0-ee5a0610202a.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "foguetes0": {
+      "file": "foguetes-0-a71bc024a476.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "blindado0": {
+      "file": "blindado-0-6edbf3e15a77.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "antiaereo0": {
+      "file": "antiaereo-0-174b16e23cc4.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "engenheiro0": {
+      "file": "engenheiro-0-9b3ff6d91ae2.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "artilharia0": {
+      "file": "artilharia-0-66e47842fd3a.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "bases1": {
+      "file": "bases-1-98189ddf4313.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 12
+    },
+    "turret1": {
+      "file": "turret-1-d5893be717c1.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 32
+    },
+    "tanque1": {
+      "file": "tanque-1-c3a2ea73532b.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "desliz1": {
+      "file": "desliz-1-90db9282e652.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "heli1": {
+      "file": "heli-1-086865d9b884.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "batedor1": {
+      "file": "batedor-1-b9e13c83f432.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "foguetes1": {
+      "file": "foguetes-1-19024af63874.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "blindado1": {
+      "file": "blindado-1-0de448268698.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "antiaereo1": {
+      "file": "antiaereo-1-cae386d3126a.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "engenheiro1": {
+      "file": "engenheiro-1-81f729739aae.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "artilharia1": {
+      "file": "artilharia-1-f90b40bca172.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "bases2": {
+      "file": "bases-2-1c9c55ef29c1.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 12
+    },
+    "turret2": {
+      "file": "turret-2-c870092ee232.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 32
+    },
+    "tanque2": {
+      "file": "tanque-2-7df90ad167bf.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "desliz2": {
+      "file": "desliz-2-810d6feed27d.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "heli2": {
+      "file": "heli-2-2410fc7ea13d.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "batedor2": {
+      "file": "batedor-2-cda357b03ea0.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "foguetes2": {
+      "file": "foguetes-2-cf15b3438116.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "blindado2": {
+      "file": "blindado-2-e00d3ba6ebcd.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "antiaereo2": {
+      "file": "antiaereo-2-111c3953c28b.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "engenheiro2": {
+      "file": "engenheiro-2-0306159f7122.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "artilharia2": {
+      "file": "artilharia-2-30b991525290.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "bases3": {
+      "file": "bases-3-3cc01dd58176.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 12
+    },
+    "turret3": {
+      "file": "turret-3-724b0cd0d035.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 32
+    },
+    "tanque3": {
+      "file": "tanque-3-c17cf27b05ba.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "desliz3": {
+      "file": "desliz-3-025fac488d27.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "heli3": {
+      "file": "heli-3-d8c8896f9324.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "batedor3": {
+      "file": "batedor-3-64172ce740a2.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "foguetes3": {
+      "file": "foguetes-3-673ce143a50e.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "blindado3": {
+      "file": "blindado-3-2645c08a7466.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "antiaereo3": {
+      "file": "antiaereo-3-5163ef6f0dc5.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "engenheiro3": {
+      "file": "engenheiro-3-214f9b8ab93f.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "artilharia3": {
+      "file": "artilharia-3-fbcc150531bf.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "bases4": {
+      "file": "bases-4-788daf56daeb.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 12
+    },
+    "turret4": {
+      "file": "turret-4-8f3f31cace68.webp",
+      "vb": [
+        -30,
+        -46,
+        60,
+        64
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 192,
+      "count": 32
+    },
+    "tanque4": {
+      "file": "tanque-4-0478ee36aff6.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "desliz4": {
+      "file": "desliz-4-253025199ed6.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "heli4": {
+      "file": "heli-4-d03cc833673a.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "batedor4": {
+      "file": "batedor-4-c8c1540b6f69.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "foguetes4": {
+      "file": "foguetes-4-e54d567e9d2f.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "blindado4": {
+      "file": "blindado-4-1b36370592d8.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "antiaereo4": {
+      "file": "antiaereo-4-14c10f7b3879.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "engenheiro4": {
+      "file": "engenheiro-4-55e8c4df14a4.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    },
+    "artilharia4": {
+      "file": "artilharia-4-5ca5ef195dc2.webp",
+      "vb": [
+        -30,
+        -50,
+        60,
+        62
+      ],
+      "cols": 8,
+      "w": 180,
+      "h": 186,
+      "count": 32
+    }
+  }
+}

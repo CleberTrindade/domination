@@ -61,6 +61,10 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/replay-worker.js', ['replay-worker.js', 'application/javascript; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
   const tutorialAudio=require('../public/tutorial-audio.json');
+  const spriteManifest=require('../public/art/battle-sprites/manifest.json');
+  assets.set('/battle-sprites.js',{body:fs.readFileSync(path.join(__dirname,'../public/battle-sprites.js')),mime:'application/javascript; charset=utf-8'});
+  assets.set('/battle-sprites-manifest.js',{body:'window.DOMINATION_SPRITE_MANIFEST='+JSON.stringify(spriteManifest)+';',mime:'application/javascript; charset=utf-8'});
+  for(const atlas of Object.values(spriteManifest.atlases))assets.set('/art/battle-sprites/'+atlas.file,{body:fs.readFileSync(path.join(__dirname,'../public/art/battle-sprites',atlas.file)),mime:'image/webp'});
   assets.set('/tutorial-audio.js',{body:'window.DOMINATION_TUTORIAL_AUDIO='+JSON.stringify(tutorialAudio)+';',mime:'application/javascript; charset=utf-8'});
   for(const clip of tutorialAudio.clips)assets.set('/audio/tutorial/'+clip.file,{body:fs.readFileSync(path.join(__dirname,'../public/audio/tutorial',clip.file)),mime:'audio/mpeg'});
   assets.set('/training-battle.js',{body:fs.readFileSync(path.join(__dirname,'../shared/training-battle.js')),mime:'application/javascript; charset=utf-8'});
