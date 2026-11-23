@@ -532,6 +532,13 @@ A migração 015 mantém o contexto histórico em `world_difficulty_surveys.batt
 e remove somente as FKs da enquete para as batalhas/participantes que serão
 apagados. A regra de uma resposta por jogador/área/contexto continua válida.
 
+Quando o pedido for preservar **somente os cadastros**, incluindo apagar as
+avaliações, usar `--only-accounts` junto das opções de execução acima. Esse modo
+também apaga enquetes e amizades, reinicia o tutorial e preserva os mesmos IDs,
+nomes, senhas, datas de cadastro, códigos de convite e sessões. As moedas ficam
+zeradas e as áreas voltam à CPU. Criar uma cópia de segurança da branch antes
+da execução; os totais anteriores e o modo ficam no registro operacional do reset.
+
 ## Estrutura
 
 ```

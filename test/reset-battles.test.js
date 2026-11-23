@@ -34,5 +34,25 @@ test('reset de batalha clears progress atomically, preserving accounts, friends 
    const restarted=await createApplication({pool:db.pool,worldOptions:{startClock:false}});try{const world=await restarted.world.world({id,display_name:'Reset Hero',username:'resethero'});assert.equal(world.wallet.balance,0);assert.equal(world.history.length,0);assert(world.areas.every(a=>!a.owner_id));}finally{await restarted.close();}
    await resetBattles(db.pool);assert.deepEqual((await db.pool.query('SELECT * FROM world_difficulty_surveys ORDER BY id')).rows,answers);assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM world_reset_events')).rows[0].n,2);
   });
+  await t.test('only-accounts reset removes surveys and friendships while preserving registrations and login',async()=>{
+   await db.pool.query("UPDATE world_players SET tutorial_phase='done',tutorial_step=30");
+   const before=await previewReset(db.pool);
+   const failingPool={async connect(){const c=await db.pool.connect();return{release:()=>c.release(),query(sql){if(sql.startsWith('UPDATE world_players SET coin_balance=0'))throw Error('Injected failure');return c.query(sql);}};}};
+   await assert.rejects(resetBattles(failingPool,{onlyAccounts:true}),/Injected failure/);
+   assert.deepEqual(await previewReset(db.pool),before);
+   const after=await resetBattles(db.pool,{onlyAccounts:true});assert.equal(after.accounts,2);
+   for(const key of ['battles','replays','upgrades','occupied_areas','surveys','answered_surveys','friendships'])assert.equal(after[key],0);
+   assert.deepEqual((await db.pool.query('SELECT id,username,display_name,password_hash,friend_code,created_at FROM world_players ORDER BY id')).rows,accounts);
+   assert.equal((await db.pool.query("SELECT count(*)::int AS n FROM world_players WHERE tutorial_phase='training' AND tutorial_step=0")).rows[0].n,2);
+   assert.equal((await db.pool.query("SELECT before_counts->>'mode' AS mode FROM world_reset_events ORDER BY id DESC LIMIT 1")).rows[0].mode,'only_accounts');
+   const restarted=await createApplication({pool:db.pool,worldOptions:{startClock:false}});
+   try{
+    await new Promise(r=>restarted.server.listen(0,'127.0.0.1',r));
+    const login=await fetch('http://127.0.0.1:'+restarted.server.address().port+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'resethero',password:'reset-test-password'})});
+    assert.equal(login.status,200);assert.equal((await login.json()).player.id,id);
+    const world=await restarted.world.world({id,display_name:'Reset Hero',username:'resethero'});
+    assert.equal(world.wallet.balance,0);assert.equal(world.history.length,0);assert.equal(world.difficultySurveys.length,0);assert(world.areas.every(a=>!a.owner_id));
+   }finally{await restarted.close();}
+  });
  }finally{await app.close();await db.destroy();}
 });
