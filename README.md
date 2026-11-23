@@ -738,3 +738,20 @@ Para quem está assistindo, tocar no olho abre as opções de entrada; tocar num
 base neutra disponível abre a mesma janela com a base selecionada. Os valores
 de reserva continuam disponíveis nessa janela e na carteira, sem uma barra
 permanente sobre o campo. Nenhuma entrada ocorre antes da confirmação.
+
+### Bases e bombardeiros
+
+O manifesto inclui uma escala e um deslocamento por prédio, calculados sobre
+os pixels visíveis para manter toda a silhueta dentro do hexágono. O cálculo
+inclui as 32 direções e o recuo dos canhões; não corta nem modifica as artes.
+Os marcadores de tropas também foram reposicionados e reduzidos.
+
+Novas partidas usam `combatVersion: bombardiers-v2`: alcance do canhão de 2,6
+para 3,12 hexágonos e do central de 3,5 para 4,2 (+20% no raio). Quando um desses
+prédios não tem ligação terrestre com o alvo, envia botes; com ligação, envia
+tanques. Isso libera as posições isoladas dos mapas 1 e 5, tanto para jogadores
+quanto para a CPU. Bases terrestres comuns continuam seguindo os caminhos.
+
+A versão acompanha configurações, checkpoints e replays. Partidas gravadas
+sem essa versão mantêm as regras anteriores para reproduzir o mesmo resultado;
+os círculos de alcance exibidos respeitam a versão da partida.

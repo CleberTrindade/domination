@@ -12,7 +12,7 @@ const lessons=[
  {title:'Vença a batalha',text:'Ataque a última base vermelha com os helicópteros de 1. A vitória vem ao eliminar as bases e tropas dos outros exércitos. Nas partidas reais, preserve bases, combine rotas e reforce posições; desistir conta como derrota.',source:14,target:1}
 ];
 function createTraining(engine){
- const config={mapId:'classic',balanceVersion:'troops-v3',seed:73,defenderPower:.6,centralOwner:2,maxSeconds:3600};
+ const config={mapId:'classic',balanceVersion:'troops-v3',combatVersion:'bombardiers-v2',seed:73,defenderPower:.6,centralOwner:2,maxSeconds:3600};
  const battle=engine.createBattle(config),initial=battle.checkpoint();initial.cd=0;initial.ais=[];initial.par[2].prod=0;
  for(const site of initial.sites){site.owner=[0,1].includes(site.id)?2:site.id===4?1:0;site.hq=site.id===1||site.id===4;site.troops=site.id===4?45:3;site.cd=9999;}
  initial.dropM[1]=1;battle.restore(initial);battle.setDefenderControlled(true);

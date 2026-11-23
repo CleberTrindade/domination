@@ -144,7 +144,7 @@ test('owner sees attack alert and animated map indicator, joins defense, receive
 
 test('defenders, spectators and late entrants use safe controls and distinct army palettes in the real bridge',()=>{
   const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8'),elements=new Map();
-  const context={window:{createWorldMotion},document:{body:element(),createElement:element},performance:{now:()=>100},setTimeout,clearTimeout,
+  const context={window:{createWorldMotion,DOMINATION_TROOP_RULES:require('../shared/troop-rules')},HR:26,document:{body:element(),createElement:element},performance:{now:()=>100},setTimeout,clearTimeout,
     COL:[{}, {base:"blue"},{base:"red"},{base:"green"},{base:"purple"}],esc:value=>String(value),game:null,PTR:new Map(),closeModal(){},buildLevel(){return {sites:Array.from({length:17},(_,id)=>({id}))};},MW:390,MAPH:640,
     $(selector){if(!elements.has(selector))elements.set(selector,element());return elements.get(selector);},exitGame(){},setTab(){}};
   vm.createContext(context);
@@ -239,7 +239,7 @@ test('card and attack tabs keep the action visible, expose real per-type stats, 
  assert(dialog.innerHTML.includes('data-art="transparent-hero"'));assert(dialog.innerHTML.includes('52 / 40 cartas'));assert(dialog.innerHTML.includes('500 moedas'));assert(dialog.innerHTML.includes('Base de origem:'));assert(!dialog.innerHTML.includes('w-attack-stats'));
  await dc({troopTab:'ataque'});assert.equal(footer(),firstFooter);assert(dialog.innerHTML.includes('1,2'));assert(dialog.innerHTML.includes('120%'));assert(dialog.innerHTML.includes('0,3 s'));assert(!dialog.innerHTML.includes('Base de origem:'));assert(!/NaN|Infinity/.test(dialog.innerHTML));
  let prevented=false;dialog.listeners.keydown({key:'ArrowLeft',target:{closest:()=>true},preventDefault(){prevented=true;}});assert(prevented);assert(dialog.innerHTML.includes('data-troop-tab="carta" aria-selected="true"'));assert.equal(calls.length,before);
- await click({troop:'canhao'});await dc({troopTab:'ataque'});assert(dialog.innerHTML.includes('Alcance (hex.)'));assert(dialog.innerHTML.includes('2,6'));assert(!dialog.innerHTML.includes('Velocidade'));assert(dialog.innerHTML.includes('Fixo'));
+ await click({troop:'canhao'});await dc({troopTab:'ataque'});assert(dialog.innerHTML.includes('Alcance (hex.)'));assert(dialog.innerHTML.includes('3,12'));assert(!dialog.innerHTML.includes('Velocidade'));assert(dialog.innerHTML.includes('Fixo'));
  await click({troop:'engenheiro'});await dc({troopTab:'ataque'});assert(dialog.innerHTML.includes('0,42'));assert(dialog.innerHTML.includes('120%'));assert(dialog.innerHTML.includes('COMANDANTE 6'));assert(dialog.innerHTML.includes('data-dialog="review-upgrade" disabled'));
  await click({troop:'tanque'});assert(dialog.innerHTML.includes('data-troop-tab="carta" aria-selected="true"'),'opening any card starts on Carta');await dc({dialog:'review-upgrade'});assert(dialog.innerHTML.includes('CONFIRMAR MELHORIA'));assert(dialog.innerHTML.includes('40 cartas de Tanque'));assert(!dialog.innerHTML.includes('data-troop-tab='));
  assert.equal(calls.length,before,'viewing cards, changing tabs and reviewing a purchase never sends a purchase');

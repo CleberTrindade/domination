@@ -48,6 +48,6 @@ test('the real hit target includes the building roof and ground anchor across vi
   const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8'),source=html.slice(html.indexOf('function hit(m,'),html.indexOf('\nconst playable=',html.indexOf('function hit(m,')));
   for(const SC of [.5,1,1.5]){
     const site={x:100,y:150},context={game:{sites:[site,{x:200,y:150}]},SC};vm.createContext(context);vm.runInContext(source,context);
-    assert.equal(context.hit({x:100,y:110}),site,'the visible roof is selectable');assert.equal(context.hit({x:100,y:150}),site);assert.equal(context.hit({x:114,y:163}),site);assert.equal(context.hit({x:0,y:0}),null);
+    assert.equal(context.hit({x:100,y:130}),site,'the visible roof fits inside the hex and is selectable');assert.equal(context.hit({x:100,y:150}),site);assert.equal(context.hit({x:114,y:163}),site);assert.equal(context.hit({x:0,y:0}),null);
   }
 });

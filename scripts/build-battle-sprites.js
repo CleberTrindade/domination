@@ -2,6 +2,7 @@
 // Bake the approved vector art once, outside the player's animation loop.
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto');
 const sharp=require('sharp'),art=require('../public/troop-art');
+const {baseLayout}=require('./base-layout');
 const kinds=['tanque','desliz','heli','batedor','foguetes','blindado','antiaereo','engenheiro','artilharia'];
 const bases=['quartel','garagem','heli','botes','canhao','central','batedor','foguetes','blindado','antiaereo','engenheiro','artilharia'];
 const output=path.join(__dirname,'../public/art/battle-sprites');
@@ -25,6 +26,7 @@ async function atlas(name,vb,count,make){
     atlases['turret'+col]=await atlas('turret-'+col,[-30,-46,60,64],32,i=>art.building('canhao',col,1,{part:'turret',h:i*Math.PI/16}));
     for(const kind of kinds)atlases[kind+col]=await atlas(kind+'-'+col,[-30,-50,60,62],32,i=>art.unit3d(kind,col,i*Math.PI/16,0,1,{noShadow:1,noRotor:1,lift:kind==='heli'?12:1}));
   }
-  await fs.writeFile(path.join(output,'manifest.json'),JSON.stringify({version:1,bases,atlases},null,2)+'\n');
+  const manifest={version:1,bases,atlases};manifest.baseLayout=await baseLayout(manifest,output);
+  await fs.writeFile(path.join(output,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
   console.log('Built '+Object.keys(atlases).length+' lossless sprite sheets.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

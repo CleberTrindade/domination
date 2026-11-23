@@ -572,7 +572,7 @@ const regionOf=()=>REGIONS[0];
 const KIND={P:'garagem',G:'garagem',H:'heli',B:'botes',A:'canhao',C:'central'};
 const PCT={garagem:.40,heli:.55,botes:.45,canhao:.55,central:.55};
 const BASE0=25;                       // base inicial média
-const RANGE={central:HR*3.5,canhao:HR*2.6};
+const RANGE=Object.fromEntries(Object.entries(window.DOMINATION_TROOP_RULES.weaponRange(window.DOMINATION_TROOP_RULES.COMBAT_VERSION)).map(([kind,range])=>[kind,HR*range]));
 const FIRE={central:0.42,canhao:0.95};
 const SPEED={tanque:42,desliz:52,heli:62};
 const HX=(()=>{
@@ -645,18 +645,23 @@ const SPR=(()=>{
     unit:(kind,col,h)=>{const k=hi(h);return R?.unit(kind,col,h)||img('u'+kind+col+'_'+k,()=>D.U3.unit3d(kind,col,k*2*Math.PI/N,0,1,{noShadow:1,noRotor:1,lift:kind==='heli'?12:1}),UVB)},
     draw(c,e,x,y,s){if(!e.ok)return false;const [vx,vy,w,h]=e.vb;if(e.sw)c.drawImage(e.im,e.sx,e.sy,e.sw,e.sh,x+vx*s,y+vy*s,w*s,h*s);else c.drawImage(e.im,x+vx*s,y+vy*s,w*s,h*s);return true},
     muzzle(s,h){ // ponto da boca do cano (coordenadas do mapa)
-      if(s.kind==='central'){let best=null,bd=1e9;const a=h*180/Math.PI;for(const g of D.S.CGUN){const d=Math.abs(((a-g.deg)%360+540)%360-180);if(d<bd){bd=d;best=g}}return[s.x+best.mx*1.32,s.y-2+best.my*1.32]}
-      const m=D.U3.turretMuzzle(h);return[s.x+m[0]*1.32,s.y-2+(m[1]-1)*1.32]},
+      const layout=basePlacement(s.kind);
+      if(s.kind==='central'){let best=null,bd=1e9;const a=h*180/Math.PI;for(const g of D.S.CGUN){const d=Math.abs(((a-g.deg)%360+540)%360-180);if(d<bd){bd=d;best=g}}return[s.x+best.mx*layout.scale,s.y+layout.offsetY+best.my*layout.scale]}
+      const m=D.U3.turretMuzzle(h);return[s.x+m[0]*layout.scale,s.y+layout.offsetY+(m[1]-1)*layout.scale]},
     preload(cols){if(!D)return;for(const col of cols)for(const k of ['quartel','garagem','heli','botes','canhao','central'])this.building(k,col)},
     preloadUnits(cols,kinds=['tanque','desliz','heli']){if(!D)return;if(R){for(const col of cols){for(const kind of kinds)this.unit(kind,col,0);this.turret(col,0);}return;}const q=[];for(const col of cols){for(let i=0;i<N;i++){const h=i*2*Math.PI/N;for(const k of kinds)q.push(()=>this.unit(k,col,h));q.push(()=>this.turret(col,h))}}
       const step=()=>{for(let n=0;n<4&&q.length;n++)q.shift()();if(q.length)setTimeout(step,16)};step()}
   };
 })();
+const basePlacement=kind=>window.DOMINATION_SPRITE_MANIFEST?.baseLayout?.[kind]||{scale:.48,offsetY:6.72};
 function drawBase(c,s,col,X,Y,sc){
-  const x=X(s.x),y=Y(s.y-2);
-  SPR.draw(c,SPR.building(s.kind==='garagem'&&s.n==='P'?'quartel':s.kind,col),x,y,1.32*sc);
-  if(s.kind==='canhao'){const h=s.vh!=null?s.vh:(s.x<MW/2?0:Math.PI);let sl=0;if(s.kick!=null&&s.kick<0.3)sl=3*(1-s.kick/0.3);
-    const ux=Math.cos(h),uy=Math.sin(h)*0.6;SPR.draw(c,SPR.turret(col,h),x-ux*sl*1.32*sc,y-1.32*sc*0-uy*sl*1.32*sc,1.32*sc)}
+  const kind=s.kind==='garagem'&&s.n==='P'?'quartel':s.kind,layout=basePlacement(kind);
+  const x=X(s.x),y=Y(s.y+layout.offsetY),scale=layout.scale*sc;
+  SPR.draw(c,SPR.building(kind,col),x,y,scale);
+  if(s.kind==='canhao'){
+    const h=s.vh!=null?s.vh:(s.x<MW/2?0:Math.PI),recoil=s.kick!=null&&s.kick<.3?3*(1-s.kick/.3):0;
+    SPR.draw(c,SPR.turret(col,h),x-Math.cos(h)*recoil*scale,y-Math.sin(h)*.6*recoil*scale,scale);
+  }
 }
 
 /* --------------- UI MENU --------------- */
@@ -939,8 +944,8 @@ function dropOwner(o){
   if(o!==g.me)toast((g.names[o]||'Jogador')+' saiu da partida');
 }
 /* ---- tropas: um grupo por envio (tanque por terra, deslizador pela água, helicóptero pelo ar) ---- */
-const unitKind=s=>s.kind==='heli'?'heli':s.kind==='botes'?'desliz':window.DOMINATION_TROOP_RULES?.GROUND.includes(s.kind)?s.kind:'tanque';
-const canReach=(a,b)=>{const map=game?.L?.geometry||HX;return !!a&&!!b&&a!==b&&(['heli','desliz'].includes(unitKind(a))||map.comp[a.cell]===map.comp[b.cell]);};
+const unitKind=(s,target)=>s.kind==='heli'?'heli':s.kind==='botes'||target&&window.DOMINATION_TROOP_RULES.navalSortie(s.kind,(game?.L?.geometry||HX).comp[s.cell]===(game?.L?.geometry||HX).comp[target.cell],game?.mode==='world'?game.combatVersion:window.DOMINATION_TROOP_RULES.COMBAT_VERSION)?'desliz':window.DOMINATION_TROOP_RULES?.GROUND.includes(s.kind)?s.kind:'tanque';
+const canReach=(a,b)=>{const map=game?.L?.geometry||HX;return !!a&&!!b&&a!==b&&(['heli','desliz'].includes(unitKind(a,b))||map.comp[a.cell]===map.comp[b.cell]);};
 function mkPath(a,b,k){
   const P=!['heli','desliz'].includes(k)?HX.path(a.cell,b.cell):[[a.x,a.y],[b.x,b.y]];
   const cum=[0];for(let i=1;i<P.length;i++){const dx=P[i][0]-P[i-1][0],dy=P[i][1]-P[i-1][1];cum.push(cum[i-1]+Math.sqrt(dx*dx+dy*dy))}
@@ -949,7 +954,7 @@ function mkPath(a,b,k){
 function send(from,to){
   const g=game;if(!canReach(from,to))return;
   const n=Math.floor(from.troops);if(n<1)return;
-  const k=unitKind(from),path=mkPath(from,to,k);if(path.L<=0)return;
+  const k=unitKind(from,to),path=mkPath(from,to,k);if(path.L<=0)return;
   from.troops-=n;
   g.units.push({id:++g.uid,k,owner:from.owner,n,P:path.P,cum:path.cum,L:path.L,d:0,si:0,to,x:from.x,y:from.y,alive:true});
 }
@@ -1397,8 +1402,8 @@ function hit(m,rad=26){
   let best=null,score=1;const radius=Math.max(rad,Math.min(38,20/SC));
   for(const site of game.sites){
     const dx=site.x-m.x,dy=m.y-site.y;
-    // Accept the visible building (above its ground anchor) and the troop badge.
-    const distance=Math.min((dx*dx+dy*dy)/(radius*radius),dx*dx/(30*30)+(dy+20)*(dy+20)/(34*34));
+    // Buildings now fit in the hex; choose the nearest ground anchor.
+    const distance=(dx*dx+dy*dy)/(radius*radius);
     if(distance<score){score=distance;best=site;}
   }
   return best;
@@ -1426,7 +1431,7 @@ function badge(c,x,y,n,col,prog,k,max){
   c.beginPath();c.arc(x,y,r+2.2*k,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.max(0,Math.min(1,prog)));c.lineWidth=2.2*k;c.strokeStyle=col?T.hi:'#d3d8e3';c.stroke();
   c.font=`${(n>=100?10:12.5)*k}px "Lilita One", sans-serif`;c.textAlign='center';c.textBaseline='middle';
   c.lineWidth=2.4*k;c.strokeStyle='#1e2536';c.strokeText(n,x,y+0.6*k);c.fillStyle='#fff';c.fillText(n,x,y+0.6*k);
-  if(max){c.font=`${8*k}px "Lilita One", sans-serif`;c.lineWidth=2*k;c.strokeText('MÁX',x,y+r+6*k);c.fillText('MÁX',x,y+r+6*k)}
+  if(max){c.font=`${8*k}px "Lilita One", sans-serif`;c.lineWidth=2*k;c.strokeText('MÁX',x,y-r-5*k);c.fillText('MÁX',x,y-r-5*k)}
 }
 const ang=(dx,dy)=>Math.atan2(dy,dx);
 function turnTo(h,t,k){if(h==null)return t;let d=t-h;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return h+d*Math.min(1,k)}
@@ -1443,9 +1448,10 @@ function render(){
   }
   c.setTransform(1,0,0,1,0,0);c.drawImage(g.img,0,0);c.setTransform(DPR,0,0,DPR,0,0);
   const X=x=>VX+x*SC,Y=y=>VY+y*SC;
+  const weaponRange=g.weaponRange||RANGE;
   // alcance dos bombardeiros
   for(const s of g.sites){if(s.kind!=='central'&&s.kind!=='canhao')continue;const main=s.kind==='central';
-    c.beginPath();c.arc(X(s.x),Y(s.y),RANGE[s.kind]*SC,0,7);c.fillStyle=main?'rgba(255,255,255,.13)':'rgba(255,255,255,.07)';c.fill();
+    c.beginPath();c.arc(X(s.x),Y(s.y),weaponRange[s.kind]*SC,0,7);c.fillStyle=main?'rgba(255,255,255,.13)':'rgba(255,255,255,.07)';c.fill();
     c.lineWidth=main?1.8:1.2;c.strokeStyle=main?'rgba(255,255,255,.7)':'rgba(255,255,255,.4)';if(!main)c.setLineDash([5*SC,5*SC]);c.stroke();c.setLineDash([])}
   // rotas das tropas
   c.lineCap='round';c.lineJoin='round';
@@ -1475,7 +1481,7 @@ function render(){
   for(const s of bs)drawBase(c,s,P[s.owner]||0,X,Y,SC);
   for(const s of bs)if(s.fortification>0){c.font=`${9*SC}px Nunito`;c.textAlign='center';c.fillStyle='#c9f5ff';c.fillText('🛡 '+Math.ceil(s.fortification),X(s.x),Y(s.y+27));}
   for(const s of bs){const col=P[s.owner]||0,cap=s.owner?g.par[s.owner].cap:0,tr=Math.floor(s.troops);
-    badge(c,X(s.x+18),Y(s.y+13),tr,col,s.owner?tr/cap:0.35,SC,s.owner&&s.troops>=cap-0.01)}
+    badge(c,X(s.x+9),Y(s.y+8),tr,col,s.owner?tr/cap:0.35,SC*.7,s.owner&&s.troops>=cap-0.01)}
   if(g.mode==='world'&&g.me===0)for(const available of g.joinableSites||[]){
     const s=g.sites[available.id];if(!s||s.owner!==0)continue;
     c.strokeStyle=g.joinSelected===s.id?'#f5c64b':'#fff';c.lineWidth=2.5;hexPath(c,X(s.x),Y(s.y),HR*1.08*SC);c.stroke();
@@ -1565,7 +1571,7 @@ window.DOMINATION_WORLD_BRIDGE={
     const L=buildLevel(1,MW,MAPH,{nAI:1,mapId:record.config?.mapId});
     const me=record.playerOwner??1,n=record.maxOwners||2;
     newGame({mode:'world',L,sites:L.sites.map(s=>({...s})),par:record.snapshot.par,n,elim:[],worldCommand:onCommand,
-      me,mine:me?[me]:[],worldTraining:!!record.training,worldReplay:!!record.replay,armyProfiles:record.snapshot.armies,pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,worldMapName:record.config?.mapId?window.DOMINATION_MAPS.get(record.config.mapId).name:null,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
+      me,mine:me?[me]:[],combatVersion:record.config?.combatVersion||null,weaponRange:Object.fromEntries(Object.entries(window.DOMINATION_TROOP_RULES.weaponRange(record.config?.combatVersion)).map(([kind,range])=>[kind,HR*range])),worldTraining:!!record.training,worldReplay:!!record.replay,armyProfiles:record.snapshot.armies,pal:me?palFor(me,n):[0,1,2,3,4],worldPlayers:record.players,worldMotion:window.createWorldMotion(),worldOrdinal:record.ordinal||1,worldMapName:record.config?.mapId?window.DOMINATION_MAPS.get(record.config.mapId).name:null,lastServerAt:performance.now(),names:{1:record.attackerName,2:record.defenderName},cd:record.snapshot.cd});
     document.body.classList.add('world-battle');
     this.control(record.defenderControlled,record);
     $('#btnDrop').style.display=me?'':'none';
