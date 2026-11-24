@@ -23,14 +23,31 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   {page:'territories',selector:'[data-action="attack"]',title:'Pronto para sua primeira conquista!',text:'Escolha uma área, confira o campo de batalha e prepare sua formação. Expanda, aproveite os apoios e elimine os exércitos adversários. Boa conquista, comandante!'}
  ];
  let owner=null,mode=null,worker=null,state=null,repeated=false,step=0,saving=false,paused=false,started=false,highlight=null,digest='',message='';
+ const completed=new Set();
  const active=()=>!!mode;
+ const isComplete=id=>completed.has(id)||getData()?.tutorial?.phase==='done';
  function clearHighlight(){highlight?.classList.remove('w-tutorial-highlight');highlight=null;spotlight.hidden=true;}
  function cleanup(){voice?.clear();worker?.terminate();worker=null;state=null;started=false;digest='';bridge.guide?.(null);clearHighlight();document.body.classList.remove('tutorial-training','tutorial-touring');document.querySelector('#btnDrop')?.classList.remove('w-tutorial-highlight');coach.hidden=true;commander.hidden=true;mode=null;}
  function stop(){const wasTraining=mode==='training';cleanup();if(wasTraining){bridge.stop();bridge.show();}render();}
  async function persist(phase,index){
   if(repeated)return true;
   const player=owner;
-  try{const result=await post('/api/world/tutorial',{phase,step:index});if(getData()?.player?.id!==player)return false;getData().tutorial=result.tutorial;return true;}
+  try{
+   // Opening the screen tour directly from the menu still completes onboarding.
+   // Keep the server's training -> tour -> done transitions, even without practice.
+   if(getData()?.tutorial?.phase==='training'&&(phase==='done'||index>0)){
+    const checkpoint=await post('/api/world/tutorial',{phase:'tour',step:0});
+    if(getData()?.player?.id!==player)return false;
+    getData().tutorial=checkpoint.tutorial;
+   }
+   const result=await post('/api/world/tutorial',{phase,step:index});
+   if(getData()?.player?.id!==player)return false;
+   const saved=result.tutorial;
+   if(saved?.phase!=='done'&&(saved?.phase!==phase||saved.step<index))throw new Error('Tutorial checkpoint not saved');
+   getData().tutorial=saved;
+   if(saved.phase==='done')completed.add(player);
+   return true;
+  }
   catch(e){message='Não foi possível salvar o tutorial. Confira a conexão e tente novamente.';return false;}
  }
  function card(title,text,progress,button,disabled=false,success=''){
@@ -64,7 +81,7 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   document.querySelector('#btnDrop')?.classList.toggle('w-tutorial-highlight',!!state.lesson.drop&&!state.ready);
  }
  function startTraining(manual=false){
-  if(active())cleanup();repeated=manual;owner=getData()?.player?.id||null;paused=false;message='';mode='training';dialog.close();document.body.classList.add('tutorial-training');
+  if(active())cleanup();owner=getData()?.player?.id||null;repeated=manual&&isComplete(owner);paused=false;message='';mode='training';dialog.close();document.body.classList.add('tutorial-training');
   worker=new Worker('/training-worker.js');const thisWorker=worker;
   card('Preparando o treinamento','Preparando seu campo de treinamento…','TREINO','AGUARDE',true);
   worker.onmessage=event=>{
@@ -86,7 +103,7 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   decorate();highlight?.scrollIntoView?.({block:'center',behavior:'instant'});updateSpotlight();
   coach.querySelector('h2')?.focus({preventScroll:true});
  }
- function startTour(manual=false,index=0){cleanup();mode='tour';repeated=manual;paused=false;owner=getData()?.player?.id||null;step=Math.min(tours.length-1,Math.max(0,index));showTour();}
+ function startTour(manual=false,index=0){cleanup();mode='tour';paused=false;owner=getData()?.player?.id||null;repeated=manual&&isComplete(owner);step=Math.min(tours.length-1,Math.max(0,index));showTour();}
  async function advance(){
   if(saving)return;
   if(mode==='training'){
@@ -100,10 +117,21 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
   if(!ok){card(tours[step].title,tours[step].text,'CONHEÇA O JOGO · '+(step+1)+'/'+tours.length,'TENTAR NOVAMENTE');return;}
   if(done){cleanup();navigate('territories');render();return;}step++;showTour();
  }
- function pause(){paused=true;const training=mode==='training';stop();modal('<h2>Tutorial pausado</h2><p>'+(training?'Seu treino não altera o mundo. Você pode reiniciá-lo':'O passeio pode continuar da etapa salva')+' pelo Menu → Tutorial guiado.</p><button class="w-cta" data-dialog="close">CONTINUAR NO JOGO</button>');}
+ async function finish(){
+  if(saving)return;
+  owner=getData()?.player?.id||null;if(!owner)return;
+  repeated=isComplete(owner);saving=true;
+  const ok=await persist('done',0);saving=false;
+  if(!ok){modal('<h2>Não foi possível finalizar</h2><p>'+message+'</p><button class="w-cta" data-guide-start="finish">TENTAR NOVAMENTE</button><button class="w-textbtn" data-dialog="close">VOLTAR</button>');return;}
+  paused=true;dialog.close();stop();navigate('territories');render();
+ }
+ function pause(){paused=true;const training=mode==='training';stop();modal('<h2>Tutorial pausado</h2><p>'+(training?'Seu treino não altera o mundo. Você pode reiniciá-lo':'O passeio pode continuar da etapa salva')+' pelo Menu → Tutorial guiado.</p><button class="w-textbtn" data-guide-start="finish">FINALIZAR TUTORIAL</button><button class="w-cta" data-dialog="close">CONTINUAR NO JOGO</button>');}
  function sync(){
   const data=getData(),id=data?.player?.id||null;
   if(owner&&owner!==id){stop();paused=false;owner=id;}
+  if(data?.tutorial?.phase==='done')completed.add(id);
+  // An older in-flight world refresh cannot reopen a completed tutorial.
+  if(completed.has(id)&&(!active()||!repeated)){if(active())stop();return;}
   if(active())return;
   if(paused||!data?.player||data.activeBattle||dialog.open)return;
   if(data.tutorial?.phase==='training')startTraining();
@@ -111,10 +139,10 @@ window.createWorldTutorial=function({bridge,getData,post,navigate,modal,dialog,r
  }
  function menu(){
   if(getData()?.activeBattle){modal('<h2>Você está em batalha</h2><p>Conclua a batalha antes de iniciar o tutorial.</p><button class="w-cta" data-dialog="close">VOLTAR</button>');return;}
-  modal('<h2>Tutorial guiado</h2><p>Aprenda os controles em uma batalha de teste ou conheça as telas do Mundo Aberto. Sem gastar moedas ou alterar estatísticas.</p><div class="w-dialog-buttons"><button class="w-cta" data-guide-start="training">BATALHA DE TREINAMENTO</button><button class="w-cta" data-guide-start="tour">CONHECER OS RECURSOS</button>'+(getData()?.tutorial?.phase==='tour'?'<button class="w-textbtn" data-guide-start="resume">RETOMAR PASSEIO</button>':'')+'<button class="w-textbtn" data-dialog="close">VOLTAR</button></div>');
+  modal('<h2>Tutorial guiado</h2><p>Aprenda os controles em uma batalha de teste ou conheça as telas do Mundo Aberto. Sem gastar moedas ou alterar estatísticas.</p><div class="w-dialog-buttons"><button class="w-cta" data-guide-start="training">BATALHA DE TREINAMENTO</button><button class="w-cta" data-guide-start="tour">CONHECER OS RECURSOS</button>'+(getData()?.tutorial?.phase==='tour'?'<button class="w-textbtn" data-guide-start="resume">RETOMAR PASSEIO</button>':'')+(getData()?.tutorial?.phase!=='done'?'<button class="w-textbtn" data-guide-start="finish">FINALIZAR TUTORIAL</button>':'')+'<button class="w-textbtn" data-dialog="close">VOLTAR</button></div>');
  }
  coach.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.guide;if(action==='audio')voice?.toggle();if(action==='repeat')voice?.repeat();if(action==='pause')pause();if(action==='next'||action==='tour-next')advance();});
- dialog.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.guideStart;if(!action)return;dialog.close();if(action==='training')startTraining(getData()?.tutorial?.phase!=='training');else startTour(action!=='resume',action==='resume'?getData().tutorial.step:0);});
+ dialog.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.guideStart;if(!action)return;dialog.close();if(action==='finish'){finish();return;}if(action==='training')startTraining(getData()?.tutorial?.phase!=='training');else startTour(action!=='resume',action==='resume'?getData().tutorial.step:0);});
  return {active,decorate,sync,menu,pause,stop};
 };
 })();

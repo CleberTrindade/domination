@@ -35,3 +35,44 @@ test('resource spotlight follows the visible target on scroll/resize and disappe
  rect={left:-10,top:20,right:420,bottom:160};events.scroll();assert.equal(spotlight.style.left,'0px');assert.equal(spotlight.style.width,'400px');assert.equal(spotlight.style.top,'12px');
  window.innerWidth=300;windowEvents.resize();assert.equal(spotlight.style.width,'300px');tutorial.stop();assert.equal(spotlight.hidden,true);assert(coach.hidden);
 });
+
+test('finishing a tour opened from the menu persists once and never auto-opens on reload or stale refresh',async()=>{
+ const requests=[],visits=[];let saved={phase:'training',step:0},rejectDone=true;
+ let world={player:{id:'one'},tutorial:{...saved}};
+ const bridge={guide(){},stop(){},show(){}};
+ const post=async(path,input)=>{
+  requests.push({path,...input});
+  if(input.phase==='done'&&rejectDone)throw Error('offline');
+  if(saved.phase==='training'&&input.phase==='tour'&&input.step===0||saved.phase==='tour'&&(input.phase==='done'||input.phase==='tour'&&input.step>=saved.step))saved={...input};
+  return {tutorial:{...saved}};
+ };
+ function page(){const nodes=[],dialog=element(),document={body:element(),createElement(){const n=element();nodes.push(n);return n;},querySelector:()=>element()},window={};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-tutorial.js'),'utf8'),{window,document});
+  const tutorial=window.createWorldTutorial({bridge,getData:()=>world,post,navigate:p=>visits.push(p),dialog,modal(){dialog.open=true;},render(){}});
+  return {tutorial,dialog,coach:nodes[0]};
+ }
+ const p=page();p.tutorial.menu();p.dialog.listeners.click({target:{closest:()=>({dataset:{guideStart:'tour'}})}});
+ for(let i=0;i<14;i++){p.coach.listeners.click({target:{closest:()=>({dataset:{guide:'tour-next'}})}});await flush();}
+ assert(p.tutorial.active(),'failed completion remains open for retry');assert.equal(saved.phase,'tour');assert(p.coach.innerHTML.includes('TENTAR NOVAMENTE'));
+ rejectDone=false;p.coach.listeners.click({target:{closest:()=>({dataset:{guide:'tour-next'}})}});await flush();
+ assert.equal(saved.phase,'done','menu-launched onboarding must be stored on the account');assert(!p.tutorial.active());
+ assert.equal(requests[0].phase,'tour');assert.equal(requests[0].step,0,'direct tour establishes the valid account transition');
+ world={player:{id:'one'},tutorial:{phase:'tour',step:0}};p.tutorial.sync();assert(!p.tutorial.active(),'stale refresh must not reopen completed guide');
+ world={player:{id:'one'},tutorial:{...saved}};const reloaded=page();reloaded.tutorial.sync();assert(!reloaded.tutorial.active(),'fresh login/page uses account completion');
+ const count=requests.length;reloaded.tutorial.menu();reloaded.dialog.listeners.click({target:{closest:()=>({dataset:{guideStart:'tour'}})}});
+ assert(reloaded.tutorial.active(),'completed users may explicitly replay');for(let i=0;i<14;i++){reloaded.coach.listeners.click({target:{closest:()=>({dataset:{guide:'tour-next'}})}});await flush();}
+ assert.equal(requests.length,count,'manual replay must not reset account progress');assert(!reloaded.tutorial.active());
+ world={player:{id:'one'},tutorial:{phase:'tour',step:0}};reloaded.tutorial.sync();assert(!reloaded.tutorial.active(),'stale refresh after a manual replay also stays closed');
+ world={player:{id:'two'},tutorial:{phase:'tour',step:0}};reloaded.tutorial.sync();assert(reloaded.tutorial.active(),'completion belongs to one account, not every player');
+});
+
+test('explicit finish records completion without replaying all lessons and survives reopening',async()=>{
+ const nodes=[],dialog=element(),requests=[];let world={player:{id:'one'},tutorial:{phase:'training',step:0}};
+ const window={},document={body:element(),createElement(){const e=element();nodes.push(e);return e;},querySelector:()=>element()};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-tutorial.js'),'utf8'),{window,document});
+ const tutorial=window.createWorldTutorial({bridge:{guide(){},stop(){},show(){}},getData:()=>world,post:async(path,input)=>{requests.push({...input});return {tutorial:{...input}};},navigate(){},modal:html=>{dialog.innerHTML=html;dialog.open=true;},dialog,render(){}});
+ tutorial.menu();assert(dialog.innerHTML.includes('FINALIZAR TUTORIAL'));
+ dialog.listeners.click({target:{closest:()=>({dataset:{guideStart:'finish'}})}});await flush();
+ assert.equal(requests.length,2);assert.equal(requests[0].phase,'tour');assert.equal(requests[1].phase,'done');assert.equal(world.tutorial.phase,'done');assert(!tutorial.active());
+ tutorial.sync();assert(!tutorial.active());tutorial.menu();assert(!dialog.innerHTML.includes('FINALIZAR TUTORIAL'));
+});
