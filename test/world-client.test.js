@@ -17,7 +17,7 @@ test('individual troop screen purchases only the selected type and recovers lost
     if(path.endsWith('/upgrade')){const input=JSON.parse(options.body);calls.push(input);assert.equal(input.troopKind,'heli');assert.equal(input.expectedLevel,wallet.levels.heli);balance-=world.army.troops.heli.nextCost;wallet.cards.heli-=world.army.troops.heli.nextCards;wallet.levels.heli++;wallet.level=wallet.levels.heli;update();if(loseConfirmation)throw Error('Reply lost');}
     return {ok:true,json:async()=>structuredClone(world)};
   }};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(root.innerHTML.includes('lobby-logo-v1.webp'));assert(!root.innerHTML.includes('3 bases + bombardeiro'));
   await root.listeners.click({target:{closest:()=>({dataset:{action:'area-details'}})}});assert(dialog.innerHTML.includes('3 bases + bombardeiro'));dialog.close();
   await root.listeners.click({target:{closest:()=>({dataset:{tab:'troops'}})}});await root.listeners.click({target:{closest:()=>({dataset:{armyTab:'collection'}})}});assert(root.innerHTML.includes('Todas as tropas'));assert(root.innerHTML.includes('Bombardeiro central'));
@@ -46,7 +46,7 @@ test('wallet shows available and reserved funds, entry risk, production, and the
   const world={player:{id:'third',name:'Terceiro'},wallet:{balance:1000,available:600,reserved:400,productionPerDay:1000,entries:[{kind:'battle_loot',amount:-400,area_name:'Agreste',created_at:'2026-11-20T15:00:00Z'}]},economy:{initialCoins:1000,minEntry:0,productionPerDay:1000,cpuReward:250,lootPercent:40},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34,owner_id:'rival',owner_name:'Rival',economy:{atRisk:240,maxLoot:240,cpuReward:0,productionPerDay:1000}}],ranking:[],history:[]};
   const document={body,hidden:false,createElement:element,addEventListener(type,fn){listeners[type]=fn;},querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog}[selector]||element();}};
   const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async()=>({ok:true,json:async()=>structuredClone(world)})};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(root.innerHTML.includes('600</strong>'));assert(!root.innerHTML.includes('400 reservadas'));
   assert(root.innerHTML.includes('1.000 moedas/dia'));assert(!root.innerHTML.includes('Saque possível: até 240'));
   await root.listeners.click({target:{closest:()=>({dataset:{action:'area-details'}})}});assert(dialog.innerHTML.includes('Saque possível: até 240'));assert(dialog.innerHTML.includes('Reserva para entrar: 240'));dialog.close();
@@ -67,7 +67,7 @@ test('a third player sees the public attack alert, watches read-only, then selec
   const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:bridge},location:{protocol:'https:',host:'game.example'},
     WebSocket:class{constructor(){this.readyState=1;}close(){}},EventSource:Events,Worker:class{constructor(){throw Error('A spectator must not host the simulation');}},AbortController,setTimeout,clearTimeout,setInterval(){},
     fetch:async(path,options)=>{calls.push({path,body:options.body&&JSON.parse(options.body)});return {ok:true,json:async()=>structuredClone(path==='/api/world'?world:path.endsWith('/join')?{...watch,joinState:'pending',canJoin:false}:watch)};}};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(body.children[0].innerHTML.includes('Agreste sob ataque'));assert(root.innerHTML.includes('ASSISTIR BATALHA'));
   await root.listeners.click({target:{closest:()=>({dataset:{action:'attack'}})}});await flush();
   assert.equal(started[0].record.playerOwner,0);const panel=game.children[0],tools=game.children[1];
@@ -96,7 +96,7 @@ test('returning player sees every recent attack, is not repeatedly interrupted, 
     localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     WebSocket:class{constructor(){this.readyState=1;}close(){}},EventSource:class{addEventListener(){}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},
     fetch:async(path,options)=>{calls.push({path,body:options.body&&JSON.parse(options.body)});return {ok:true,json:async()=>path.endsWith('/retaliate')?{id:'response',areaId:'se-sao-francisco',areaName:'Vale do São Francisco',status:'active',playerOwner:1,snapshot:{time:0}}:structuredClone(world)};}};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   assert(dialog.open);assert(dialog.innerHTML.includes('Últimos 2 ataques sofridos'));assert(dialog.innerHTML.includes('Rival A'));assert(dialog.innerHTML.includes('Rival B'));
   assert(dialog.innerHTML.includes('REVANCHE'));assert(dialog.innerHTML.includes('CONTRA-ATACAR'));assert(storage.has('domination_received_guardian'));
   await dialog.listeners.click({target:{closest:()=>({dataset:{dialog:'close'}})}});
@@ -120,7 +120,7 @@ test('owner sees attack alert and animated map indicator, joins defense, receive
   const document={body,hidden:false,querySelector(selector){return {'#worldRoot':root,'#worldDialog':dialog,'#backToWorld':back}[selector]||element();},createElement:element,addEventListener(){}};
   const context={crypto:require('node:crypto').webcrypto,document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:bridge},location:{protocol:'https:',host:'game.example'},WebSocket:Socket,EventSource:Events,AbortController,
     setTimeout,clearTimeout,setInterval(){},FormData:class{},fetch:async(path,options)=>{requests.push(path);return {ok:true,json:async()=>path.endsWith('/defend')?structuredClone(record):path.endsWith('/release')?{released:true}:structuredClone(data)};}};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   const alerts=body.children[0];assert(alerts.innerHTML.includes('Sua área está sob ataque!'));assert(alerts.innerHTML.includes('Aracaju · Capital'));
   assert(root.innerHTML.includes('ASSUMIR DEFESA'));assert(root.innerHTML.includes('w-swords'));
   assert(root.innerHTML.includes('Aracaju · Capital — em batalha'));
@@ -175,7 +175,7 @@ test('profile shows account stats, links to battle records and clears private da
     if(path==='/api/auth/logout')world.player=null;
     return {ok:true,json:async()=>structuredClone(world)};
   }};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}});
   await click({tab:'profile'});await flush();assert(root.innerHTML.includes('Meu &lt;Perfil&gt;'));assert(root.innerHTML.includes('REGISTRO DE BATALHAS'));assert(root.innerHTML.includes('50%'));assert(!root.innerHTML.includes('w-personal-history'));
   assert.equal(calls.filter(p=>p.startsWith('/api/world/profile')).length,1);
@@ -189,7 +189,7 @@ test('territory previews expose different battlefield terrain and the matching i
   const world={areas,ranking:[],history:[],progression:{cpuPowerRatio:.8}};
   const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
   const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_MAPS:maps,DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async()=>({ok:true,json:async()=>structuredClone(world)})};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
   const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}});
   assert(root.innerHTML.includes('Arquipélago costeiro'));await click({action:'preview-map'});assert(dialog.innerHTML.includes('ILHAS')||dialog.innerHTML.includes('Ilhas'));
   assert.equal((dialog.innerHTML.match(/<polygon /g)||[]).length,65);assert.equal((dialog.innerHTML.match(/fill="#ae554f"/g)||[]).length,4);
@@ -205,7 +205,7 @@ test('expanded collection previews origin bases and saves at most three unlocked
   if(path.endsWith('/formations')){const input=JSON.parse(opts.body);calls.push(input);world.army.formations=input.formations;world.army.activeFormationId=input.activeFormationId;world.army.formationRevision++;world.army.loadout=input.formations.find(f=>f.id===input.activeFormationId).troops;return{ok:true,json:async()=>({army:structuredClone(world.army)})};}
   return{ok:true,json:async()=>structuredClone(world)};
  }};
- vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
  await click({tab:'troops'});await click({action:'commander'});assert(dialog.innerHTML.includes('NÍVEL 7'));assert(dialog.innerHTML.includes('250 batalhas válidas'));await dc({dialog:'close'});
  await click({troop:'engenheiro'});assert(dialog.innerHTML.includes('/art/bases-expanded-v1.png'));assert(dialog.innerHTML.includes('Oficina de engenharia'));await dc({dialog:'close'});
@@ -219,7 +219,7 @@ test('daily reward screen exposes automatic missions and random drops without a 
  const world={player:{id:'rewardsplayer',name:'Player'},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34}],ranking:[],history:[],dailyRewards:{...dailyView({battle_cards:30,mission_cards:60,battles:3,captures:5,wins:1,missions:['battles','captures','wins']},Date.now()),recent:[{cards:{tanque:8,heli:7,desliz:5},battleCards:0,missionCards:20,at:new Date().toISOString()}]}};
  const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{constructor(){this.readyState=1;}close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async()=>({ok:true,json:async()=>structuredClone(world)})};
- vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}});
  await click({tab:'more'});assert(root.innerHTML.includes('Recompensas diárias'));
  await click({tab:'rewards'});assert(root.innerHTML.includes('90 / 120 cartas'));assert(root.innerHTML.includes('Conquistar 5 bases inimigas'));assert(root.innerHTML.includes('RECOMPENSA PROCESSADA'));assert(root.innerHTML.includes('meia-noite de Fortaleza'));assert(root.innerHTML.includes('+8'));assert(root.innerHTML.includes('Helicóptero'));assert(!root.innerHTML.includes('data-select-troop'));
@@ -232,7 +232,7 @@ test('card and attack tabs keep the action visible, expose real per-type stats, 
  const world={player:{id:'cardtabs',name:'Card Tabs'},army,troops:troopCatalog(army),progression:ARMY_RULES,wallet:{balance:1000,available:1000,reserved:0,entries:[]},areas:[{id:'se-agreste',name:'Agreste',ordinal:2,cpu_share:.34}],ranking:[],history:[]};
  const document={body,hidden:false,createElement:element,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{},DOMINATION_TROOP_ART:require('../public/troop-art')},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{calls.push({path,options});return{ok:true,json:async()=>structuredClone(world)};}};
- vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
  await click({troop:'tanque'});const before=calls.length;
  const footer=()=>dialog.innerHTML.match(/<footer[\s\S]*?<\/footer>/)[0],firstFooter=footer();
@@ -252,7 +252,7 @@ test('compact lobby keeps live map ownership and read-only area details while pr
  const classes=new Set();root.classList={add(k){classes.add(k);},toggle(k,on){on?classes.add(k):classes.delete(k);}};
  const document={body,hidden:false,createElement:element,addEventListener(k,fn){listeners[k]=fn;},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||element();}};
  const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_MAPS:maps,DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{requests.push({path,method:options.method||'GET'});return{ok:true,json:async()=>structuredClone(world)};}};
- vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}}),primary=()=>root.innerHTML.match(/<button class="w-lobby-battle"[^>]*>[\s\S]*?<\/button>/)[0];
  assert(classes.has('w-lobby'));assert(root.innerHTML.includes('Meu &lt;Jogador&gt;'));assert(root.innerHTML.includes('3 de 5 áreas'));assert.equal((root.innerHTML.match(/role="button" tabindex="0"/g)||[]).length,5);
  assert(!root.innerHTML.includes('w-army-card'));assert(!root.innerHTML.includes('w-def'));assert(!root.innerHTML.includes('Saque possível'));assert(root.innerHTML.includes('w-territory mine'));assert(root.innerHTML.includes('w-territory rival'));assert(!primary().includes('disabled'));
@@ -287,7 +287,7 @@ test('formation tabs retain drafts, duplicate and rename locally, retry safely, 
   }
   return{ok:true,json:async()=>structuredClone(world)};
  }};
- vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:()=>({dataset})}}),dc=dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}});
  await click({tab:'troops'});assert(root.innerHTML.includes('data-army-tab="formations" aria-selected="true"'));assert.equal((root.innerHTML.match(/data-formation-slot=/g)||[]).length,3);assert(root.innerHTML.includes('APOIO FIXO'));assert(!root.innerHTML.includes('data-select-troop='));
  await click({formationSlot:'2'});await dc({formationKind:'batedor'});await click({formationSlot:'2'});await dc({formationKind:'foguetes'});
@@ -303,4 +303,15 @@ test('formation tabs retain drafts, duplicate and rename locally, retry safely, 
  await click({action:'formation-reload'});await click({formation:'initial'});assert(root.innerHTML.includes('Outro aparelho'));
  await click({formationSlot:'0'});await dc({formationKind:'heli'});assert(dialog.open);assert.equal(world.wallet.balance,1000);await dc({dialog:'close'});
  world.player={id:'new-account',name:'Outra conta'};world.army.formations=[{id:'initial',name:'Conta nova',troops:['tanque']}];world.army.activeFormationId='initial';world.army.formationRevision=0;listeners.visibilitychange();await flush();assert(root.innerHTML.includes('Conta nova'));assert(!root.innerHTML.includes('Outro aparelho'));assert(!root.innerHTML.includes('Defesa &lt;rápida&gt;'));
+});
+
+test('geographic area action attacks the selected area directly and never attacks owned territory',async()=>{
+ const root=element(),dialog=element(),host={insertAdjacentHTML(){}},requests=[];let explorerOptions;
+ root.querySelector=selector=>selector==='#worldExplorer'?host:null;
+ const world={player:{id:'me',name:'Me'},areas:[{id:'se-litoral-sul',ordinal:1,name:'Own',owner_id:'me'},{id:'se-area-06',ordinal:6,name:'CPU',owner_id:null}],ranking:[],history:[]};
+ const document={body:element(),hidden:false,createElement:element,addEventListener(){},querySelector:s=>({'#worldRoot':root,'#worldDialog':dialog}[s]||element())};
+ const context={document,window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_EXPLORER:{create(host,options){explorerOptions=options;return{update(){}};}},DOMINATION_WORLD_BRIDGE:{}},location:{protocol:'https:',host:'game.example'},WebSocket:class{close(){}},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path,options)=>{if(options.method==='POST'){requests.push(path);return{ok:false,status:409,json:async()=>({error:'Battle unavailable in fixture'})};}return{ok:true,json:async()=>structuredClone(world)};}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);await flush();
+ await explorerOptions.onArea('se-litoral-sul');assert.equal(requests.length,0);
+ await explorerOptions.onArea('se-area-06');assert.deepEqual(requests,['/api/world/areas/se-area-06/attack']);assert.equal(dialog.open,false,'no intermediate area dialog');
 });

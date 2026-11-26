@@ -38,7 +38,7 @@ test('actual world click delegation opens friends and switches history tabs',asy
  const make=()=>({...element(),style:{},classList:{add(){},remove(){},toggle(){}},append(){},setAttribute(){}}),root=make(),dialog=make(),body=make(),calls=[];
  const world={player:null,areas:[{id:'se-litoral-sul',name:'Litoral Sul',ordinal:1}],ranking:[],history:[]};
  const context={window:{DOMINATION_SERGIPE_MAP:require('../public/sergipe-map'),DOMINATION_WORLD_BRIDGE:{}},document:{body,hidden:false,createElement:make,addEventListener(){},querySelector(s){return {'#worldRoot':root,'#worldDialog':dialog}[s]||make();}},location:{href:'https://game.example/',protocol:'https:',host:'game.example'},URL,AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(path)=>{calls.push(path);return{ok:true,json:async()=>path.includes('/history')?{matches:[],pagination:{page:1,pages:1}}:structuredClone(world)};}};
- vm.createContext(context);for(const file of ['world-social.js','world.js'])vm.runInContext(fs.readFileSync(require.resolve('../public/'+file),'utf8'),context);await flush();
+ vm.createContext(context);for(const file of ['world-social.js','world-area-action.js','world.js'])vm.runInContext(fs.readFileSync(require.resolve('../public/'+file),'utf8'),context);await flush();
  const click=dataset=>root.listeners.click({target:{closest:s=>s==='button'?{dataset}:null}});
  await click({tab:'history'});await flush();assert(calls.some(p=>p.includes('scope=world')),'guest starts on public history');
  await click({social:'history-scope',scope:'mine'});assert(root.innerHTML.includes('Entre para ver suas partidas'));

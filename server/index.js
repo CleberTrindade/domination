@@ -33,6 +33,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/training-worker.js', ['training-worker.js', 'application/javascript; charset=utf-8']],
     ['/tutorial.css', ['tutorial.css', 'text/css; charset=utf-8']],
     ['/world.js', ['world.js', 'application/javascript; charset=utf-8']],
+    ['/world-area-action.js', ['world-area-action.js', 'application/javascript; charset=utf-8']],
     ['/world-motion.js', ['world-motion.js', 'application/javascript; charset=utf-8']],
     ['/battle-camera.js', ['battle-camera.js', 'application/javascript; charset=utf-8']],
     ['/battle-input.js', ['battle-input.js', 'application/javascript; charset=utf-8']],

@@ -10,7 +10,7 @@ function setup(world,answer=async()=>({saved:true})){
   if(path.includes('/battles/'))return{ok:true,json:async()=>({id:'battle1',areaId:'se-agreste',areaName:'Agreste',playerOwner:1,status:'won',final:{status:'won',areaName:'Agreste',winnerOwner:1}})};
   return{ok:true,json:async()=>structuredClone(world)};
  }};
- vm.runInNewContext(fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/world-area-action.js'),'utf8')+'\n'+fs.readFileSync(require.resolve('../public/world.js'),'utf8'),context);
  return{root,dialog,listeners,calls,click:dataset=>dialog.listeners.click({target:{closest:()=>({dataset})}})};
 }
 const initial=()=>({player:{id:'hero',name:'Hero'},areas:[{id:'se-litoral-sul',ordinal:1,name:'Litoral Sul'}],ranking:[],history:[],receivedAttacks:[],difficultySurveys:[{id:'survey1',battleId:'battle1',areaId:'se-agreste',areaName:'Agreste',context:'cpu',outcome:'lost'}]});
