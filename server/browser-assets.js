@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
-function mapModule(){return `(function(){const module={exports:{}};const require=p=>p==='./pilot-maps.json'?${JSON.stringify(require('../shared/pilot-maps.json'))}:${JSON.stringify(require('../shared/map.json'))};\n${fs.readFileSync(path.join(__dirname,'../shared/battle-maps.js'),'utf8')}\nreturn module.exports;})()`;}
+function mapModule(){return `(function(){const module={exports:{}};const require=p=>p==='./pilot-maps.json'?${JSON.stringify(require('../shared/pilot-maps.json'))}:p==='./pilot-maps-v1.json'?${JSON.stringify(require('../shared/pilot-maps-v1.json'))}:${JSON.stringify(require('../shared/map.json'))};\n${fs.readFileSync(path.join(__dirname,'../shared/battle-maps.js'),'utf8')}\nreturn module.exports;})()`;}
 function browserMaps(){return 'self.DOMINATION_MAPS='+mapModule()+';';}
 function browserEngine(){
  const source=fs.readFileSync(path.join(__dirname,'battle-engine.js'),'utf8');

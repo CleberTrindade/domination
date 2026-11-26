@@ -1,0 +1,142 @@
+[
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-01-v1",
+      "difficulty": 1
+    },
+    "steps": 600,
+    "hash": "d0ce51ae1a345efd412153fa45b6eaa14df2c655293169f7f610cb455fe5b63a"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-02-v1",
+      "difficulty": 2
+    },
+    "steps": 600,
+    "hash": "b0a355cff78ab71cba1139d4857e261dd868fb8e4e7fb2fb4a494d10f226c2f6"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-03-v1",
+      "difficulty": 3
+    },
+    "steps": 600,
+    "hash": "f77d169b59b6dd0218b8b85fd8d106ff59e32aa0b98a2ca2fbb3dab5a1734af7"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-04-v1",
+      "difficulty": 4
+    },
+    "steps": 600,
+    "hash": "e9e091151f42f62b3cd59a494ab170335cde5baa691ce2d80bc506ba61688ee0"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-05-v1",
+      "difficulty": 5
+    },
+    "steps": 600,
+    "hash": "879b5003b8ecd5bff61345c394202ffa84ae5efbb6e1ec527b0f0d270006faeb"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-06-v1",
+      "difficulty": 6
+    },
+    "steps": 600,
+    "hash": "b0eac68986ae02da48780d08e38b07afa12f83d20fb5899d8c0101ad795f2342"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-07-v1",
+      "difficulty": 7
+    },
+    "steps": 600,
+    "hash": "641115785dec0f9338b341cd87df6244586451192d3568889e3a4c4024f019fd"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-08-v1",
+      "difficulty": 8
+    },
+    "steps": 600,
+    "hash": "4c1b51718f97360d6f11bd149eb9e261a0cf55b9c7769e70e9f41be7899baba7"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-09-v1",
+      "difficulty": 9
+    },
+    "steps": 600,
+    "hash": "8f933482d320e5552d437414b8d2b4875b6f7db95c9d8e322fd1045821ba8800"
+  },
+  {
+    "config": {
+      "seed": 321,
+      "centralOwner": 2,
+      "defenderBaseCount": 3,
+      "defenseVersion": "world-defense-v1",
+      "combatVersion": "bombardiers-v2",
+      "balanceVersion": "troops-v3",
+      "mapId": "se-pilot-10-v1",
+      "difficulty": 10
+    },
+    "steps": 600,
+    "hash": "81b59fda0f460149acd33a3598ae5b2d0f430a94b5652c0f90dbc4c62cc84550"
+  }
+]

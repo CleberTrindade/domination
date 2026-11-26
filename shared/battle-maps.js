@@ -1,6 +1,7 @@
 'use strict';
 const BASE=require('./map.json');
 const PILOT=require('./pilot-maps.json');
+const HISTORICAL_PILOT=require('./pilot-maps-v1.json');
 const MW=390,MAPY=70;
 const KIND={P:'garagem',G:'garagem',H:'heli',B:'botes',A:'canhao',C:'central'};
 const DIRS=[[2,0],[-2,0],[1,-1],[-1,-1],[1,1],[-1,1]];
@@ -23,7 +24,7 @@ function makeMap(def){
   return {cells,seeds};
 }
 const catalog=new Map([['classic',{id:'classic',name:'Campo clássico',description:'Configuração original.',data:BASE}],...definitions.map(def=>[def.id,{id:def.id,name:def.name,area:def.area,tag:def.tag,description:def.description,data:makeMap(def)}])]);
-for(const map of PILOT)catalog.set(map.id,map);
+for(const map of [...HISTORICAL_PILOT,...PILOT])catalog.set(map.id,map);
 for(const map of catalog.values()){for(const cell of map.data.cells)Object.freeze(cell);for(const seed of map.data.seeds)Object.freeze(seed);Object.freeze(map.data.cells);Object.freeze(map.data.seeds);Object.freeze(map.data);Object.freeze(map);}
 function buildGeometry(MAPDATA){
   const cells=MAPDATA.cells.map(([c,r,x,y,t])=>({c,r,x,y:y-MAPY,t}));
@@ -56,4 +57,6 @@ function geometry(id='classic'){const map=get(id);if(!cache.has(map.id)){const h
 const forArea=area=>PILOT.find(def=>def.area===area)?.id||definitions.find(def=>def.area===area)?.id||'classic';
 const list=()=>[...catalog.values()].filter(map=>map.id!=='classic'&&!map.scroll).map(({data,...metadata})=>metadata);
 const pilotList=()=>PILOT.map(({data,...meta})=>meta);
-module.exports={get,geometry,forArea,list,pilotList};
+const historicalPilotList=()=>HISTORICAL_PILOT.map(({data,...meta})=>meta);
+const isWorldMap=id=>!!catalog.get(id)?.area;
+module.exports={get,geometry,forArea,list,pilotList,historicalPilotList,isWorldMap};

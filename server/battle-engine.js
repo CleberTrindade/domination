@@ -20,7 +20,8 @@ function initialSites(share,difficulty=1,centralOwner=0,defenderBaseCount=null,m
   const candidates=sites.filter(s=>s.id!==attacker&&s.id!==defender&&s.id!==HX.center);
   if(mapId&&mapId!=='classic'&&defenderBaseCount!==null){
     if(!Number.isInteger(defenderBaseCount)||defenderBaseCount<1||defenderBaseCount>15)throw Error('Invalid defender base count');
-    const home=sites[defender],nearby=sites.filter(s=>s.id!==attacker&&s.id!==defender&&s.id!==HX.center).sort((a,b)=>Math.hypot(a.x-home.x,a.y-home.y)-Math.hypot(b.x-home.x,b.y-home.y)||a.id-b.id).slice(0,defenderBaseCount-1);
+    const home=sites[defender],fixed=maps.get(mapId).data.initialDefense;
+    const nearby=fixed?.length===defenderBaseCount?fixed.filter(id=>id!==defender).map(id=>sites[id]):sites.filter(s=>s.id!==attacker&&s.id!==defender&&s.id!==HX.center).sort((a,b)=>Math.hypot(a.x-home.x,a.y-home.y)-Math.hypot(b.x-home.x,b.y-home.y)||a.id-b.id).slice(0,defenderBaseCount-1);
     for(const site of [home,...nearby,...(centralOwner===2?[sites[HX.center]]:[])]){site.owner=2;site.troops=10+difficulty;}
     home.hq=true;home.troops=22+difficulty;sites[attacker].owner=1;sites[attacker].hq=true;sites[attacker].troops=38;
     const setup={sites,defenderShare:sites.filter(s=>s.owner===2).reduce((n,s)=>n+weights[s.id],0)/HX.cells.length};
@@ -62,7 +63,7 @@ function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner
   let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount,mapId);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
-  const uniformDefense=defenseVersion===DEFENSE_VERSION&&[...maps.list(),...maps.pilotList()].some(map=>map.id===mapId);
+  const uniformDefense=defenseVersion===DEFENSE_VERSION&&maps.isWorldMap(mapId);
   if(uniformDefense||['capital-v7','capital-v6','capital-v5','capital-v4','capital-v3','capital-v2'].includes(defenseVersion)&&mapId==='citadel-v1'&&difficulty===5){
     aip.prod=uniformDefense||defenseVersion==='capital-v7'?.875:.85;aip.int=({'capital-v2':2.45,'capital-v3':2.5,'capital-v4':2.47,'capital-v5':2.45})[defenseVersion]??2.35;
     // 26 in HQ, 14 in the central weapon and 15 in each support base = 70.
