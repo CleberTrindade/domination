@@ -70,11 +70,12 @@ test('drawing stays near 60 FPS on high refresh screens without reducing simulat
   const html=fs.readFileSync(require.resolve('../public/index.html'),'utf8');
   const source=html.slice(html.indexOf('let last=performance.now(),lastPaint='),html.indexOf('\nrefreshAll();',html.indexOf('let last=performance.now(),lastPaint=')));
   for(const hz of [30,60,72,90,120,144]){
-    let paints=0,steps=0,callback;
+    let paints=0,steps=0,cameraSteps=0,callback;
     const document={hidden:false,body:{classList:{contains:()=>true}}};
-    vm.runInNewContext(source,{performance:{now:()=>0},game:{mode:'world'},document,frame(){steps++;},render(){paints++;},hud(){},requestAnimationFrame(fn){callback=fn;}});
+    vm.runInNewContext(source,{performance:{now:()=>0},game:{mode:'world'},document,battleInput:{update(){cameraSteps++;}},frame(){steps++;},render(){paints++;},hud(){},requestAnimationFrame(fn){callback=fn;}});
     for(let i=1;i<=hz*5;i++)callback(i*1000/hz);
     assert(Math.abs(paints-Math.min(hz,60)*5)<=2,hz+' Hz produced '+paints+' frames');assert.equal(steps,hz*5);
-    document.hidden=true;const before=paints;callback(6000);assert.equal(paints,before);assert.equal(steps,hz*5+1);
+    assert.equal(cameraSteps,hz*5,'edge scrolling updates with the display clock');
+    document.hidden=true;const before=paints;callback(6000);assert.equal(paints,before);assert.equal(steps,hz*5+1);assert.equal(cameraSteps,hz*5,'hidden tabs stop camera movement');
   }
 });

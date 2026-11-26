@@ -60,3 +60,52 @@ test('panning from empty water or move mode never dispatches troop orders',()=>{
  g.cameraMode=true;event('pointerdown',0);event('pointermove',180);event('pointerup',180);assert.equal(orders.length,0);
  g.cameraMode=false;event('pointerdown',0);event('pointermove',180);event('pointerup',180);assert.deepEqual(orders,[{from:[1],to:2}]);assert.equal(pointers.size,0);
 });
+
+function scrollingSetup(axis='x',hz=60){
+ const camera=require('../public/battle-camera'),handlers={},pointers=new Map(),orders=[],captures=new Set(),rect={left:12,top:62,width:320,height:400};
+ const sites=[80,160,430,570].map((value,i)=>({id:i+1,x:axis==='x'?value:160,y:axis==='y'?value:200,owner:i===3?2:1}));
+ const game={mode:'world',me:1,cd:0,L:{W:1000,H:1000,geometry:{scroll:true,side:4,overflow:4}},sites,camera:{x:160,y:200,zoom:1}};
+ let view=camera.configure(game,rect.width,rect.height),current=game;
+ const canvas={addEventListener:(type,fn)=>handlers[type]=fn,setPointerCapture:id=>captures.add(id),releasePointerCapture:id=>captures.delete(id)};
+ const input=installBattleInput({canvas,getGame:()=>current,toMap:e=>({x:(e.clientX-rect.left-view.x)/view.scale,y:(e.clientY-rect.top-view.y)/view.scale}),hit:p=>sites.find(s=>Math.hypot(s.x-p.x,s.y-p.y)<18),playable:g=>!g.over&&!g.paused&&g.cd<=0,pointers,
+  send:(owner,from,target)=>orders.push({owner,from:from.map(s=>s.id),target:target.id}),drop(){},spectate(){},viewport:()=>rect,
+  pan:(dx,dy)=>{camera.pan(game,dx,dy,rect.width,rect.height);view=camera.configure(game,rect.width,rect.height);}});
+ const event=(type,x,y,id=1)=>handlers[type]({clientX:rect.left+x,clientY:rect.top+y,pointerId:id,button:0,preventDefault(){}});
+ const start=()=>{event('pointerdown',sites[0].x,sites[0].y);event('pointermove',axis==='x'?315:160,axis==='y'?395:200);};
+ const tick=(count=1)=>{for(let i=0;i<count;i++)input.update(1/hz);};
+ return {game,sites,rect,event,start,tick,input,pointers,orders,captures,setGame:g=>current=g};
+}
+test('holding a selection at the right or bottom edge reveals and collects offscreen bases before one release command',()=>{
+ for(const axis of ['x','y']){
+  const s=scrollingSetup(axis),before=JSON.stringify(s.sites);s.start();assert.deepEqual(s.pointers.get(1).sel.map(b=>b.id),[1,2]);
+  for(let i=0;i<120&&!s.pointers.get(1).sel.includes(s.sites[2]);i++)s.tick();
+  assert(s.pointers.get(1).sel.includes(s.sites[2]),axis+' hidden friendly collected without pointermove');assert.equal(s.orders.length,0);
+  for(let i=0;i<120&&s.pointers.get(1).ptr[axis]<565;i++)s.tick();
+  assert.equal(JSON.stringify(s.sites),before,'scrolling changes no troops, sites or owners');
+  s.event('pointerup',axis==='x'?315:160,axis==='y'?395:200);assert.deepEqual(s.orders,[{owner:1,from:[1,2,3],target:4}]);
+  const camera=JSON.stringify(s.game.camera);s.tick(20);assert.equal(JSON.stringify(s.game.camera),camera);assert.equal(s.captures.size,0);
+ }
+});
+test('selection edge scrolling supports every direction, diagonals and equivalent speed at 30, 60 and 144 Hz',()=>{
+ for(const [x,y,sx,sy]of [[1,200,-1,0],[319,200,1,0],[160,1,0,-1],[160,399,0,1],[319,399,1,1],[1,1,-1,-1]]){
+  const s=scrollingSetup();s.game.camera.x=s.game.camera.y=500;s.start();s.event('pointermove',x,y);const before={...s.game.camera};s.tick(5);
+  assert.equal(Math.sign(s.game.camera.x-before.x),sx);assert.equal(Math.sign(s.game.camera.y-before.y),sy);
+ }
+ const distances=[30,60,144].map(hz=>{const s=scrollingSetup('x',hz);s.start();const before=s.game.camera.x;s.tick(hz/2);return s.game.camera.x-before;});
+ assert(Math.max(...distances)-Math.min(...distances)<1e-8);
+});
+test('edge scrolling stops away from edges, at map bounds, on cancel, pause, ownership loss or battle replacement',()=>{
+ const s=scrollingSetup();s.start();s.tick(8);s.event('pointermove',160,200);const still=s.game.camera.x;s.tick(10);assert.equal(s.game.camera.x,still);
+ s.event('pointermove',319,200);s.tick(300);assert.equal(s.game.camera.x,840,'right boundary clamps at half the viewport');s.tick(10);assert.equal(s.game.camera.x,840);assert.equal(s.orders.length,0);
+ for(const stop of [s=>s.event('pointercancel',315,200),s=>s.event('lostpointercapture',315,200),s=>s.input.clear(),s=>s.game.paused=true,s=>s.game.over=true,s=>s.game.cd=1,s=>s.game.me=0,s=>{s.sites.forEach(b=>b.owner=2);},s=>s.setGame({...s.game})]){
+  const s=scrollingSetup();s.start();s.tick(3);stop(s);const before=JSON.stringify(s.game.camera);s.tick(10);assert.equal(JSON.stringify(s.game.camera),before);assert.equal(s.orders.length,0);
+ }
+});
+test('edge scrolling excludes taps, spectators, drops, manual movement and non-scrolling modes; other fingers keep their sources',()=>{
+ for(const change of [s=>s.game.me=0,s=>s.game.dropMode=true,s=>s.game.cameraMode=true,s=>s.game.L.geometry.scroll=false,s=>s.game.mode='cpu']){
+  const s=scrollingSetup();change(s);s.start();const before=JSON.stringify(s.game.camera);s.tick(10);assert.equal(JSON.stringify(s.game.camera),before);assert.equal(s.orders.length,0);
+ }
+ const s=scrollingSetup();s.event('pointerdown',80,200);s.tick(10);assert.equal(s.game.camera.x,160,'tap alone never scrolls');
+ s.event('pointerdown',160,200,2);s.event('pointermove',315,200);s.tick(30);assert(s.pointers.get(1).sel.includes(s.sites[2]));assert(s.pointers.get(2).sel.includes(s.sites[1]));assert.equal(s.orders.length,0);
+ s.input.clear();assert.equal(s.pointers.size,0);assert.equal(s.captures.size,0);
+});

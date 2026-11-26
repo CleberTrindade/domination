@@ -1413,9 +1413,12 @@ function hit(m,rad=26){
   return best;
 }
 const playable=g=>!g.over&&!g.paused&&g.cd<=0;
-window.installBattleInput({canvas:cv,getGame:()=>game,toMap,hit,playable,pointers:PTR,
-  pan:(dx,dy)=>{if(game?.mode!=='world'||!game.L.geometry.scroll)return;window.DOMINATION_BATTLE_CAMERA.pan(game,dx,dy,CW,Math.max(120,CH-TOPM-BOTM));resize();},
+const battleInput=window.installBattleInput({canvas:cv,getGame:()=>game,toMap,hit,playable,pointers:PTR,
+  viewport:()=>{const r=cv.getBoundingClientRect();return{left:r.left,top:r.top+TOPM,width:CW,height:Math.max(120,CH-TOPM-BOTM)};},
+  pan:(dx,dy)=>{if(game?.mode!=='world'||!game.L.geometry.scroll)return;const h=Math.max(120,CH-TOPM-BOTM),cam=window.DOMINATION_BATTLE_CAMERA;cam.pan(game,dx,dy,CW,h);const v=cam.configure(game,CW,h);SC=v.scale;VX=v.x;VY=TOPM+v.y;},
   send:cmdSend,drop:cmdDrop,spectate:id=>window.WorldApp.selectJoinSite(id)});
+window.addEventListener('blur',()=>battleInput.clear());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)battleInput.clear();});
 
 const worldCameraTools=document.createElement('nav');window.worldCameraTools=worldCameraTools;worldCameraTools.className='w-camera-tools';worldCameraTools.hidden=true;worldCameraTools.setAttribute('aria-label','Câmera do campo');worldCameraTools.innerHTML='<button data-camera="home" aria-label="Localizar minha base">Base</button><button data-camera="all">Ver tudo</button><button data-camera="move" aria-pressed="false">Mover</button><button data-camera="in" aria-label="Aproximar campo">+</button><button data-camera="out" aria-label="Afastar campo">−</button>';document.querySelector('#game').append(worldCameraTools);
 worldCameraTools.addEventListener('click',e=>{const action=e.target.closest('[data-camera]')?.dataset.camera;if(!action||!game?.camera)return;const cam=window.DOMINATION_BATTLE_CAMERA,h=Math.max(120,CH-TOPM-BOTM);if(action==='in'||action==='out')cam.zoom(game,action==='in'?1.2:1/1.2,CW,h);else if(action==='move'){game.cameraMode=!game.cameraMode;e.target.setAttribute('aria-pressed',String(!!game.cameraMode));}else cam.focus(game,action==='all',CW,h);resize();});
@@ -1627,6 +1630,7 @@ function loop(now){
   const dt=Math.min(0.1,(now-last)/1000);last=now;
   if(game){
     frame(dt);
+    if(!document.hidden&&document.body.classList.contains('world-battle'))battleInput.update(dt);
     if(game&&!document.hidden&&(game.mode!=='world'||document.body.classList.contains('world-battle'))&&now-lastPaint>=PAINT_STEP-.5){
       // Retain fractional time so 72/90/144 Hz displays still average 60 paints/s.
       lastPaint=now-Math.min(PAINT_STEP,Math.max(0,now-lastPaint-PAINT_STEP));
