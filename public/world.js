@@ -129,10 +129,12 @@
   }
   const selectedArea=()=>data?.areas.find(a=>a.id===selected)||data?.areas[0];
   function areaState(area){
-    const mine=!!area.owner_id&&area.owner_id===data.player?.id;
-    const ownBattle=!!area.battle_id&&(area.attacker_id===data.player?.id||area.participant_ids?.includes(data.player?.id));
-    const canDefend=mine&&!!area.battle_id;
-    return {mine,ownBattle,canDefend,action:canDefend?'ASSUMIR DEFESA':ownBattle?'RETOMAR BATALHA':area.battle_id?'ASSISTIR BATALHA':mine?'SOB SEU COMANDO':'BATALHAR'};
+    return window.DOMINATION_AREA_ACTION(area,data.player,busy);
+  }
+  async function activateArea(){
+    const area=selectedArea();if(!area)return;
+    const state=areaState(area);if(state.disabled)return;
+    if(state.canDefend)await defend(area.battle_id);else if(state.ownBattle)await resume(area.battle_id);else await attack();
   }
   function showAreaDetails(){
     const area=selectedArea();if(!area)return;
@@ -337,6 +339,7 @@
     if(!useExplorer&&explorer){explorerPlace=explorer.snapshot();explorer.dispose();explorer=null;}
     if(useExplorer&&explorer&&root.querySelector('#worldExplorer')){
       const header=root.querySelector('.w-lobby-top');if(header)header.outerHTML=lobbyHeader().split('<div class="w-lobby-logo">')[0];
+      root.querySelector('.w-error')?.remove();if(error)root.querySelector('#worldExplorer').insertAdjacentHTML('beforebegin','<div class="w-error" role="alert">'+esc(error)+'</div>');
       const nav=root.querySelector('#worldNav');if(nav)nav.outerHTML=mainNavigation();
       explorer.update(data);return;
     }
@@ -345,7 +348,7 @@
       ${tab==='territories'&&social?.hasInvite()?'<button class="w-banner" data-tab="friends">VOCÊ RECEBEU UM CONVITE DE AMIZADE ›</button>':''}
       ${tab === 'territories' ? useExplorer?'<section id="worldExplorer" class="w-lobby-campaign" aria-label="Explorar o mundo"></section>':map() : tab==='troops'?troopsScreen():tab==='rewards'?rewardsScreen():tab==='profile'?playerProfile():tab==='friends'?(social?.friendsScreen()||'<p>Carregue novamente para abrir os amigos.</p>'):tab==='more'?mainMenu():tab==='received'?'<div class="w-heading"><div><h1>Ataques sofridos</h1><p>Seus últimos 20 ataques, do mais recente ao mais antigo.</p></div></div>'+receivedList():tab === 'ranking' ? ranking() : (social?.historyScreen()||history())}
       ${lobby?'':'<footer class="w-footer"><p><span class="w-sync">● Conquistas salvas online</span><br>Cada área pode trocar de comandante.</p></footer>'}${mainNavigation()}`;
-    if(useExplorer)explorer=window.DOMINATION_EXPLORER.create(root.querySelector('#worldExplorer'),{data,saved:explorerPlace,onArea(id){if(!data.areas.some(a=>a.id===id))return;selected=id;showAreaDetails();}});
+    if(useExplorer)explorer=window.DOMINATION_EXPLORER.create(root.querySelector('#worldExplorer'),{data,saved:explorerPlace,isBusy:()=>busy,onArea(id){if(!data.areas.some(a=>a.id===id))return;selected=id;return activateArea();}});
     tutorial?.decorate();
   }
   async function refresh(force = false) {
@@ -764,7 +767,7 @@
     if(action==='difficulty-next'){dialog.close();await refresh(true);reviewDifficulty();return;}
     if(action==='area-details'){showAreaDetails();return;}
     if(action==='preview-map'){showMapPreview();return;}
-    if(action==='area-battle'){const area=selectedArea();if(!area)return;const state=areaState(area);if(state.mine&&!state.canDefend)return;dialog.close();if(state.canDefend)await defend(area.battle_id);else if(state.ownBattle)await resume(area.battle_id);else await attack();return;}
+    if(action==='area-battle'){dialog.close();await activateArea();return;}
     if(action==='formation-first'||action==='formation-remove'){
       if(savingFormations)return;const f=ensureFormations(),slot=editingFormationSlot;
       if(Number.isInteger(slot)&&slot>=0&&slot<f.troops.length){if(action==='formation-first'&&slot>0)f.troops.unshift(f.troops.splice(slot,1)[0]);if(action==='formation-remove'&&f.troops.length>1)f.troops.splice(slot,1);editingFormationSlot=null;dialog.close();formationChanged();}return;

@@ -1,4 +1,5 @@
 import {destinationEnabled} from './pilot-policy.js';
+import areaAction from '../../public/world-area-action.js';
 import template from './template.html';
 import {territoryCount,territoryLocations,municipalAreas,registerMunicipalAreas} from './territories.js';
 import {geoOrthographic,geoMercator,geoPath,geoGraticule10,geoCentroid,geoContains,geoDistance,geoBounds,geoArea} from 'd3-geo';
@@ -78,7 +79,7 @@ async function enter(){
   }
   state.loading=false;$('map-loading').hidden=true;state.stage=3;state.territory=0;render();updateCamera(true);return;
  }
- const areas=municipalAreas(region()),area=worldData.areas.find(a=>a.id===areas?.[state.territory]?.id);if(area)options.onArea(area.id);
+ const areas=municipalAreas(region()),area=worldData.areas.find(a=>a.id===areas?.[state.territory]?.id);if(area&&!areaAction(area,worldData.player,options.isBusy?.()).disabled)options.onArea(area.id);
 }
 function renderLoading(message){$('map-loading').hidden=false;$('map-loading').lastElementChild.textContent=message;$('explore').disabled=true;$('previous').disabled=true;$('next').disabled=true;}
 function fact(value,label){const box=document.createElement('div');box.className='fact';const strong=document.createElement('strong'),span=document.createElement('span');strong.textContent=value;span.textContent=label;box.append(strong,span);return box;}
@@ -108,7 +109,7 @@ function render(){
  const areaGroups=state.stage===3?municipalAreas(region()):null;
  const unitLabel=region()?.properties.administrativeUnitLabel||'municípios';
  const liveArea=state.stage===3?worldData.areas.find(a=>a.id===areaGroups?.[state.territory]?.id):null;
- if(liveArea){$('selection-name').textContent=liveArea.name;$('selection-description').textContent=liveArea.map_description||liveArea.description;$('explore').firstElementChild.textContent=liveArea.battle_id?'ACOMPANHAR BATALHA':'VER ÁREA';$('troop-level').textContent=liveArea.map_name||'Campo de batalha';$('territory-details').querySelector('.cpu-defense strong').textContent=liveArea.owner_name?'Comandante: '+liveArea.owner_name:'Guarnição CPU';}
+ if(liveArea){const action=areaAction(liveArea,worldData.player,options.isBusy?.());$('selection-name').textContent=liveArea.name;$('selection-description').textContent=liveArea.map_description||liveArea.description;$('explore').firstElementChild.textContent=action.action;$('explore').disabled=$('explore').disabled||action.disabled;$('troop-level').textContent=liveArea.map_name||'Campo de batalha';$('territory-details').querySelector('.cpu-defense strong').textContent=liveArea.owner_name?'Comandante: '+liveArea.owner_name:'Guarnição CPU';}
  const note=state.stage===3?(areaGroups
   ?territoryCount(region())+' áreas · '+unitLabel+' neste grupo: '+areaGroups[state.territory].properties.municipalities.length+(region().properties.boundaryYear?' · divisas de '+region().properties.boundaryYear:'')+'.'
   :territoryCount(region())+' pontos de prévia · divisas locais pendentes'+(Number.isFinite(region().properties.population)?'.':' (população indisponível).'))
