@@ -1,5 +1,6 @@
 'use strict';
 const BASE=require('./map.json');
+const PILOT=require('./pilot-maps.json');
 const MW=390,MAPY=70;
 const KIND={P:'garagem',G:'garagem',H:'heli',B:'botes',A:'canhao',C:'central'};
 const DIRS=[[2,0],[-2,0],[1,-1],[-1,-1],[1,1],[-1,1]];
@@ -22,12 +23,13 @@ function makeMap(def){
   return {cells,seeds};
 }
 const catalog=new Map([['classic',{id:'classic',name:'Campo clássico',description:'Configuração original.',data:BASE}],...definitions.map(def=>[def.id,{id:def.id,name:def.name,area:def.area,tag:def.tag,description:def.description,data:makeMap(def)}])]);
+for(const map of PILOT)catalog.set(map.id,map);
 for(const map of catalog.values()){for(const cell of map.data.cells)Object.freeze(cell);for(const seed of map.data.seeds)Object.freeze(seed);Object.freeze(map.data.cells);Object.freeze(map.data.seeds);Object.freeze(map.data);Object.freeze(map);}
 function buildGeometry(MAPDATA){
   const cells=MAPDATA.cells.map(([c,r,x,y,t])=>({c,r,x,y:y-MAPY,t}));
   const key=(c,r)=>c+','+r,idx=new Map();cells.forEach((q,i)=>idx.set(key(q.c,q.r),i));
   const DIRS=[[2,0],[-2,0],[1,-1],[-1,-1],[1,1],[-1,1]];
-  const nb=cells.map(q=>DIRS.map(([a,b])=>idx.get(key(q.c+a,q.r+b))).filter(v=>v!=null));
+  const nb=MAPDATA.neighbors||cells.map(q=>DIRS.map(([a,b])=>idx.get(key(q.c+a,q.r+b))).filter(v=>v!=null));
   const seeds=MAPDATA.seeds.map(([cell,n])=>({cell,n,kind:KIND[n]}));
   // componentes de terra (ilhas dos botes ficam isoladas)
   const comp=cells.map(()=>-1);let nc=0;
@@ -48,7 +50,10 @@ function buildGeometry(MAPDATA){
 }
 const cache=new Map();
 function get(id='classic'){const map=catalog.get(id||'classic');if(!map)throw Error('Unknown battle map: '+id);return map;}
-function geometry(id='classic'){const map=get(id);if(!cache.has(map.id))cache.set(map.id,buildGeometry(map.data));return cache.get(map.id);}
-const forArea=area=>definitions.find(def=>def.area===area)?.id||'classic';
-const list=()=>[...catalog.values()].filter(map=>map.id!=='classic').map(({data,...metadata})=>metadata);
-module.exports={get,geometry,forArea,list};
+function geometry(id='classic'){const map=get(id);if(!cache.has(map.id)){const hx=buildGeometry(map.data);Object.assign(hx,{width:map.width||390,height:map.height||640,hexAngle:map.hexAngle||0,scroll:!!map.scroll,side:map.side,overflow:map.overflow});
+ if(map.scroll){hx.corners=[4,1,2,3];const sides=new Map();for(const [i,c]of hx.cells.entries()){const ring=Array.from({length:6},(_,j)=>{const a=(60*j-90+hx.hexAngle)*Math.PI/180;return [c.x+26*Math.cos(a),c.y+26*Math.sin(a)];});for(let j=0;j<6;j++){const a=ring[j],b=ring[(j+1)%6],key=[a,b].map(p=>p.map(v=>v.toFixed(3)).join(',')).sort().join(':');if(sides.has(key)){const edge=sides.get(key);edge.neighbor=i;}else sides.set(key,{cell:i,neighbor:null,a,b});}}hx.edges=[...sides.values()];}
+ cache.set(map.id,hx);}return cache.get(map.id);}
+const forArea=area=>PILOT.find(def=>def.area===area)?.id||definitions.find(def=>def.area===area)?.id||'classic';
+const list=()=>[...catalog.values()].filter(map=>map.id!=='classic'&&!map.scroll).map(({data,...metadata})=>metadata);
+const pilotList=()=>PILOT.map(({data,...meta})=>meta);
+module.exports={get,geometry,forArea,list,pilotList};

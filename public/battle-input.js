@@ -4,7 +4,7 @@
   else root.installBattleInput=factory().installBattleInput;
 })(typeof window==='object'?window:globalThis,function(){
   'use strict';
-  function installBattleInput({canvas,getGame,toMap,hit,playable,pointers,send,drop,spectate}){
+  function installBattleInput({canvas,getGame,toMap,hit,playable,pointers,send,drop,spectate,pan}){
     const selected=g=>{
       if(!g.selectedSites)g.selectedSites=new Set();
       for(const site of g.selectedSites)if(site.owner!==g.me)g.selectedSites.delete(site);
@@ -25,12 +25,14 @@
       const selection=g.mode==='local'?[]:collect(g,owner);
       const record={owner,sel:selection,ptr:point,start:{x:e.clientX,y:e.clientY},down:site,moved:false,
         wasSelected:g.mode!=='local'&&selected(g).has(site),drop:g.dropMode,spectator:g.mode==='world'&&g.me===0};
+      record.pan=!!pan&&g.mode==='world'&&!!g.L?.geometry.scroll&&!g.dropMode&&(!site||g.cameraMode);record.lastScreen={x:e.clientX,y:e.clientY};
       if(site?.owner===owner&&!record.sel.includes(site))record.sel.push(site);
       pointers.set(e.pointerId,record);
     });
     canvas.addEventListener('pointermove',e=>{
       const g=getGame(),p=pointers.get(e.pointerId);if(!g||!p||p.consumed)return;
       e.preventDefault?.();
+      if(p.pan){const dx=e.clientX-p.lastScreen.x,dy=e.clientY-p.lastScreen.y;p.lastScreen={x:e.clientX,y:e.clientY};if(Math.hypot(e.clientX-p.start.x,e.clientY-p.start.y)>=8)p.moved=true;if(p.moved)pan(dx,dy);return;}
       const point=toMap(e),previous=p.ptr;p.ptr=point;
       if(Math.hypot(e.clientX-p.start.x,e.clientY-p.start.y)>=8)p.moved=true;
       if(!p.moved||p.spectator||p.drop)return;
@@ -46,6 +48,7 @@
       try{
         if(!playable(g)||p.consumed)return;
         e.preventDefault?.();const site=hit(toMap(e),p.moved?36:26);
+        if(p.pan){if(!p.moved&&!site)selected(g).clear();return;}
         if(p.spectator){if(!p.moved&&site)spectate(site.id);return;}
         if(p.drop){if(site?.owner===g.me)drop(g.me,site);g.dropMode=false;return;}
         if(!p.moved&&site===p.down&&site?.owner===p.owner){

@@ -12,7 +12,7 @@ test('every territory has a distinct usable battlefield, with four headquarters 
     for(let i=0;i<hx.cells.length;i++){const cell=hx.cells[i];assert(cell.t>=0&&cell.t<17);assert.equal(hx.comp[i],hx.comp[hx.seeds[cell.t].cell]);assert(cell.x>20&&cell.x<370&&cell.y>20&&cell.y<620);}
     const setup=engine.initialSites(.5,3,2,3,meta.id);assert.equal(setup.sites.filter(s=>s.owner===2).length,4);assert.equal(setup.sites[0].owner,2);assert.equal(setup.sites.filter(s=>s.owner===1).length,1);
     assert.equal(setup.defenderShare,setup.sites.filter(s=>s.owner===2).reduce((n,s)=>n+hx.weights[s.id],0)/hx.cells.length);
-    assert.equal(maps.forArea(meta.area),meta.id);
+    assert.equal(maps.get(maps.forArea(meta.area)).area,meta.area);
   }
   assert.equal(signatures.size,5);assert.throws(()=>maps.get('unknown'));
 });

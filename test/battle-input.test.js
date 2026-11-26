@@ -51,3 +51,12 @@ test('the real hit target includes the building roof and ground anchor across vi
     assert.equal(context.hit({x:100,y:130}),site,'the visible roof fits inside the hex and is selectable');assert.equal(context.hit({x:100,y:150}),site);assert.equal(context.hit({x:114,y:163}),site);assert.equal(context.hit({x:0,y:0}),null);
   }
 });
+test('panning from empty water or move mode never dispatches troop orders',()=>{
+ const handlers={},pointers=new Map(),orders=[],pans=[],sites=[{id:1,x:0,y:0,owner:1},{id:2,x:180,y:0,owner:2}],g={mode:'world',me:1,cd:0,L:{geometry:{scroll:true}},selectedSites:new Set([sites[0]])};
+ const canvas={addEventListener:(type,fn)=>handlers[type]=fn,setPointerCapture(){},releasePointerCapture(){}};
+ installBattleInput({canvas,getGame:()=>g,toMap:e=>({x:e.clientX,y:e.clientY}),hit:p=>sites.find(s=>Math.hypot(s.x-p.x,s.y-p.y)<18),playable:()=>true,pointers,send:(_owner,from,to)=>orders.push({from:from.map(s=>s.id),to:to.id}),drop(){},spectate(){},pan:(dx,dy)=>pans.push([dx,dy])});
+ const event=(type,x,y=0)=>handlers[type]({clientX:x,clientY:y,pointerId:1,button:0,preventDefault(){}});
+ event('pointerdown',40,60);event('pointermove',80,80);event('pointerup',80,80);assert.equal(orders.length,0);assert.equal(g.selectedSites.size,1);assert.deepEqual(pans,[[40,20]]);
+ g.cameraMode=true;event('pointerdown',0);event('pointermove',180);event('pointerup',180);assert.equal(orders.length,0);
+ g.cameraMode=false;event('pointerdown',0);event('pointermove',180);event('pointerup',180);assert.deepEqual(orders,[{from:[1],to:2}]);assert.equal(pointers.size,0);
+});

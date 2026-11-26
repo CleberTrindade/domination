@@ -23,7 +23,7 @@ test('browser combat persists only completed battles and preserves world, sessio
       [alice,bob,charlie]=await Promise.all([register('alice'),register('bob'),register('charlie')]);
       assert.equal(alice.status,200);assert(alice.cookie.startsWith('domination_session='));
       assert.equal((await register('alice')).status,409);assert.equal((await api('/api/auth/login',null,{username:'alice',password:'wrong-password'})).status,401);
-      const world=(await api('/api/world',alice.cookie)).data;assert.equal(world.player.username,'alice');assert.equal(world.areas.length,5);assert(!JSON.stringify(world).includes('password_hash'));
+      const world=(await api('/api/world',alice.cookie)).data;assert.equal(world.player.username,'alice');assert.equal(world.areas.length,10);assert(!JSON.stringify(world).includes('password_hash'));
       assert.equal((await api('/api/world/areas/se-agreste/attack',null,{})).status,401);
       assert.equal((await api('/api/world/areas/se-agreste/attack',alice.cookie,{}, {Origin:'https://other.invalid'})).status,403);
     });

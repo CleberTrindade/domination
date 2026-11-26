@@ -771,3 +771,17 @@ aplicáveis. A versão acompanha checkpoints e replays; registros anteriores
 conservam seus parâmetros, inclusive a dificuldade original das áreas 1–4.
 Replays com `capital-v2`, `capital-v3`, `capital-v4`, `capital-v5` e `capital-v6` preservam a produção de 0,850 tropa/s e seus intervalos de 2,45 s, 2,50 s, 2,47 s, 2,45 s e 2,35 s, respectivamente.
 Replays com `capital-v7` preservam a produção de 0,875 tropa/s, o intervalo de 2,35 s e 70 tropas somente na área 5.
+
+## Piloto com globo — Sergipe
+
+A navegação de Batalha usa o globo do World Explorer: Mundo → América do Sul → Brasil → Sergipe. Os demais destinos podem ser visualizados, mas exibem **Em breve** e não permitem avançar. A API também recusa iniciar ataques em áreas fora de Sergipe.
+
+Sergipe tem dez agrupamentos dos 75 municípios usados no beta. A migração `017_sergipe_globe_pilot.sql` apenas acrescenta cinco registros (`se-area-06` a `se-area-10`), inicialmente da CPU. Os cinco IDs anteriores, proprietários, versões, datas de conquista, contas, moedas, cartas e histórico são preservados. A associação dos grupos considera a proximidade das áreas antigas; cada município aparece uma vez. A navegação guarda a posição ao trocar de aba e mantém o globo montado durante atualizações da carteira.
+
+Os dez campos `se-pilot-01-v1` a `se-pilot-10-v1` usam os formatos aprovados no beta, em orientação vertical, horizontal e nas duas direções. Cada campo mantém 17 estruturas das espécies existentes e reutiliza os mesmos sprites, tropas, alcance, produção e regras de combate. Toda ilha com quartel terrestre tem transporte naval/aéreo alcançável; nenhum quartel é colocado em um posto decorativo de uma célula. A câmera é apenas visual: arrastar a água move a visão; **Mover** permite arrastar também sobre as bases. **Base**, **Ver tudo**, **+** e **−** controlam o enquadramento. Arrastar uma base própria continua enviando tropas, quando Mover está desligado.
+
+Novas batalhas recebem um ID de mapa permanente. Os cinco mapas legados continuam no catálogo para replays e configurações anteriores. Motor do navegador, worker, simulação, validação e checkpoints recebem a mesma geometria. A defesa uniforme existente é mantida nos novos campos. A ampliação não implementa mundos independentes por faixa de evolução: isso continua sendo uma etapa separada.
+
+Fontes: contornos Natural Earth (domínio público), grupos municipais do IBGE do beta aprovado, textura Earth Day do Solar System Scope sob CC BY 4.0 (https://www.solarsystemscope.com/textures/). As artes das estruturas continuam as do próprio Domination. Não existe carregamento remoto de geografia durante partidas.
+
+Regenerar assets: `npm run build:explorer` (dependências de desenvolvimento). Os bundles e dados gerados são versionados; o Render continua instalando com `npm ci` e iniciando com `npm start`, sem compilação em produção. `npm run dev` usa um banco PGlite efêmero isolado, sem `DATABASE_URL`. O caminho `__local_field` existe apenas nesse processo de revisão local e nunca no servidor de produção.

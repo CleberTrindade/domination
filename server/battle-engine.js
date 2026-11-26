@@ -62,7 +62,7 @@ function createBattle({share=.35,difficulty=1,seed=1,maxSeconds=360,centralOwner
   let defenderControlled=false;
   const random=seeded(seed),setup=initialSites(share,difficulty,centralOwner,defenderBaseCount,mapId);
   const aip={prod:.65+difficulty*.045,cap:50,int:Math.max(1.8,3.6-difficulty*.25),aggr:.55};
-  const uniformDefense=defenseVersion===DEFENSE_VERSION&&maps.list().some(map=>map.id===mapId);
+  const uniformDefense=defenseVersion===DEFENSE_VERSION&&[...maps.list(),...maps.pilotList()].some(map=>map.id===mapId);
   if(uniformDefense||['capital-v7','capital-v6','capital-v5','capital-v4','capital-v3','capital-v2'].includes(defenseVersion)&&mapId==='citadel-v1'&&difficulty===5){
     aip.prod=uniformDefense||defenseVersion==='capital-v7'?.875:.85;aip.int=({'capital-v2':2.45,'capital-v3':2.5,'capital-v4':2.47,'capital-v5':2.45})[defenseVersion]??2.35;
     // 26 in HQ, 14 in the central weapon and 15 in each support base = 70.

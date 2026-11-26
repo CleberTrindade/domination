@@ -248,7 +248,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
         if(battle.areaId===areaId)throw new HttpError(409,'Essa área está em disputa.');
       }
       const area=(await pool.query('SELECT a.*,p.display_name AS owner_name FROM world_areas a LEFT JOIN world_players p ON p.id=a.owner_id WHERE a.id=$1',[areaId])).rows[0];
-      if(!area)throw new HttpError(404,'Área não encontrada.');if(area.owner_id===player.id)throw new HttpError(409,'Essa área já pertence a você.');
+      if(!area)throw new HttpError(404,'Área não encontrada.');if(area.state_id!=='SE')throw new HttpError(403,'Em breve. Apenas Sergipe está disponível.');if(area.owner_id===player.id)throw new HttpError(409,'Essa área já pertence a você.');
       if(retaliationOf){
         const original=await lookup(retaliationOf,player.id);
         if(original.defenderId!==player.id)throw new HttpError(403,'Somente quem sofreu o ataque pode responder.');
@@ -272,7 +272,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
     });startQueue=task.catch(()=>{});return task;
   }
   async function world(player){
-    const areas=(await pool.query('SELECT a.*,p.display_name AS owner_name,p.army_level AS owner_level FROM world_areas a LEFT JOIN world_players p ON p.id=a.owner_id ORDER BY a.ordinal')).rows;
+    const areas=(await pool.query('SELECT a.*,p.display_name AS owner_name,p.army_level AS owner_level FROM world_areas a LEFT JOIN world_players p ON p.id=a.owner_id WHERE a.state_id=\'SE\' ORDER BY a.ordinal')).rows;
     for(const area of areas){const battle=[...battles.values()].find(b=>b.areaId===area.id&&b.status==='active'),profile=areaProfile(area.ordinal),map=engineFactory.maps.get(engineFactory.maps.forArea(area.id)),setup=engineFactory.initialSites(.5,area.ordinal,2,ARMY_RULES.defenderBaseCount,map.id);Object.assign(area,{map_id:map.id,map_name:map.name,map_tag:map.tag,map_description:map.description,map_defender_sites:setup.sites.filter(s=>s.owner===2).map(s=>s.id),map_attacker_site:setup.sites.find(s=>s.owner===1).id,battle_id:battle?.id||null,attacker_id:battle?.attackerId||null,attacker_name:battle?.attackerName||null,defender_controlled:!!battle?.defenderControlled,participant_ids:battle?[...battle.members.values()].filter(p=>p.status==='active'||p.status==='pending').map(p=>p.playerId):[],defense_share:setup.defenderShare,defense_bases:ARMY_RULES.defenderBaseCount,resistance:profile.resistance,first_capture_reward:profile.cpuReward});}
     const ranking=(await pool.query('SELECT p.id,p.display_name AS name,count(*)::int AS areas FROM world_players p JOIN world_areas a ON a.owner_id=p.id GROUP BY p.id,p.display_name ORDER BY areas DESC,p.display_name LIMIT 10')).rows;
     const history=(await pool.query("SELECT b.id,b.status,b.finished_at,a.name AS area_name,p.display_name AS attacker_name,d.display_name AS defender_name,w.display_name AS winner_name FROM world_battles b JOIN world_areas a ON a.id=b.area_id JOIN world_players p ON p.id=b.attacker_id LEFT JOIN world_players d ON d.id=b.defender_id LEFT JOIN world_players w ON w.id=b.winner_id WHERE b.status<>'active' ORDER BY b.finished_at DESC LIMIT 12")).rows;

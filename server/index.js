@@ -34,6 +34,7 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/tutorial.css', ['tutorial.css', 'text/css; charset=utf-8']],
     ['/world.js', ['world.js', 'application/javascript; charset=utf-8']],
     ['/world-motion.js', ['world-motion.js', 'application/javascript; charset=utf-8']],
+    ['/battle-camera.js', ['battle-camera.js', 'application/javascript; charset=utf-8']],
     ['/battle-input.js', ['battle-input.js', 'application/javascript; charset=utf-8']],
     ['/troop-art.js', ['troop-art.js', 'application/javascript; charset=utf-8']],
     ['/art/troops-initial-v1.png', ['art/troops-initial-v1.png', 'image/png']],
@@ -61,6 +62,11 @@ async function createApplication({ pool = databasePool(), worldOptions = {} } = 
     ['/world-social.js', ['world-social.js', 'application/javascript; charset=utf-8']],
     ['/replay-worker.js', ['replay-worker.js', 'application/javascript; charset=utf-8']]
   ].map(([url, [filename, mime]]) => [url, { body: fs.readFileSync(path.join(__dirname, '../public', filename)), mime }]));
+  assets.set('/world-explorer.js',{body:fs.readFileSync(path.join(__dirname,'../public/world-explorer.js')),mime:'application/javascript; charset=utf-8'});
+  for(const file of ['style.css','mockup.css','data/world.json','data/BRA.json','data/sergipe-pilot.json','art/earth-day.jpg']){
+    const mime=file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.json')?'application/json; charset=utf-8':'image/jpeg';
+    assets.set('/explorer/'+file,{body:fs.readFileSync(path.join(__dirname,'../public/explorer',file)),mime});
+  }
   const tutorialAudio=require('../public/tutorial-audio.json');
   const spriteManifest=require('../public/art/battle-sprites/manifest.json');
   assets.set('/battle-sprites.js',{body:fs.readFileSync(path.join(__dirname,'../public/battle-sprites.js')),mime:'application/javascript; charset=utf-8'});

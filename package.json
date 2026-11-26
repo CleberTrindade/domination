@@ -9,7 +9,9 @@
     "test": "node --test test/*.test.js",
     "check": "node scripts/check.js",
     "sprites:build": "node scripts/build-battle-sprites.js",
-    "reset:batalha": "node scripts/reset-battles.js"
+    "reset:batalha": "node scripts/reset-battles.js",
+    "build:explorer": "node scripts/build-sergipe-pilot.mjs && node scripts/build-pilot-maps.mjs && node scripts/build-world-explorer.js",
+    "dev": "node scripts/dev-world.js"
   },
   "engines": {
     "node": ">=18"
@@ -20,6 +22,8 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.17",
+    "d3-geo": "^3.1.1",
+    "esbuild": "^0.25.0",
     "sharp": "^0.34.5"
   }
 }

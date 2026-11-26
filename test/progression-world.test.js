@@ -21,7 +21,7 @@ test('persistent army progression protects money, freezes battle levels and reco
     await t.test('new and existing accounts begin at level one; every area remains available and rewards reflect resistance',async()=>{
       const data=await world(alice);assert.equal(data.army.level,1);assert.equal(data.army.troops.tanque.nextCost,100);assert.equal(data.army.troops.tanque.power,1);
       assert.deepEqual(data.progression.upgradeCosts,[0,0,100,250,500,1000,2000,4000,7000,11000,18000]);
-      assert.deepEqual(data.areas.map(a=>a.first_capture_reward),[250,250,450,600,600]);assert(data.areas.every(a=>a.defense_bases===3&&a.map_id&&a.defense_share>0&&a.defense_share<.5));
+      assert.deepEqual(data.areas.map(a=>a.first_capture_reward),[250,250,450,600,600,600,600,600,600,600]);assert(data.areas.every(a=>a.defense_bases===3&&a.map_id&&a.defense_share>0&&a.defense_share<.5));
       assert.equal((await api('/api/world/army/upgrade',null,{requestId:randomUUID(),expectedLevel:1})).status,401);
       record=await start('se-aracaju',alice);assert.equal(record.config.defenderBaseCount,3);assert.equal(record.config.defenderPower,.8);assert.equal(record.economy.cpuReward,600);await surrender(record,alice);
       await funds(alice);

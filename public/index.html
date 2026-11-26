@@ -517,6 +517,7 @@ return {S:__m.sprites2,U3:__m.units3d};})();
 <script src="/troop-art.js?v=bases-v2"></script>
 <script src="/battle-sprites-manifest.js"></script>
 <script src="/battle-sprites.js"></script>
+<script src="/battle-camera.js"></script>
 <script src="/battle-input.js"></script>
 <script>
 (()=>{
@@ -605,24 +606,26 @@ function buildLevel(lv,W,H,o={}){
   const nAI=o.nAI||(lv<=2?1:lv<=5?2:3);
   const sites=HX.seeds.map((s,k)=>{const c=HX.cells[s.cell];return{id:k,x:c.x,y:c.y,cell:s.cell,n:s.n,kind:s.kind,owner:0,troops:Math.round(BASE0*PCT[s.kind]),hq:false,cd:0}});
   for(let i=0;i<=nAI;i++){const s=sites[HX.corners[i]];s.owner=1+i;s.hq=true;s.troops=BASE0}
-  return {lv,W:MW,H:MAPH,reg:REGIONS[0],sites,reach:1e9,nAI,geometry:HX};
+  return {lv,W:HX.width||MW,H:HX.height||MAPH,reg:REGIONS[0],sites,reach:1e9,nAI,geometry:HX};
 }
-const hexPts=(x,y,r)=>{const p=[];for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-90);p.push([x+r*Math.cos(a),y+r*Math.sin(a)])}return p};
-function hexPath(c,x,y,r){const p=hexPts(x,y,r);c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let i=1;i<6;i++)c.lineTo(p[i][0],p[i][1]);c.closePath()}
+const hexPts=(x,y,r,angle=0)=>{const p=[];for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-90+angle);p.push([x+r*Math.cos(a),y+r*Math.sin(a)])}return p};
+function hexPath(c,x,y,r,angle=0){const p=hexPts(x,y,r,angle);c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let i=1;i<6;i++)c.lineTo(p[i][0],p[i][1]);c.closePath()}
 const EDGE=[[2,0,1,2],[1,1,2,3],[-1,1,3,4],[-2,0,4,5],[-1,-1,5,0],[1,-1,0,1]];
 function drawMap(c,L,sites,pal=[0,1,2,3,4]){
   const HX=L.geometry||classicGeometry(),CELLKEY=HX.cellKey||new Map(HX.cells.map((q,i)=>[q.c+','+q.r,i]));
   const cells=HX.cells,depth=HR*0.5,rr=HR*0.99;
   const ord=cells.map((q,i)=>i).sort((a,b)=>cells[a].y-cells[b].y||cells[a].x-cells[b].x);
+  const tilePath=(c,x,y,r)=>hexPath(c,x,y,r,HX.hexAngle||0);
   c.save();c.lineJoin='round';
-  c.fillStyle='rgba(228,246,255,.35)';for(const i of ord){const q=cells[i];hexPath(c,q.x,q.y+depth*0.6,HR*1.2);c.fill()}
-  c.fillStyle='rgba(255,255,255,.55)';for(const i of ord){const q=cells[i];hexPath(c,q.x,q.y+depth*0.5,HR*1.08);c.fill()}
+  c.fillStyle='rgba(228,246,255,.35)';for(const i of ord){const q=cells[i];tilePath(c,q.x,q.y+depth*0.6,HR*1.2);c.fill()}
+  c.fillStyle='rgba(255,255,255,.55)';for(const i of ord){const q=cells[i];tilePath(c,q.x,q.y+depth*0.5,HR*1.08);c.fill()}
   for(const i of ord){const q=cells[i],s=sites[q.t],T=TEAMC[pal[s.owner]||0],isBase=HX.seeds[q.t].cell===i;
     const top=s.owner?(isBase?T.baseHex:(HX.tcol[q.t]%2?T.hexTop:T.hexTop2)):(isBase?'#c3bae6':NEU[HX.tcol[q.t]%NEU.length]);
     const side=s.owner?T.hexSide:'#a69dd2';
-    c.fillStyle=side;c.strokeStyle=side;c.lineWidth=1;hexPath(c,q.x,q.y+depth,rr);c.fill();c.stroke();
-    c.fillStyle=top;c.strokeStyle=top;c.lineWidth=1.2;hexPath(c,q.x,q.y,rr);c.fill();c.stroke()}
+    c.fillStyle=side;c.strokeStyle=side;c.lineWidth=1;tilePath(c,q.x,q.y+depth,rr);c.fill();c.stroke();
+    c.fillStyle=top;c.strokeStyle=top;c.lineWidth=1.2;tilePath(c,q.x,q.y,rr);c.fill();c.stroke()}
   c.lineCap='round';
+  if(HX.edges){for(const e of HX.edges){if(e.neighbor!==null&&(cells[e.cell].t===cells[e.neighbor].t))continue;c.strokeStyle=e.neighbor===null?'#fff':'rgba(255,255,255,.45)';c.lineWidth=e.neighbor===null?2.6:1.3;c.beginPath();c.moveTo(e.a[0],e.a[1]);c.lineTo(e.b[0],e.b[1]);c.stroke();}}else
   for(const i of ord){const q=cells[i],p=hexPts(q.x,q.y,rr);
     for(const [dc,dr,a,b] of EDGE){const n=CELLKEY.get((q.c+dc)+','+(q.r+dr));
       if(n==null){c.strokeStyle='#ffffff';c.lineWidth=2.6}
@@ -816,7 +819,8 @@ function resize(){
   const r=$('#game').getBoundingClientRect();CW=r.width;CH=r.height;
   cv.width=CW*DPR;cv.height=CH*DPR;
   const ah=Math.max(120,CH-TOPM-(game?.worldTraining?Math.max(165,document.querySelector('#worldTutorial')?.offsetHeight||220)+18:BOTM));
-  if(game){const L=game.L;SC=Math.min(CW/L.W,ah/L.H);VX=(CW-L.W*SC)/2;VY=TOPM+(ah-L.H*SC)/2;game.dirty=true}
+  if(game){const L=game.L;if(game.mode==='world'&&L.geometry.scroll){const v=window.DOMINATION_BATTLE_CAMERA.configure(game,CW,ah);SC=v.scale;VX=v.x;VY=TOPM+v.y;}else{SC=Math.min(CW/L.W,ah/L.H);VX=(CW-L.W*SC)/2;VY=TOPM+(ah-L.H*SC)/2;}game.dirty=true;}
+  if(window.worldCameraTools)window.worldCameraTools.hidden=!(game?.mode==='world'&&game.L.geometry.scroll);
 }
 window.addEventListener('resize',()=>{if(game)resize();if(tab==='battle')drawPreview()});
 const screenH=()=>{const gr=$('#game').getBoundingClientRect();return Math.round(MW*(gr.height-TOPM-BOTM)/gr.width)};
@@ -1410,8 +1414,11 @@ function hit(m,rad=26){
 }
 const playable=g=>!g.over&&!g.paused&&g.cd<=0;
 window.installBattleInput({canvas:cv,getGame:()=>game,toMap,hit,playable,pointers:PTR,
+  pan:(dx,dy)=>{if(game?.mode!=='world'||!game.L.geometry.scroll)return;window.DOMINATION_BATTLE_CAMERA.pan(game,dx,dy,CW,Math.max(120,CH-TOPM-BOTM));resize();},
   send:cmdSend,drop:cmdDrop,spectate:id=>window.WorldApp.selectJoinSite(id)});
 
+const worldCameraTools=document.createElement('nav');window.worldCameraTools=worldCameraTools;worldCameraTools.className='w-camera-tools';worldCameraTools.hidden=true;worldCameraTools.setAttribute('aria-label','Câmera do campo');worldCameraTools.innerHTML='<button data-camera="home" aria-label="Localizar minha base">Base</button><button data-camera="all">Ver tudo</button><button data-camera="move" aria-pressed="false">Mover</button><button data-camera="in" aria-label="Aproximar campo">+</button><button data-camera="out" aria-label="Afastar campo">−</button>';document.querySelector('#game').append(worldCameraTools);
+worldCameraTools.addEventListener('click',e=>{const action=e.target.closest('[data-camera]')?.dataset.camera;if(!action||!game?.camera)return;const cam=window.DOMINATION_BATTLE_CAMERA,h=Math.max(120,CH-TOPM-BOTM);if(action==='in'||action==='out')cam.zoom(game,action==='in'?1.2:1/1.2,CW,h);else if(action==='move'){game.cameraMode=!game.cameraMode;e.target.setAttribute('aria-pressed',String(!!game.cameraMode));}else cam.focus(game,action==='all',CW,h);resize();});
 /* render */
 let lastR=0;
 function pin(c,x,y,n,col,k){
@@ -1460,7 +1467,7 @@ function render(){
   // seleção e arrasto
   const selected=new Set([...(g.selectedSites||[])].filter(s=>s.owner===g.me));
   for(const d of PTR.values()){
-    if(d.consumed)continue;
+    if(d.consumed||d.pan)continue;
     d.sel.forEach(s=>selected.add(s));
     if(!d.moved)continue;
     c.strokeStyle='rgba(255,255,255,.95)';c.lineWidth=Math.max(3,5*SC);c.setLineDash([2,9*SC]);
@@ -1635,6 +1642,7 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(tab===
 setTimeout(()=>{if(tab==='battle')drawPreview()},50);
 })();
 </script>
+<script src="/world-explorer.js"></script>
 <script src="/world.js"></script>
 </body>
 </html>
