@@ -450,7 +450,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       if(pathname==='/api/world/army/formations'&&req.method==='POST'){json(200,await saveFormations(player,await body(req)));return true;}
       if(pathname==='/api/world/army/loadout'&&req.method==='POST'){json(200,await saveLoadout(player,await body(req)));return true;}
       if(pathname==='/api/world/army/upgrade'&&req.method==='POST'){json(200,await upgradeArmy(player,await body(req)));return true;}
-      const area=pathname.match(/^\/api\/world\/areas\/([a-z-]+)\/attack$/)?.[1];
+      const area=pathname.match(/^\/api\/world\/areas\/([a-z0-9-]+)\/attack$/)?.[1];
       if(area&&req.method==='POST'){json(201,await start(player,area));return true;}
       const match=pathname.match(/^\/api\/world\/battles\/([^/]+)(?:\/(events|commands|surrender|defend|release|relay|complete|retaliate|join|leave))?$/);
       if(!match||!UUID.test(match[1]))throw new HttpError(404,'Rota não encontrada.');
@@ -458,7 +458,7 @@ function createWorldService(pool,{startClock=true,now=Date.now}={}){
       if(action==='retaliate'&&req.method==='POST'){
         if(owner!==2)throw new HttpError(403,'Somente quem sofreu o ataque pode responder.');
         const input=await body(req);
-        if(typeof input.areaId!=='string'||!/^se-[a-z-]+$/.test(input.areaId))throw new HttpError(400,'Escolha a área para responder ao ataque.');
+        if(typeof input.areaId!=='string'||!/^se-[a-z0-9-]+$/.test(input.areaId))throw new HttpError(400,'Escolha a área para responder ao ataque.');
         json(201,await start(player,input.areaId,id));return true;
       }
       if(battle.final){json(200,{id,playerOwner:owner,status:battle.status,final:battle.final});return true;}
